@@ -327,8 +327,13 @@ class MainWindow(QMainWindow):
                 'w' if not self._controller.settings.invert_color else 'b')
 
     def _on_playback(self):
-        # Placeholder — will be fully implemented in Stage 6
-        self.message_label.setText("Просмотр будет реализован позже")
+        from draughts.ui.playback import PlaybackDialog
+        movie = self._controller.movie
+        if len(movie) < 2:
+            self.message_label.setText("Нет ходов для просмотра")
+            return
+        dlg = PlaybackDialog(movie, self)
+        dlg.exec()
 
     def _on_development(self):
         from draughts.ui.dialogs import DevelopmentDialog
