@@ -203,20 +203,45 @@ class GameController(QObject):
 
     def on_cell_right_click(self, x: int, y: int):
         """Handle right-click — intermediate capture position."""
+        logger.info(f"Right click: ({x}, {y}), selected={self._selected}, "
+                     f"capture_path={self._capture_path}")
         if self._current_turn != self._player_color:
             return
         if self._selected is None:
             return
 
-        piece = self.board.get(x, y)
-        if piece != Board.EMPTY:
-            return
-
         sx, sy = self._selected
-        source = self._capture_path[-1] if self._capture_path else (sx, sy)
 
-        # Check if this is a valid intermediate capture
-        captures = self.board.get_captures(*source)
+        # Build a virtual board reflecting captures already marked
+        virtual = self.board.copy()
+        current_pos = (sx, sy)
+        captured_so_far = set()
+
+        if self._capture_path:
+            # Simulate the partial capture path on a virtual board
+            piece = virtual.get(sx, sy)
+            for i in range(len(self._capture_path) - 1):
+                fx, fy = self._capture_path[i]
+                tx, ty = self._capture_path[i + 1]
+                # Find captured piece between fx,fy and tx,ty
+                dx = 1 if tx > fx else -1
+                dy = 1 if ty > fy else -1
+                cx, cy = fx + dx, fy + dy
+                while (cx, cy) != (tx, ty):
+                    if virtual.get(cx, cy) != Board.EMPTY:
+                        captured_so_far.add((cx, cy))
+                        virtual.set(cx, cy, Board.EMPTY)
+                        break
+                    cx += dx
+                    cy += dy
+                virtual.set(fx, fy, Board.EMPTY)
+                virtual.set(tx, ty, piece)
+            current_pos = self._capture_path[-1]
+
+        # Now check captures from current position on virtual board
+        captures = virtual.get_captures(*current_pos)
+        logger.debug(f"Virtual captures from {current_pos}: {len(captures)} paths")
+
         for path in captures:
             if len(path) >= 2 and path[1] == (x, y):
                 # Valid intermediate jump
@@ -225,7 +250,9 @@ class GameController(QObject):
                 else:
                     self._capture_path.append((x, y))
                 self.capture_highlights_changed.emit(self._capture_path[1:])
+                logger.info(f"Intermediate capture marked: {self._capture_path}")
                 return
+        logger.debug(f"Right click ({x},{y}) not a valid intermediate capture")
 
     def _is_player_piece(self, piece: str) -> bool:
         if self._player_color == 'w':
