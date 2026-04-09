@@ -23,6 +23,7 @@ from draughts.game.board import Board
 from draughts.game.ai import computer_move, record_learning, AIMove
 from draughts.game.learning import LearningDB
 from draughts.game.save import GameSave, save_game, load_game, autosave
+from draughts.ui.sounds import SoundManager
 
 
 class AIWorker(QObject):
@@ -82,6 +83,7 @@ class GameController(QObject):
         self.board = Board()
         self.settings = GameSettings()
         self.learning_db = self._load_learning_db()
+        self.sounds = SoundManager()
 
         # Game state
         self._current_turn: str = 'w'  # who moves next
@@ -265,11 +267,19 @@ class GameController(QObject):
         """Try a non-capture move."""
         valid_moves = self.board.get_valid_moves(sx, sy)
         if (tx, ty) not in valid_moves:
+            if self.settings.sound_effect:
+                self.sounds.play_error()
             return  # invalid move
 
         # Execute move
         move_notation = f"{Board.pos_to_notation(sx, sy)}-{Board.pos_to_notation(tx, ty)}"
         self.board.execute_move(sx, sy, tx, ty)
+        if self.settings.sound_effect:
+            # Check for promotion
+            if self.board.get(tx, ty) in (Board.WHITE_KING, Board.BLACK_KING):
+                self.sounds.play_king()
+            else:
+                self.sounds.play_move()
         self._finish_player_move(move_notation)
 
     def _try_capture_move(self, sx: int, sy: int, tx: int, ty: int):
@@ -301,6 +311,8 @@ class GameController(QObject):
         # Execute the best matching capture
         best_path = matching[0]
         captured = self.board.execute_capture_path(best_path)
+        if self.settings.sound_effect:
+            self.sounds.play_capture()
 
         # Update captured counts
         for cx, cy in captured:
@@ -391,6 +403,8 @@ class GameController(QObject):
 
         if result.kind == 'capture':
             captured = self.board.execute_capture_path(result.path)
+            if self.settings.sound_effect:
+                self.sounds.play_capture()
             for _ in captured:
                 if self._computer_color == 'b':
                     self._beat_w += 1
@@ -401,6 +415,8 @@ class GameController(QObject):
             x1, y1 = result.path[0]
             x2, y2 = result.path[1]
             self.board.execute_move(x1, y1, x2, y2)
+            if self.settings.sound_effect:
+                self.sounds.play_move()
             notation = f"{Board.pos_to_notation(x1, y1)}-{Board.pos_to_notation(x2, y2)}"
         else:
             return
@@ -489,6 +505,8 @@ class GameController(QObject):
     def _on_timer_tick(self):
         self._time_remaining -= 1
         self.timer_tick.emit(self._time_remaining)
+        if 0 < self._time_remaining <= 5 and self.settings.sound_effect:
+            self.sounds.play_timer_warning()
         if self._time_remaining <= 0:
             self._stop_timer()
             # Time's up — confiscate or auto-play
@@ -503,18 +521,24 @@ class GameController(QObject):
         b_count = self.board.count_pieces('b')
 
         if w_count == 0:
-            if self._player_color == 'w':
+            player_lost = (self._player_color == 'w')
+            if player_lost:
                 self.game_over.emit("Вы проиграли!")
             else:
                 self.game_over.emit("Вы выиграли!")
+            if self.settings.sound_effect:
+                self.sounds.play_game_lose() if player_lost else self.sounds.play_game_win()
             self._on_game_end(winner='b')
             return True
 
         if b_count == 0:
-            if self._player_color == 'b':
+            player_lost = (self._player_color == 'b')
+            if player_lost:
                 self.game_over.emit("Вы проиграли!")
             else:
                 self.game_over.emit("Вы выиграли!")
+            if self.settings.sound_effect:
+                self.sounds.play_game_lose() if player_lost else self.sounds.play_game_win()
             self._on_game_end(winner='w')
             return True
 

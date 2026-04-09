@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QApplication
 
 from draughts.game.controller import GameController
 from draughts.ui.main_window import MainWindow
+from draughts.ui.splash import SplashScreen
 
 
 def main():
@@ -15,10 +16,17 @@ def main():
 
     controller = GameController()
     window = MainWindow(controller)
-    window.show()
 
-    # Start first game
-    controller.new_game()
+    # Show splash screen first
+    splash = SplashScreen()
+
+    def on_splash_finished():
+        splash.close()
+        window.show()
+        controller.new_game()
+
+    splash.finished.connect(on_splash_finished)
+    splash.show_animated()
 
     sys.exit(app.exec())
 

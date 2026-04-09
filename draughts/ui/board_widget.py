@@ -27,6 +27,7 @@ class BoardWidget(QWidget):
         self._selection: Optional[tuple[int, int]] = None
         self._capture_highlights: list[tuple[int, int]] = []
         self._turn_color: str = 'w'  # whose turn: 'w' or 'b'
+        self._anim_hidden_cells: set[tuple[int, int]] = set()  # cells hidden during animation
 
         self.setMinimumSize(240, 240)
         self.setMouseTracking(False)
@@ -157,10 +158,12 @@ class BoardWidget(QWidget):
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(rect.adjusted(1, 1, -1, -1))
 
-        # Draw pieces
+        # Draw pieces (skip cells hidden by active animations)
         if self._board:
             for y in range(1, BOARD_SIZE + 1):
                 for x in range(1, BOARD_SIZE + 1):
+                    if (x, y) in self._anim_hidden_cells:
+                        continue
                     piece = self._board.get(x, y)
                     if piece != EMPTY:
                         self._draw_piece(painter, x, y, piece, cell_size, bx, by)
