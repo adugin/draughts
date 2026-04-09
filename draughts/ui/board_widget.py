@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from PyQt6.QtCore import Qt, pyqtSignal, QRectF, QPointF
-from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QMouseEvent, QPainterPath
+from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QMouseEvent
 from PyQt6.QtWidgets import QWidget
 
 from draughts.config import (
@@ -13,6 +13,7 @@ from draughts.config import (
     BLACK, BLACK_KING, WHITE, WHITE_KING, EMPTY,
 )
 from draughts.game.board import Board
+from draughts.ui.piece_painter import draw_piece
 
 
 class BoardWidget(QWidget):
@@ -56,6 +57,11 @@ class BoardWidget(QWidget):
         """Set which side's turn it is ('w' or 'b')."""
         self._turn_color = color
         self.update()
+
+    def get_cell_size(self) -> float:
+        """Return the current cell size in pixels (for matching piece sizes)."""
+        _, cell_size, _, _ = self._metrics()
+        return cell_size
 
     # --- Geometry helpers ---
 
@@ -180,70 +186,9 @@ class BoardWidget(QWidget):
         cx = rect.center().x()
         cy = rect.center().y()
         radius = cell_size * 0.40
-
         is_black = piece in (BLACK, BLACK_KING)
         is_king = piece in (BLACK_KING, WHITE_KING)
-
-        # Main piece color
-        if is_black:
-            main_color = QColor(*COLORS['black_piece'])
-            ring_color = QColor(*COLORS['black_piece_ring'])
-        else:
-            main_color = QColor(*COLORS['white_piece'])
-            ring_color = QColor(*COLORS['white_piece_ring'])
-
-        # Outer ring
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(ring_color)
-        painter.drawEllipse(QPointF(cx, cy), radius, radius)
-
-        # Inner fill
-        inner_r = radius * 0.80
-        painter.setBrush(main_color)
-        painter.drawEllipse(QPointF(cx, cy), inner_r, inner_r)
-
-        # Second ring (concentric style from original)
-        ring2_r = radius * 0.60
-        painter.setPen(QPen(ring_color, max(1, cell_size * 0.03)))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawEllipse(QPointF(cx, cy), ring2_r, ring2_r)
-
-        # King crown
-        if is_king:
-            self._draw_crown(painter, cx, cy, radius * 0.45, is_black)
-
-    def _draw_crown(self, painter: QPainter, cx: float, cy: float,
-                    size: float, is_black: bool):
-        """Draw a simple crown symbol on a king piece."""
-        crown_color = QColor(*COLORS['crown_fill'])
-        gem_color = QColor(*COLORS['crown_gems'])
-
-        # Draw crown as a simple polygon: base + 3 points
-        half = size * 0.7
-        top = cy - size * 0.5
-        bottom = cy + size * 0.4
-        mid = (top + bottom) / 2
-
-        path = QPainterPath()
-        path.moveTo(cx - half, bottom)
-        path.lineTo(cx - half, mid)
-        path.lineTo(cx - half * 0.5, top + size * 0.15)
-        path.lineTo(cx, mid)
-        path.lineTo(cx + half * 0.5, top + size * 0.15)
-        path.lineTo(cx + half, mid)
-        path.lineTo(cx + half, bottom)
-        path.closeSubpath()
-
-        painter.setPen(QPen(gem_color, max(1, size * 0.1)))
-        painter.setBrush(crown_color)
-        painter.drawPath(path)
-
-        # Three gems on the crown points
-        gem_r = size * 0.12
-        for gx in [cx - half * 0.5, cx, cx + half * 0.5]:
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(gem_color)
-            painter.drawEllipse(QPointF(gx, top + size * 0.15), gem_r, gem_r)
+        draw_piece(painter, cx, cy, radius, is_black, is_king)
 
     def _draw_labels(self, painter: QPainter, cell_size: float,
                      bx: float, by: float, board_side: float):

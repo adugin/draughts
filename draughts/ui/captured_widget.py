@@ -1,22 +1,35 @@
-"""Widget displaying captured pieces in two rows — white on top, black on bottom."""
+"""Widget displaying captured pieces in two rows — white on top, black on bottom.
+
+Pieces are drawn with the same function as on the board (piece_painter.draw_piece),
+so they look identical. The panel height adjusts to fit two rows of full-size pieces.
+"""
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QRectF, QPointF
-from PyQt6.QtGui import QPainter, QColor, QPen, QBrush
+from typing import TYPE_CHECKING
+
+from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QWidget
 
-from draughts.config import COLORS
+from draughts.ui.piece_painter import draw_piece
+
+if TYPE_CHECKING:
+    from draughts.ui.board_widget import BoardWidget
 
 
 class CapturedWidget(QWidget):
-    """Draws captured pieces as mini-checkers in two rows."""
+    """Draws captured pieces as full-size checkers in two rows."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._white_count = 0
         self._black_count = 0
-        self.setMinimumHeight(50)
+        self._board_widget: BoardWidget | None = None
+
+    def set_board_widget(self, bw: BoardWidget):
+        """Link to the board widget to match piece size."""
+        self._board_widget = bw
 
     def set_counts(self, white_captured: int, black_captured: int):
         """Update the number of captured pieces for each side."""
@@ -24,74 +37,47 @@ class CapturedWidget(QWidget):
         self._black_count = black_captured
         self.update()
 
+    def _piece_radius(self) -> float:
+        """Get the piece radius matching the board's pieces."""
+        if self._board_widget:
+            cell_size = self._board_widget.get_cell_size()
+            return cell_size * 0.40
+        # Fallback: derive from own height
+        return self.height() / 4 * 0.80
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        w = self.width()
-        h = self.height()
-
-        # Two rows: top = captured white, bottom = captured black
-        row_h = h / 2
-        max_pieces = 12  # maximum possible captured
-
-        # Piece radius: fit both height and width
-        # Height: must fit in row_h with some padding
-        # Width: must fit max_pieces across the width
-        margin = 4
-        available_h = row_h - margin * 2
-        available_w = w - margin * 2
-
-        radius_from_h = available_h / 2 * 0.85
-        radius_from_w = available_w / (max_pieces * 2) * 0.85
-        radius = min(radius_from_h, radius_from_w)
+        radius = self._piece_radius()
         if radius < 3:
+            painter.end()
             return
 
-        step = radius * 2.2  # spacing between piece centers
-        start_x = margin + radius + 2
+        h = self.height()
+        step = radius * 2.3  # spacing = slightly more than diameter
+        start_x = radius + 6
+
+        # Two rows centered vertically
+        row_h = h / 2
+        cy_white = row_h / 2 + 1
+        cy_black = row_h + row_h / 2 - 1
 
         # Draw captured white pieces (top row)
-        cy_white = margin + row_h / 2
-        self._draw_row(painter, self._white_count, start_x, cy_white,
-                       step, radius, is_black=False)
+        for i in range(self._white_count):
+            cx = start_x + i * step
+            draw_piece(painter, cx, cy_white, radius, is_black=False)
 
         # Draw captured black pieces (bottom row)
-        cy_black = row_h + margin + row_h / 2 - margin
-        self._draw_row(painter, self._black_count, start_x, cy_black,
-                       step, radius, is_black=True)
+        for i in range(self._black_count):
+            cx = start_x + i * step
+            draw_piece(painter, cx, cy_black, radius, is_black=True)
 
         painter.end()
 
-    def _draw_row(self, painter: QPainter, count: int,
-                  start_x: float, cy: float, step: float,
-                  radius: float, is_black: bool):
-        """Draw a row of mini captured pieces."""
-        if count <= 0:
-            return
-
-        if is_black:
-            main_color = QColor(*COLORS['black_piece'])
-            ring_color = QColor(*COLORS['black_piece_ring'])
-        else:
-            main_color = QColor(*COLORS['white_piece'])
-            ring_color = QColor(*COLORS['white_piece_ring'])
-
-        for i in range(count):
-            cx = start_x + i * step
-
-            # Outer ring
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(ring_color)
-            painter.drawEllipse(QPointF(cx, cy), radius, radius)
-
-            # Inner fill
-            inner_r = radius * 0.75
-            painter.setBrush(main_color)
-            painter.drawEllipse(QPointF(cx, cy), inner_r, inner_r)
-
-            # Concentric ring
-            ring_r = radius * 0.50
-            painter.setPen(QPen(ring_color, max(1, radius * 0.08)))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawEllipse(QPointF(cx, cy), ring_r, ring_r)
+    def sizeHint(self):
+        from PyQt6.QtCore import QSize
+        # Height should accommodate 2 rows of full-size pieces
+        radius = self._piece_radius()
+        h = int(radius * 2 * 2 + 12)  # 2 pieces vertically + padding
+        return QSize(400, max(h, 60))

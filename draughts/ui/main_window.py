@@ -183,6 +183,7 @@ class MainWindow(QMainWindow):
 
         self.captured_widget = CapturedWidget()
         self.captured_widget.setStyleSheet("background: transparent;")
+        self.captured_widget.set_board_widget(self.board_widget)
         bottom_layout.addWidget(self.captured_widget, stretch=1)
 
         self.message_label = QLabel("")
@@ -190,9 +191,10 @@ class MainWindow(QMainWindow):
         self.message_label.setStyleSheet(
             "color: rgb(0,255,0); font-size: 13px; "
             "font-style: italic; background: transparent;")
-        bottom_layout.addWidget(self.message_label, stretch=2)
+        bottom_layout.addWidget(self.message_label, stretch=1)
 
-        bottom_panel.setFixedHeight(70)
+        # Height fits 2 rows of full-size pieces + padding
+        bottom_panel.setMinimumHeight(80)
         outer_v.addWidget(bottom_panel)
 
     # --- Connect controller signals ---
