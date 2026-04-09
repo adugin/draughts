@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 from draughts.config import COLORS, BTN_LABELS
 from draughts.game.board import Board
 from draughts.ui.board_widget import BoardWidget
+from draughts.ui.captured_widget import CapturedWidget
 
 if TYPE_CHECKING:
     from draughts.game.controller import GameController
@@ -180,10 +181,9 @@ class MainWindow(QMainWindow):
         bottom_layout.setContentsMargins(6, 4, 6, 4)
         bottom_layout.setSpacing(8)
 
-        self.captured_label = QLabel("")
-        self.captured_label.setStyleSheet(
-            "color: white; font-size: 14px; background: transparent;")
-        bottom_layout.addWidget(self.captured_label, stretch=1)
+        self.captured_widget = CapturedWidget()
+        self.captured_widget.setStyleSheet("background: transparent;")
+        bottom_layout.addWidget(self.captured_widget, stretch=1)
 
         self.message_label = QLabel("")
         self.message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -260,9 +260,7 @@ class MainWindow(QMainWindow):
         self.message_label.setText(text)
 
     def _on_captured_changed(self, white_count: int, black_count: int):
-        w_sym = "○ " * white_count
-        b_sym = "● " * black_count
-        self.captured_label.setText(f"Сбиты:  {w_sym}  |  {b_sym}")
+        self.captured_widget.set_counts(white_count, black_count)
 
     def _on_timer_tick(self, seconds: int):
         mins = seconds // 60
