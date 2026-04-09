@@ -193,8 +193,9 @@ class MainWindow(QMainWindow):
             "font-style: italic; background: transparent;")
         bottom_layout.addWidget(self.message_label, stretch=1)
 
+        self._bottom_panel = bottom_panel
         bottom_panel.setMinimumHeight(60)
-        outer_v.addWidget(bottom_panel, stretch=0)  # don't stretch, but adapt via layout
+        outer_v.addWidget(bottom_panel, stretch=0)
 
     # --- Connect controller signals ---
 
@@ -391,6 +392,17 @@ class MainWindow(QMainWindow):
         now = datetime.now()
         self.clock_label.setText(now.strftime("%H:%M:%S"))
         self.date_label.setText(now.strftime("%d.%m.%Y"))
+
+    # --- Resize event ---
+
+    def resizeEvent(self, event):
+        """Adjust bottom panel height proportionally to board cell size."""
+        super().resizeEvent(event)
+        # In the original 640x480: cell=40px, bottom panel~95px = 2.4 cells
+        # Scale the bottom panel to match
+        cell_size = self.board_widget.get_cell_size()
+        panel_h = max(60, int(cell_size * 2.4))
+        self._bottom_panel.setFixedHeight(panel_h)
 
     # --- Close event ---
 
