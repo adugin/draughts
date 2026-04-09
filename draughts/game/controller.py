@@ -12,11 +12,15 @@ This is the central coordinator. It manages:
 
 from __future__ import annotations
 
+import logging
 import random
+import traceback
 from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import QObject, pyqtSignal, QThread, QTimer
+
+logger = logging.getLogger('draughts.controller')
 
 from draughts.config import GameSettings, get_data_dir, AUTOSAVE_FILENAME, LEARNING_DB_FILENAME
 from draughts.game.board import Board
@@ -41,13 +45,17 @@ class AIWorker(QObject):
         self._color = color
 
     def run(self):
-        result = computer_move(
-            self._board.copy(),
-            difficulty=self._difficulty,
-            use_base=self._use_base,
-            learning_db=self._learning_db,
-            color=self._color,
-        )
+        try:
+            result = computer_move(
+                self._board.copy(),
+                difficulty=self._difficulty,
+                use_base=self._use_base,
+                learning_db=self._learning_db,
+                color=self._color,
+            )
+        except Exception:
+            logger.exception("AI crashed during computer_move")
+            result = None
         self.finished.emit(result)
 
 
@@ -382,29 +390,46 @@ class GameController(QObject):
         self._ai_worker.moveToThread(self._ai_thread)
         self._ai_thread.started.connect(self._ai_worker.run)
         self._ai_worker.finished.connect(self._on_ai_finished)
-        self._ai_worker.finished.connect(self._ai_thread.quit)
         self._ai_thread.start()
 
     def _on_ai_finished(self, result: Optional[AIMove]):
         """Handle AI computation result."""
-        self.ai_thinking.emit(False)
-        self.message_changed.emit("")
+        try:
+            self._on_ai_finished_inner(result)
+        except Exception:
+            logger.exception("CRASH in _on_ai_finished")
+            self.message_changed.emit("Ошибка ИИ! См. debug.log")
 
-        self._ai_thread = None
-        self._ai_worker = None
+    def _on_ai_finished_inner(self, result: Optional[AIMove]):
+        logger.info(f"_on_ai_finished: result={result}")
+        logger.info(">>> about to emit ai_thinking(False)")
+        self.ai_thinking.emit(False)
+        logger.info(">>> about to emit message_changed")
+        self.message_changed.emit("")
+        logger.info(">>> cleaning up AI thread")
+        if self._ai_thread is not None:
+            self._ai_thread.quit()
+            self._ai_thread.wait()
+            self._ai_worker.deleteLater()
+            self._ai_thread.deleteLater()
+            self._ai_worker = None
+            self._ai_thread = None
+        logger.info(">>> thread/worker cleared")
 
         if result is None:
-            # AI has no moves — player wins
+            logger.info("AI has no moves — player wins")
             self.game_over.emit("Вы выиграли!")
             return
 
         # Execute AI move
+        logger.info(f"Executing AI move: kind={result.kind}, path={result.path}")
         board_before = self.board.copy()
+        logger.debug("board_before copied")
 
         if result.kind == 'capture':
+            logger.debug("Executing capture path...")
             captured = self.board.execute_capture_path(result.path)
-            if self.settings.sound_effect:
-                self.sounds.play_capture()
+            logger.debug(f"Capture done, {len(captured)} pieces captured")
             for _ in captured:
                 if self._computer_color == 'b':
                     self._beat_w += 1
@@ -414,31 +439,39 @@ class GameController(QObject):
         elif result.kind in ('move', 'sacrifice'):
             x1, y1 = result.path[0]
             x2, y2 = result.path[1]
+            logger.debug(f"Executing simple move ({x1},{y1})->({x2},{y2})")
             self.board.execute_move(x1, y1, x2, y2)
-            if self.settings.sound_effect:
-                self.sounds.play_move()
+            logger.debug("Move executed OK")
             notation = f"{Board.pos_to_notation(x1, y1)}-{Board.pos_to_notation(x2, y2)}"
         else:
+            logger.warning(f"Unknown AI move kind: {result.kind}")
             return
+        logger.info(f"AI move notation: {notation}")
 
         self._situation += 1
+        logger.info(f"AI move executed: {notation}, situation={self._situation}")
 
         # Record position
         pos = self.board.get_string()
         self._positions.append(pos)
         self._movie.append(pos)
+        logger.info(f"Board after AI: {pos}")
 
         # Learning
         if self.settings.use_base:
             self._do_learning(board_before, self.board)
 
         # Emit signals
+        logger.info("Emitting notation/board/captured signals")
         self.notation_added.emit(notation, self._computer_color)
         self.board_changed.emit()
         self.captured_changed.emit(self._beat_w, self._beat_b)
 
         # Check game over
+        logger.info(f"Checking game over, current_turn={self._current_turn}, "
+                     f"w={self.board.count_pieces('w')}, b={self.board.count_pieces('b')}")
         if self._check_game_over():
+            logger.info("Game over detected after AI move!")
             return
 
         # Auto-save
@@ -447,6 +480,7 @@ class GameController(QObject):
         # Switch to player
         self._current_turn = self._player_color
         self.turn_changed.emit(self._current_turn)
+        logger.info(f"Switched to player turn: {self._current_turn}")
         self._start_player_timer()
 
     # --- Undo ---
@@ -519,13 +553,13 @@ class GameController(QObject):
         """Check if the game is over. Emit game_over signal if so."""
         w_count = self.board.count_pieces('w')
         b_count = self.board.count_pieces('b')
+        logger.debug(f"_check_game_over: w={w_count}, b={b_count}, turn={self._current_turn}")
 
         if w_count == 0:
             player_lost = (self._player_color == 'w')
-            if player_lost:
-                self.game_over.emit("Вы проиграли!")
-            else:
-                self.game_over.emit("Вы выиграли!")
+            msg = "Вы проиграли!" if player_lost else "Вы выиграли!"
+            logger.info(f"Game over: {msg} (no white pieces)")
+            self.game_over.emit(msg)
             if self.settings.sound_effect:
                 self.sounds.play_game_lose() if player_lost else self.sounds.play_game_win()
             self._on_game_end(winner='b')
@@ -533,21 +567,25 @@ class GameController(QObject):
 
         if b_count == 0:
             player_lost = (self._player_color == 'b')
-            if player_lost:
-                self.game_over.emit("Вы проиграли!")
-            else:
-                self.game_over.emit("Вы выиграли!")
+            msg = "Вы проиграли!" if player_lost else "Вы выиграли!"
+            logger.info(f"Game over: {msg} (no black pieces)")
+            self.game_over.emit(msg)
             if self.settings.sound_effect:
                 self.sounds.play_game_lose() if player_lost else self.sounds.play_game_win()
             self._on_game_end(winner='w')
             return True
 
-        # Check if current side has no moves
-        if not self.board.has_any_move(self._current_turn):
-            if self._current_turn == self._player_color:
+        # Check if the OPPONENT of whoever just moved has any moves
+        # After player moves, check computer; after computer moves, check player
+        next_turn = self._player_color if self._current_turn == self._computer_color else self._computer_color
+        logger.debug(f"Checking has_any_move for next turn: {next_turn}")
+        if not self.board.has_any_move(next_turn):
+            if next_turn == self._player_color:
+                logger.info("Game over: player has no moves")
                 self.game_over.emit("Вы проиграли!")
                 self._on_game_end(winner=self._computer_color)
             else:
+                logger.info("Game over: computer has no moves")
                 self.game_over.emit("Вы выиграли!")
                 self._on_game_end(winner=self._player_color)
             return True

@@ -92,6 +92,8 @@ def _exist(x1: int, y1: int, x2: int, y2: int,
     """
     if x2 == x1 or y2 == y1:
         return (0, 0, 0)
+    if abs(x2 - x1) != abs(y2 - y1):
+        return (0, 0, 0)  # not on same diagonal
     dx = 1 if x2 > x1 else -1
     dy = 1 if y2 > y1 else -1
     cx, cy = x1 + dx, y1 + dy
@@ -99,7 +101,10 @@ def _exist(x1: int, y1: int, x2: int, y2: int,
     bx, by = 0, 0
     ok = False
     target = BLACKS if color == 'b' else WHITES
-    while not (abs(cx - x2) == 1 and abs(cy - y2) == 1):
+    # Walk from (x1,y1) toward (x2,y2) exclusive of both endpoints
+    while (cx, cy) != (x2, y2):
+        if not _between(cx, cy):
+            return (0, 0, 0)  # off board
         if field[cy][cx] != 'n':
             n += 1
         if field[cy][cx] in target:
@@ -107,12 +112,6 @@ def _exist(x1: int, y1: int, x2: int, y2: int,
             bx, by = cx, cy
         cx += dx
         cy += dy
-    # Check last cell before x2,y2
-    if field[cy][cx] != 'n':
-        n += 1
-    if field[cy][cx] in target:
-        ok = True
-        bx, by = cx, cy
     if ok and n == 1:
         return (1, bx, by)
     if n == 0:
