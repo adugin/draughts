@@ -4,6 +4,7 @@ import sys
 
 from PyQt6.QtWidgets import QApplication
 
+from draughts.game.controller import GameController
 from draughts.ui.main_window import MainWindow
 
 
@@ -12,8 +13,12 @@ def main():
     app.setApplicationName("Шашки")
     app.setApplicationVersion("0.1.0")
 
-    window = MainWindow()
+    controller = GameController()
+    window = MainWindow(controller)
     window.show()
+
+    # Start first game
+    controller.new_game()
 
     sys.exit(app.exec())
 
