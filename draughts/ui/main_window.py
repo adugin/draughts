@@ -193,9 +193,8 @@ class MainWindow(QMainWindow):
             "font-style: italic; background: transparent;")
         bottom_layout.addWidget(self.message_label, stretch=1)
 
-        # Height fits 2 rows of full-size pieces + padding
-        bottom_panel.setMinimumHeight(80)
-        outer_v.addWidget(bottom_panel)
+        bottom_panel.setMinimumHeight(60)
+        outer_v.addWidget(bottom_panel, stretch=0)  # don't stretch, but adapt via layout
 
     # --- Connect controller signals ---
 

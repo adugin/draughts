@@ -1,14 +1,15 @@
 """Widget displaying captured pieces in two rows — white on top, black on bottom.
 
-Pieces are drawn with the same function as on the board (piece_painter.draw_piece),
-so they look identical. The panel height adjusts to fit two rows of full-size pieces.
+Pieces are drawn with the same function as on the board (piece_painter.draw_piece).
+The piece size is calculated to fit within the available panel space while
+staying proportional to the board pieces when possible.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtCore import Qt, QPointF, QSize
 from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QWidget
 
@@ -19,7 +20,9 @@ if TYPE_CHECKING:
 
 
 class CapturedWidget(QWidget):
-    """Draws captured pieces as full-size checkers in two rows."""
+    """Draws captured pieces as checkers in two rows."""
+
+    MAX_PIECES = 12  # max captured per side
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -37,31 +40,49 @@ class CapturedWidget(QWidget):
         self._black_count = black_captured
         self.update()
 
-    def _piece_radius(self) -> float:
-        """Get the piece radius matching the board's pieces."""
+    def _calc_radius(self) -> float:
+        """Calculate piece radius that fits in the available space.
+
+        Uses the board's cell size as the ideal, but clamps to what
+        actually fits in this widget's dimensions.
+        """
+        h = self.height()
+        w = self.width()
+
+        # Must fit 2 rows vertically with padding
+        padding = 4
+        max_radius_from_h = (h - padding * 3) / 4  # 2 diameters + 3 gaps
+
+        # Must fit MAX_PIECES horizontally
+        max_radius_from_w = (w - padding * 2) / (self.MAX_PIECES * 2.3)
+
+        # Fit constraint
+        fit_radius = min(max_radius_from_h, max_radius_from_w)
+
+        # Ideal: match board piece size
         if self._board_widget:
-            cell_size = self._board_widget.get_cell_size()
-            return cell_size * 0.40
-        # Fallback: derive from own height
-        return self.height() / 4 * 0.80
+            board_radius = self._board_widget.get_cell_size() * 0.40
+            # Use board size but don't exceed what fits
+            return min(board_radius, fit_radius)
+
+        return max(fit_radius, 3)
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        radius = self._piece_radius()
+        radius = self._calc_radius()
         if radius < 3:
             painter.end()
             return
 
         h = self.height()
-        step = radius * 2.3  # spacing = slightly more than diameter
+        step = radius * 2.3
         start_x = radius + 6
 
         # Two rows centered vertically
-        row_h = h / 2
-        cy_white = row_h / 2 + 1
-        cy_black = row_h + row_h / 2 - 1
+        cy_white = h / 4
+        cy_black = h * 3 / 4
 
         # Draw captured white pieces (top row)
         for i in range(self._white_count):
@@ -74,10 +95,3 @@ class CapturedWidget(QWidget):
             draw_piece(painter, cx, cy_black, radius, is_black=True)
 
         painter.end()
-
-    def sizeHint(self):
-        from PyQt6.QtCore import QSize
-        # Height should accommodate 2 rows of full-size pieces
-        radius = self._piece_radius()
-        h = int(radius * 2 * 2 + 12)  # 2 pieces vertically + padding
-        return QSize(400, max(h, 60))
