@@ -75,17 +75,22 @@ class MainWindow(QMainWindow):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         main_h.addWidget(self.board_widget, stretch=3)
 
-        # --- Right panel ---
+        # --- Right area: notation columns + buttons column (like original) ---
         right_panel = QFrame()
         right_panel.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         right_panel.setLineWidth(1)
         right_panel.setStyleSheet(
             "QFrame { background-color: #3a2a1a; border: 1px solid #5a3a1a; }")
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(6, 6, 6, 6)
-        right_layout.setSpacing(4)
 
-        # Turn indicator
+        right_h = QHBoxLayout(right_panel)
+        right_h.setContentsMargins(6, 6, 6, 6)
+        right_h.setSpacing(4)
+
+        # -- Left sub-column: indicators + notation --
+        notation_col = QVBoxLayout()
+        notation_col.setSpacing(4)
+
+        # Turn indicators with piece symbols
         turn_row = QHBoxLayout()
         self.white_indicator = QLabel("  Белые  ")
         self.white_indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -99,15 +104,9 @@ class MainWindow(QMainWindow):
             "border: 2px solid #5a4a3a; font-weight: bold; padding: 4px; border-radius: 3px;")
         turn_row.addWidget(self.white_indicator)
         turn_row.addWidget(self.black_indicator)
-        right_layout.addLayout(turn_row)
+        notation_col.addLayout(turn_row)
 
-        # Notation
-        notation_label = QLabel("Нотация ходов")
-        notation_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        notation_label.setStyleSheet(
-            "font-weight: bold; background: transparent; color: #c8a87a;")
-        right_layout.addWidget(notation_label)
-
+        # Two notation columns side by side
         notation_row = QHBoxLayout()
         self.notation_white = QTextEdit()
         self.notation_white.setReadOnly(True)
@@ -115,7 +114,6 @@ class MainWindow(QMainWindow):
         self.notation_white.setStyleSheet(
             "background-color: #f5ead0; color: #2a1a0a; "
             "font-family: Consolas, monospace; border: 1px solid #8a7a5a; border-radius: 2px;")
-        self.notation_white.setMaximumWidth(200)
 
         self.notation_black = QTextEdit()
         self.notation_black.setReadOnly(True)
@@ -123,63 +121,68 @@ class MainWindow(QMainWindow):
         self.notation_black.setStyleSheet(
             "background-color: #1a1210; color: #c8a87a; "
             "font-family: Consolas, monospace; border: 1px solid #5a4a3a; border-radius: 2px;")
-        self.notation_black.setMaximumWidth(200)
 
         notation_row.addWidget(self.notation_white)
         notation_row.addWidget(self.notation_black)
-        right_layout.addLayout(notation_row, stretch=1)
+        notation_col.addLayout(notation_row, stretch=1)
 
-        # Buttons
+        right_h.addLayout(notation_col, stretch=1)
+
+        # -- Right sub-column: buttons + timer/clock --
+        btn_style = (
+            "QPushButton { background-color: #4a3520; color: #e8d8b8; "
+            "border: 1px solid #6a4a2a; padding: 3px 8px; "
+            "border-radius: 3px; font-weight: bold; }"
+            "QPushButton:hover { background-color: #5a4530; "
+            "border-color: #8a6a4a; }"
+            "QPushButton:pressed { background-color: #3a2510; }"
+            "QPushButton:disabled { color: #6a5a4a; background-color: #3a2a1a; }"
+        )
+
+        buttons_col = QVBoxLayout()
+        buttons_col.setSpacing(3)
+
         self.buttons: dict[str, QPushButton] = {}
-        btn_grid = QGridLayout()
-        btn_grid.setSpacing(3)
-        for i, label in enumerate(BTN_LABELS):
+        for label in BTN_LABELS:
             btn = QPushButton(label)
             btn.setMinimumHeight(26)
-            btn.setStyleSheet(
-                "QPushButton { background-color: #4a3520; color: #e8d8b8; "
-                "border: 1px solid #6a4a2a; padding: 3px 8px; "
-                "border-radius: 3px; font-weight: bold; }"
-                "QPushButton:hover { background-color: #5a4530; "
-                "border-color: #8a6a4a; }"
-                "QPushButton:pressed { background-color: #3a2510; }"
-                "QPushButton:disabled { color: #6a5a4a; background-color: #3a2a1a; }")
+            btn.setStyleSheet(btn_style)
             self.buttons[label] = btn
-            if i < 8:
-                btn_grid.addWidget(btn, i // 2, i % 2)
-            else:
-                btn_grid.addWidget(btn, i // 2, 0, 1, 2)
-        right_layout.addLayout(btn_grid)
+            buttons_col.addWidget(btn)
+
+        buttons_col.addStretch()
 
         # Timer
         self.timer_label = QLabel("00:30")
         self.timer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.timer_label.setStyleSheet(
-            "font-size: 18px; font-weight: bold; "
+            "font-size: 16px; font-weight: bold; "
             "font-family: Consolas, monospace; "
             "background-color: #1a1210; color: #d0b080; "
             "border: 1px solid #5a4a3a; padding: 4px; border-radius: 3px;")
-        right_layout.addWidget(self.timer_label)
+        buttons_col.addWidget(self.timer_label)
 
         # Clock and date
         self.clock_label = QLabel("00:00:00")
         self.clock_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.clock_label.setStyleSheet(
-            "font-size: 14px; font-family: Consolas, monospace; "
+            "font-size: 13px; font-family: Consolas, monospace; "
             "background-color: #1a1210; color: #a09070; "
             "border: 1px solid #5a4a3a; padding: 2px; border-radius: 2px;")
         self.date_label = QLabel("")
         self.date_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.date_label.setStyleSheet(
-            "font-size: 12px; font-family: Consolas, monospace; "
+            "font-size: 11px; font-family: Consolas, monospace; "
             "background-color: #1a1210; color: #a09070; "
             "border: 1px solid #5a4a3a; padding: 2px; border-radius: 2px;")
-        right_layout.addWidget(self.clock_label)
-        right_layout.addWidget(self.date_label)
+        buttons_col.addWidget(self.clock_label)
+        buttons_col.addWidget(self.date_label)
+
+        right_h.addLayout(buttons_col)
 
         right_panel.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        right_panel.setMinimumWidth(200)
+        right_panel.setMinimumWidth(280)
         main_h.addWidget(right_panel, stretch=2)
 
         outer_v.addLayout(main_h, stretch=1)

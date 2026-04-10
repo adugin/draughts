@@ -125,7 +125,7 @@ class BoardWidget(QWidget):
         painter.fillRect(self.rect(), QColor(45, 30, 18))
 
         # Board frame — dark mahogany wood texture
-        frame_margin = cell_size * 0.45
+        frame_margin = cell_size * 0.65
         frame_rect = QRectF(bx - frame_margin, by - frame_margin,
                             board_side + 2 * frame_margin, board_side + 2 * frame_margin)
         frame_tex = self._textures.get_frame_wood(max(1, int(board_side + 2 * frame_margin)))
@@ -204,7 +204,7 @@ class BoardWidget(QWidget):
         painter.setPen(QColor(190, 165, 120))
 
         # Label strip matches frame margin
-        strip = cell_size * 0.45
+        strip = cell_size * 0.65
 
         for i in range(BOARD_SIZE):
             # Cell center X for column labels
