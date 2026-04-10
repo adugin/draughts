@@ -6,16 +6,21 @@ using QPropertyAnimation, QTimer, and custom QPainter overlays.
 
 from __future__ import annotations
 
-import math
-from typing import Optional, Callable
+from collections.abc import Callable
 
 from PyQt6.QtCore import (
-    Qt, QObject, QPointF, QRectF, QTimer, QPropertyAnimation,
-    QEasingCurve, pyqtSignal, pyqtProperty, QRect,
+    QEasingCurve,
+    QObject,
+    QPointF,
+    QPropertyAnimation,
+    QRect,
+    Qt,
+    QTimer,
+    pyqtProperty,
+    pyqtSignal,
 )
-from PyQt6.QtGui import QColor, QPainter, QPen
-from PyQt6.QtWidgets import QWidget, QDialog, QApplication
-
+from PyQt6.QtGui import QColor, QPainter
+from PyQt6.QtWidgets import QDialog, QWidget
 
 # ---------------------------------------------------------------------------
 # PieceMoveAnimation — smoothly slides a piece between two cells
@@ -68,7 +73,7 @@ class PieceMoveAnimation(QObject):
             self.finished.emit()
             return
 
-        self._piece_char = board.get(self._x1, self._y1)
+        self._piece_char = board.piece_at(self._x1, self._y1)
         if not self._piece_char or self._piece_char == 'n':
             self.finished.emit()
             return
@@ -168,7 +173,7 @@ class PieceRemoveAnimation(QObject):
             self.finished.emit()
             return
 
-        self._piece_char = board.get(self._x, self._y)
+        self._piece_char = board.piece_at(self._x, self._y)
         if not self._piece_char or self._piece_char == 'n':
             self.finished.emit()
             return
@@ -274,7 +279,7 @@ class TVSetOffAnimation(QObject):
         super().__init__(parent)
         self._window = window
         self._duration = duration_ms
-        self._overlay: Optional[_TVOverlayWidget] = None
+        self._overlay: _TVOverlayWidget | None = None
 
     def start(self):
         """Capture the window content and start the TV-off effect."""

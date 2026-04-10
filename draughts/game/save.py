@@ -7,7 +7,7 @@ This implementation uses JSON for better structure and extensibility.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 
@@ -21,7 +21,7 @@ class GameSave:
     sound_effect: bool = False
     pause: float = 0.75          # animation delay multiplier (0.0-5.0)
     positions: list[str] = field(default_factory=list)   # history of 32-char board states
-    movie: list[str] = field(default_factory=list)       # same positions for playback
+    replay_positions: list[str] = field(default_factory=list)       # same positions for playback
 
     def __post_init__(self):
         if not 1 <= self.difficulty <= 3:
@@ -35,10 +35,10 @@ class GameSave:
                 raise ValueError(
                     f"positions[{i}] must be 32 chars, got {len(pos)}"
                 )
-        for i, pos in enumerate(self.movie):
+        for i, pos in enumerate(self.replay_positions):
             if len(pos) != 32:
                 raise ValueError(
-                    f"movie[{i}] must be 32 chars, got {len(pos)}"
+                    f"replay_positions[{i}] must be 32 chars, got {len(pos)}"
                 )
 
 
@@ -60,6 +60,9 @@ def load_game(filepath: str | Path) -> GameSave:
     """
     filepath = Path(filepath)
     data = json.loads(filepath.read_text(encoding="utf-8"))
+    # Backward compatibility: old saves used "movie" key
+    if "movie" in data and "replay_positions" not in data:
+        data["replay_positions"] = data.pop("movie")
     return GameSave(**data)
 
 

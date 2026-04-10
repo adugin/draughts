@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QPointF
-from PyQt6.QtGui import QPainter, QColor, QPen, QPainterPath
+from PyQt6.QtCore import QPointF, Qt
+from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen
 
-from draughts.config import COLORS, BLACK, BLACK_KING, WHITE_KING
+from draughts.config import COLORS
 
 
 def draw_piece(painter: QPainter, cx: float, cy: float,

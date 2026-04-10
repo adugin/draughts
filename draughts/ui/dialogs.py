@@ -6,7 +6,6 @@ All dialogs use standard PyQt6 widgets for a clean, native Windows look.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
@@ -20,7 +19,6 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
@@ -29,7 +27,6 @@ from PyQt6.QtWidgets import (
 
 from draughts.config import GameSettings
 
-
 # ---------------------------------------------------------------------------
 # 1. OptionsDialog
 # ---------------------------------------------------------------------------
@@ -37,7 +34,7 @@ from draughts.config import GameSettings
 class OptionsDialog(QDialog):
     """Settings dialog — difficulty, speed, hints, sound, delay, etc."""
 
-    def __init__(self, settings: GameSettings, parent: Optional[QWidget] = None):
+    def __init__(self, settings: GameSettings, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Опции")
         self.setModal(True)
@@ -125,7 +122,7 @@ class OptionsDialog(QDialog):
 class DevelopmentDialog(QDialog):
     """Learning control dialog — choose which outcomes trigger DB updates."""
 
-    def __init__(self, settings: GameSettings, parent: Optional[QWidget] = None):
+    def __init__(self, settings: GameSettings, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Развитие")
         self.setModal(True)
@@ -194,7 +191,7 @@ class DevelopmentDialog(QDialog):
 class InfoDialog(QDialog):
     """Scrollable help text dialog loaded from resources/help.txt."""
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Информация")
         self.setModal(True)
@@ -238,7 +235,7 @@ class InfoDialog(QDialog):
 class AboutDialog(QDialog):
     """About the author / program dialog."""
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Об авторе")
         self.setModal(True)
@@ -266,7 +263,7 @@ class AboutDialog(QDialog):
 # 5. SaveDialog (module-level function)
 # ---------------------------------------------------------------------------
 
-def show_save_dialog(parent: Optional[QWidget] = None) -> str | None:
+def show_save_dialog(parent: QWidget | None = None) -> str | None:
     """Show a native file-save dialog for JSON game files.
 
     Returns the selected file path, or None if cancelled.
@@ -284,7 +281,7 @@ def show_save_dialog(parent: Optional[QWidget] = None) -> str | None:
 # 6. LoadDialog (module-level function)
 # ---------------------------------------------------------------------------
 
-def show_load_dialog(parent: Optional[QWidget] = None) -> str | None:
+def show_load_dialog(parent: QWidget | None = None) -> str | None:
     """Show a native file-open dialog for JSON game files.
 
     Returns the selected file path, or None if cancelled.
@@ -311,7 +308,7 @@ class GameOverDialog(QDialog):
     def __init__(
         self,
         message: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         """Create the game-over dialog.
 
@@ -370,7 +367,7 @@ class GameOverDialog(QDialog):
 class ConfirmExitDialog(QDialog):
     """Exit confirmation dialog — 'Are you sure you want to quit?'"""
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Выход")
         self.setModal(True)
@@ -405,7 +402,7 @@ class ConfiscateWarningDialog(QDialog):
     def __init__(
         self,
         piece_position: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         """Create the confiscation warning.
 

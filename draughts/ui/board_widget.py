@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
-from PyQt6.QtCore import Qt, pyqtSignal, QRectF, QPointF
-from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QMouseEvent
+from PyQt6.QtCore import QRectF, Qt, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPen
 from PyQt6.QtWidgets import QWidget
 
 from draughts.config import (
-    BOARD_SIZE, COLORS, COLUMN_LETTERS, ROW_NUMBERS,
-    BLACK, BLACK_KING, WHITE, WHITE_KING, EMPTY,
+    BLACK,
+    BLACK_KING,
+    BOARD_SIZE,
+    COLORS,
+    COLUMN_LETTERS,
+    EMPTY,
+    ROW_NUMBERS,
+    WHITE_KING,
 )
 from draughts.game.board import Board
 from draughts.ui.piece_painter import draw_piece
@@ -24,8 +28,8 @@ class BoardWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._board: Optional[Board] = None
-        self._selection: Optional[tuple[int, int]] = None
+        self._board: Board | None = None
+        self._selection: tuple[int, int] | None = None
         self._capture_highlights: list[tuple[int, int]] = []
         self._turn_color: str = 'w'  # whose turn: 'w' or 'b'
         self._anim_hidden_cells: set[tuple[int, int]] = set()  # cells hidden during animation
@@ -40,7 +44,7 @@ class BoardWidget(QWidget):
         self._board = board
         self.update()
 
-    def set_selection(self, x: Optional[int] = None, y: Optional[int] = None):
+    def set_selection(self, x: int | None = None, y: int | None = None):
         """Highlight selected piece, or clear if x/y is None."""
         if x is None or y is None:
             self._selection = None
@@ -92,7 +96,7 @@ class BoardWidget(QWidget):
         py = by + (y - 1) * cell_size
         return QRectF(px, py, cell_size, cell_size)
 
-    def _cell_from_pos(self, pos) -> Optional[tuple[int, int]]:
+    def _cell_from_pos(self, pos) -> tuple[int, int] | None:
         """Convert a mouse position to board coordinates (1..8), or None."""
         _, cell_size, bx, by = self._metrics()
         mx = pos.x() - bx
@@ -170,7 +174,7 @@ class BoardWidget(QWidget):
                 for x in range(1, BOARD_SIZE + 1):
                     if (x, y) in self._anim_hidden_cells:
                         continue
-                    piece = self._board.get(x, y)
+                    piece = self._board.piece_at(x, y)
                     if piece != EMPTY:
                         self._draw_piece(painter, x, y, piece, cell_size, bx, by)
 

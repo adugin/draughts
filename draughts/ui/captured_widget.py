@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, QPointF, QSize
 from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QWidget
 

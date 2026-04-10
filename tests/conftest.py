@@ -1,7 +1,6 @@
 """Common fixtures for draughts tests."""
 
 import pytest
-
 from draughts.game.board import Board
 
 

@@ -1,14 +1,13 @@
 """Tests for game save/load and session history."""
 
 import pytest
-
 from draughts.game.save import (
     GameSave,
-    save_game,
-    load_game,
     autosave,
-    save_history,
+    load_game,
     load_history,
+    save_game,
+    save_history,
 )
 
 INITIAL_POS = "bbbbbbbbbbbbnnnnnnnnwwwwwwwwwwww"
@@ -23,7 +22,7 @@ class TestGameSaveValidation:
         assert gs.sound_effect is False
         assert gs.pause == 0.75
         assert gs.positions == []
-        assert gs.movie == []
+        assert gs.replay_positions == []
 
     def test_invalid_difficulty(self):
         with pytest.raises(ValueError, match="difficulty"):
@@ -51,7 +50,7 @@ class TestSaveLoadRoundTrip:
             sound_effect=True,
             pause=1.5,
             positions=[INITIAL_POS, "bbbbbbbbbbbnnnnnnnnnwwwwwwwwwwww"],
-            movie=[INITIAL_POS],
+            replay_positions=[INITIAL_POS],
         )
         path = tmp_path / "test.json"
         save_game(path, gs)
@@ -63,7 +62,7 @@ class TestSaveLoadRoundTrip:
         assert loaded.sound_effect is True
         assert loaded.pause == 1.5
         assert loaded.positions == gs.positions
-        assert loaded.movie == gs.movie
+        assert loaded.replay_positions == gs.replay_positions
 
     def test_empty_save(self, tmp_path):
         gs = GameSave()
@@ -71,7 +70,7 @@ class TestSaveLoadRoundTrip:
         save_game(path, gs)
         loaded = load_game(path)
         assert loaded.positions == []
-        assert loaded.movie == []
+        assert loaded.replay_positions == []
 
     def test_load_nonexistent_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):

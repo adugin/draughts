@@ -22,13 +22,13 @@ class Board:
     WHITE_KING = 'W'
 
     # Four diagonal directions: (dy, dx)
-    DIRECTIONS = [(-1, 1), (1, 1), (1, -1), (-1, -1)]
+    DIAGONAL_DIRECTIONS = [(-1, 1), (1, 1), (1, -1), (-1, -1)]
 
     def __init__(self, empty=False):
         if empty:
-            self.field = [[self.EMPTY] * (self.COLS + 1) for _ in range(self.ROWS + 1)]
+            self.grid = [[self.EMPTY] * (self.COLS + 1) for _ in range(self.ROWS + 1)]
         else:
-            self.field = [[self.EMPTY] * (self.COLS + 1) for _ in range(self.ROWS + 1)]
+            self.grid = [[self.EMPTY] * (self.COLS + 1) for _ in range(self.ROWS + 1)]
             self._setup_initial_position()
 
     def _setup_initial_position(self):
@@ -37,25 +37,25 @@ class Board:
             for x in range(1, self.COLS + 1):
                 if self._is_dark(x, y):
                     if y <= 3:
-                        self.field[y][x] = self.BLACK
+                        self.grid[y][x] = self.BLACK
                     elif y >= 6:
-                        self.field[y][x] = self.WHITE
+                        self.grid[y][x] = self.WHITE
 
     @staticmethod
     def _is_dark(x: int, y: int) -> bool:
         """Check if cell (x, y) is a dark square (playable)."""
         return x % 2 != y % 2
 
-    def get(self, x: int, y: int) -> str:
+    def piece_at(self, x: int, y: int) -> str:
         """Get piece at position (x, y). Returns EMPTY for light squares."""
         if not self._in_bounds(x, y):
             return self.EMPTY
-        return self.field[y][x]
+        return self.grid[y][x]
 
-    def set(self, x: int, y: int, piece: str):
-        """Set piece at position (x, y)."""
+    def place_piece(self, x: int, y: int, piece: str):
+        """Place a piece at position (x, y)."""
         if self._in_bounds(x, y):
-            self.field[y][x] = piece
+            self.grid[y][x] = piece
 
     def _in_bounds(self, x: int, y: int) -> bool:
         """Check if coordinates are within board bounds (1-8)."""
@@ -75,7 +75,7 @@ class Board:
         return (self.is_black(piece1) and self.is_white(piece2)) or \
                (self.is_white(piece1) and self.is_black(piece2))
 
-    def get_string(self) -> str:
+    def to_position_string(self) -> str:
         """Get 32-char string representation (dark squares only, row by row).
 
         Matches original Pascal getstring() function.
@@ -84,10 +84,10 @@ class Board:
         for y in range(1, self.ROWS + 1):
             for x in range(1, self.COLS + 1):
                 if self._is_dark(x, y):
-                    result.append(self.field[y][x])
+                    result.append(self.grid[y][x])
         return ''.join(result)
 
-    def from_string(self, s: str):
+    def load_from_position_string(self, s: str):
         """Load board state from 32-char string."""
         if len(s) != 32:
             raise ValueError(f"Expected 32 characters, got {len(s)}")
@@ -95,7 +95,7 @@ class Board:
         for y in range(1, self.ROWS + 1):
             for x in range(1, self.COLS + 1):
                 if self._is_dark(x, y):
-                    self.field[y][x] = s[idx]
+                    self.grid[y][x] = s[idx]
                     idx += 1
 
     def copy(self) -> 'Board':
@@ -103,7 +103,7 @@ class Board:
         new_board = Board(empty=True)
         for y in range(1, self.ROWS + 1):
             for x in range(1, self.COLS + 1):
-                new_board.field[y][x] = self.field[y][x]
+                new_board.grid[y][x] = self.grid[y][x]
         return new_board
 
     def count_pieces(self, color: str) -> int:
@@ -111,10 +111,8 @@ class Board:
         count = 0
         for y in range(1, self.ROWS + 1):
             for x in range(1, self.COLS + 1):
-                piece = self.field[y][x]
-                if color == 'b' and self.is_black(piece):
-                    count += 1
-                elif color == 'w' and self.is_white(piece):
+                piece = self.grid[y][x]
+                if (color == 'b' and self.is_black(piece)) or (color == 'w' and self.is_white(piece)):
                     count += 1
         return count
 
@@ -138,7 +136,7 @@ class Board:
 
     def get_valid_moves(self, x: int, y: int) -> list[tuple[int, int]]:
         """Get list of valid non-capture moves for piece at (x, y)."""
-        piece = self.get(x, y)
+        piece = self.piece_at(x, y)
         if piece == self.EMPTY:
             return []
 
@@ -156,16 +154,16 @@ class Board:
         dy = -1 if self.is_white(piece) else 1
         for dx in (-1, 1):
             nx, ny = x + dx, y + dy
-            if self._in_bounds(nx, ny) and self.get(nx, ny) == self.EMPTY:
+            if self._in_bounds(nx, ny) and self.piece_at(nx, ny) == self.EMPTY:
                 moves.append((nx, ny))
         return moves
 
     def _get_king_moves(self, x: int, y: int) -> list[tuple[int, int]]:
         """Get non-capture moves for a king (any distance along diagonal)."""
         moves = []
-        for dy, dx in self.DIRECTIONS:
+        for dy, dx in self.DIAGONAL_DIRECTIONS:
             nx, ny = x + dx, y + dy
-            while self._in_bounds(nx, ny) and self.get(nx, ny) == self.EMPTY:
+            while self._in_bounds(nx, ny) and self.piece_at(nx, ny) == self.EMPTY:
                 moves.append((nx, ny))
                 nx += dx
                 ny += dy
@@ -179,7 +177,7 @@ class Board:
         Returns list of capture paths. Each path is a list of positions
         the piece visits (including start position).
         """
-        piece = self.get(x, y)
+        piece = self.piece_at(x, y)
         if piece == self.EMPTY:
             return []
 
@@ -196,7 +194,7 @@ class Board:
                             results: list):
         """Recursively find all capture sequences for a pawn."""
         found = False
-        for dy, dx in self.DIRECTIONS:
+        for dy, dx in self.DIAGONAL_DIRECTIONS:
             # Position of enemy piece
             mx, my = x + dx, y + dy
             # Landing position
@@ -205,8 +203,8 @@ class Board:
             if not self._in_bounds(lx, ly):
                 continue
 
-            enemy = self.get(mx, my)
-            landing = self.get(lx, ly)
+            enemy = self.piece_at(mx, my)
+            landing = self.piece_at(lx, ly)
 
             if (self.is_enemy(piece, enemy) and
                     (mx, my) not in captured and
@@ -217,9 +215,7 @@ class Board:
 
                 # Check for promotion
                 promoted = False
-                if self.is_white(piece) and ly == 1:
-                    promoted = True
-                elif self.is_black(piece) and ly == self.ROWS:
+                if (self.is_white(piece) and ly == 1) or (self.is_black(piece) and ly == self.ROWS):
                     promoted = True
 
                 if promoted:
@@ -237,24 +233,24 @@ class Board:
                             results: list):
         """Recursively find all capture sequences for a king."""
         found = False
-        for dy, dx in self.DIRECTIONS:
+        for dy, dx in self.DIAGONAL_DIRECTIONS:
             # King can fly over empty squares to reach enemy
             nx, ny = x + dx, y + dy
-            while self._in_bounds(nx, ny) and self.get(nx, ny) == self.EMPTY:
+            while self._in_bounds(nx, ny) and self.piece_at(nx, ny) == self.EMPTY:
                 nx += dx
                 ny += dy
 
             if not self._in_bounds(nx, ny):
                 continue
 
-            enemy = self.get(nx, ny)
+            enemy = self.piece_at(nx, ny)
             if not self.is_enemy(piece, enemy) or (nx, ny) in captured:
                 continue
 
             # Land on any empty square after the enemy
             lx, ly = nx + dx, ny + dy
-            while self._in_bounds(lx, ly) and (self.get(lx, ly) == self.EMPTY or (lx, ly) == path[0]):
-                if self.get(lx, ly) == self.EMPTY or (lx, ly) == path[0]:
+            while self._in_bounds(lx, ly) and (self.piece_at(lx, ly) == self.EMPTY or (lx, ly) == path[0]):
+                if self.piece_at(lx, ly) == self.EMPTY or (lx, ly) == path[0]:
                     found = True
                     new_captured = captured | {(nx, ny)}
                     new_path = path + [(lx, ly)]
@@ -270,7 +266,7 @@ class Board:
         """Check if given side has any capture available."""
         for y in range(1, self.ROWS + 1):
             for x in range(1, self.COLS + 1):
-                piece = self.get(x, y)
+                piece = self.piece_at(x, y)
                 if piece == self.EMPTY:
                     continue
                 if (color == 'b' and self.is_black(piece)) or \
@@ -283,7 +279,7 @@ class Board:
         """Check if given side has any legal move (capture or regular)."""
         for y in range(1, self.ROWS + 1):
             for x in range(1, self.COLS + 1):
-                piece = self.get(x, y)
+                piece = self.piece_at(x, y)
                 if piece == self.EMPTY:
                     continue
                 if (color == 'b' and self.is_black(piece)) or \
@@ -294,8 +290,8 @@ class Board:
 
     def execute_move(self, x1: int, y1: int, x2: int, y2: int):
         """Execute a simple (non-capture) move."""
-        piece = self.get(x1, y1)
-        self.set(x1, y1, self.EMPTY)
+        piece = self.piece_at(x1, y1)
+        self.place_piece(x1, y1, self.EMPTY)
 
         # Check promotion
         if piece == self.WHITE and y2 == 1:
@@ -303,14 +299,14 @@ class Board:
         elif piece == self.BLACK and y2 == self.ROWS:
             piece = self.BLACK_KING
 
-        self.set(x2, y2, piece)
+        self.place_piece(x2, y2, piece)
 
     def execute_capture_path(self, path: list[tuple[int, int]]) -> list[tuple[int, int]]:
         """Execute a capture sequence along the given path.
 
         Returns list of captured piece positions.
         """
-        piece = self.get(*path[0])
+        piece = self.piece_at(*path[0])
         captured_positions = []
 
         for i in range(len(path) - 1):
@@ -322,18 +318,18 @@ class Board:
             dy = 1 if y2 > y1 else -1
             cx, cy = x1 + dx, y1 + dy
             while (cx, cy) != (x2, y2):
-                if self.get(cx, cy) != self.EMPTY:
+                if self.piece_at(cx, cy) != self.EMPTY:
                     captured_positions.append((cx, cy))
                     break
                 cx += dx
                 cy += dy
 
         # Move piece
-        self.set(*path[0], self.EMPTY)
+        self.place_piece(*path[0], self.EMPTY)
 
         # Remove captured pieces
         for cx, cy in captured_positions:
-            self.set(cx, cy, self.EMPTY)
+            self.place_piece(cx, cy, self.EMPTY)
 
         # Check promotion
         final_x, final_y = path[-1]
@@ -342,7 +338,7 @@ class Board:
         elif piece == self.BLACK and final_y == self.ROWS:
             piece = self.BLACK_KING
 
-        self.set(final_x, final_y, piece)
+        self.place_piece(final_x, final_y, piece)
         return captured_positions
 
     def dangerous_position(self, x: int, y: int, color: str) -> bool:
@@ -350,11 +346,11 @@ class Board:
 
         Matches original Pascal DangerousPosition().
         """
-        piece = self.get(x, y)
+        piece = self.piece_at(x, y)
         if piece == self.EMPTY:
             return False
 
-        for dy, dx in self.DIRECTIONS:
+        for dy, dx in self.DIAGONAL_DIRECTIONS:
             # Check for adjacent enemy that can jump over us
             ax, ay = x + dx, y + dy
             bx, by = x - dx, y - dy  # landing square for enemy
@@ -362,8 +358,8 @@ class Board:
             if not self._in_bounds(ax, ay) or not self._in_bounds(bx, by):
                 continue
 
-            attacker = self.get(ax, ay)
-            landing = self.get(bx, by)
+            attacker = self.piece_at(ax, ay)
+            landing = self.piece_at(bx, by)
 
             if self.is_enemy(piece, attacker) and landing == self.EMPTY:
                 if self.is_king(attacker):
@@ -373,22 +369,22 @@ class Board:
                 return True
 
         # Check for king attacks from distance
-        for dy, dx in self.DIRECTIONS:
+        for dy, dx in self.DIAGONAL_DIRECTIONS:
             nx, ny = x + dx, y + dy
-            while self._in_bounds(nx, ny) and self.get(nx, ny) == self.EMPTY:
+            while self._in_bounds(nx, ny) and self.piece_at(nx, ny) == self.EMPTY:
                 nx += dx
                 ny += dy
             if self._in_bounds(nx, ny):
-                attacker = self.get(nx, ny)
+                attacker = self.piece_at(nx, ny)
                 if self.is_enemy(piece, attacker) and self.is_king(attacker):
                     # Check if there's a landing square
                     bx, by = x - dx, y - dy
-                    if self._in_bounds(bx, by) and self.get(bx, by) == self.EMPTY:
+                    if self._in_bounds(bx, by) and self.piece_at(bx, by) == self.EMPTY:
                         return True
 
         return False
 
-    def freeway(self, x1: int, y1: int, x2: int, y2: int) -> bool:
+    def is_diagonal_clear(self, x1: int, y1: int, x2: int, y2: int) -> bool:
         """Check if diagonal path between two squares is clear.
 
         Matches original Pascal freeway().
@@ -399,7 +395,7 @@ class Board:
         dy = 1 if y2 > y1 else -1
         cx, cy = x1 + dx, y1 + dy
         while (cx, cy) != (x2, y2):
-            if self.get(cx, cy) != self.EMPTY:
+            if self.piece_at(cx, cy) != self.EMPTY:
                 return False
             cx += dx
             cy += dy
@@ -411,7 +407,7 @@ class Board:
         for y in range(1, self.ROWS + 1):
             row = [str(9 - y)]
             for x in range(1, self.COLS + 1):
-                piece = self.field[y][x]
+                piece = self.grid[y][x]
                 row.append(piece if piece != self.EMPTY else '.')
             lines.append(' '.join(row))
         return '\n'.join(lines)

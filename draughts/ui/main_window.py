@@ -6,14 +6,20 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QGridLayout,
-    QPushButton, QLabel, QTextEdit, QFrame, QSizePolicy,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QSizePolicy,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
 
-from draughts.config import COLORS, BTN_LABELS
-from draughts.game.board import Board
+from draughts.config import BTN_LABELS, COLORS
 from draughts.ui.board_widget import BoardWidget
 from draughts.ui.captured_widget import CapturedWidget
 
@@ -328,11 +334,11 @@ class MainWindow(QMainWindow):
 
     def _on_playback(self):
         from draughts.ui.playback import PlaybackDialog
-        movie = self._controller.movie
-        if len(movie) < 2:
+        replay = self._controller.replay_history
+        if len(replay) < 2:
             self.message_label.setText("Нет ходов для просмотра")
             return
-        dlg = PlaybackDialog(movie, self)
+        dlg = PlaybackDialog(replay, self)
         dlg.exec()
 
     def _on_development(self):

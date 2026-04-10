@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSlider,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSlider,
+    QVBoxLayout,
 )
 
 from draughts.game.board import Board
@@ -96,7 +101,7 @@ class PlaybackDialog(QDialog):
 
         self._current = index
         board = Board(empty=True)
-        board.from_string(self._positions[index])
+        board.load_from_position_string(self._positions[index])
         self._board_widget.set_board(board)
         self._board_widget.set_selection()
 

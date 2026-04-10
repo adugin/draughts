@@ -10,18 +10,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 # Translation table for inverting a position string.
 # Swaps black <-> white pieces while preserving empty squares.
 _INVERT_TABLE = str.maketrans("bBwW", "wWbB")
 
 
-def invertstr(position: str) -> str:
+def invert_position(position: str) -> str:
     """Invert a position string: swap b<->w, B<->W.
 
     This mirrors the board perspective so the AI can recognise
     symmetrical positions regardless of which side it is evaluating.
-    Matches the original Pascal invertstr() function.
+    Matches the original Pascal invert_position() function.
     """
     return position.translate(_INVERT_TABLE)
 

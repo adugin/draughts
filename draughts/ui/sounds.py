@@ -15,7 +15,6 @@ import shutil
 import struct
 import tempfile
 import wave
-from typing import Dict, Optional
 
 # ---------------------------------------------------------------------------
 # Try to import PyQt6 multimedia; flag availability
@@ -363,7 +362,7 @@ def _gen_thunder() -> list[float]:
 # ---------------------------------------------------------------------------
 # Sound generators registry
 # ---------------------------------------------------------------------------
-_GENERATORS: Dict[str, callable] = {
+_GENERATORS: dict[str, callable] = {
     "piece_move": _gen_piece_move,
     "piece_capture": _gen_piece_capture,
     "piece_king": _gen_piece_king,
@@ -390,10 +389,10 @@ class SoundManager:
 
     def __init__(self) -> None:
         self._enabled: bool = True
-        self._tmp_dir: Optional[str] = None
-        self._players: Dict[str, "QMediaPlayer"] = {}
-        self._audio_outputs: Dict[str, "QAudioOutput"] = {}
-        self._wav_paths: Dict[str, str] = {}
+        self._tmp_dir: str | None = None
+        self._players: dict[str, QMediaPlayer] = {}
+        self._audio_outputs: dict[str, QAudioOutput] = {}
+        self._wav_paths: dict[str, str] = {}
         self._available: bool = _HAS_MULTIMEDIA
 
         if not self._available:

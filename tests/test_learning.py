@@ -1,8 +1,7 @@
 """Tests for the AI learning database."""
 
 import pytest
-
-from draughts.game.learning import LearningDB, invertstr
+from draughts.game.learning import LearningDB, invert_position
 
 INITIAL_POS = "bbbbbbbbbbbbnnnnnnnnwwwwwwwwwwww"
 MID_GAME_POS = "bbbbbbbbbbbnnnnnnnnnwwwwwwwwwwww"
@@ -10,23 +9,23 @@ MID_GAME_POS = "bbbbbbbbbbbnnnnnnnnnwwwwwwwwwwww"
 
 class TestInvertStr:
     def test_invert_initial(self):
-        inverted = invertstr(INITIAL_POS)
+        inverted = invert_position(INITIAL_POS)
         assert inverted == "wwwwwwwwwwwwnnnnnnnnbbbbbbbbbbbb"
 
     def test_invert_empty(self):
         empty = "n" * 32
-        assert invertstr(empty) == empty
+        assert invert_position(empty) == empty
 
     def test_invert_kings(self):
         pos = "BnnnnnnnnnnnnnnnnnnnnnnnnnnnnnWn"
-        assert invertstr(pos) == "WnnnnnnnnnnnnnnnnnnnnnnnnnnnnnBn"
+        assert invert_position(pos) == "WnnnnnnnnnnnnnnnnnnnnnnnnnnnnnBn"
 
     def test_double_invert_is_identity(self):
-        assert invertstr(invertstr(INITIAL_POS)) == INITIAL_POS
+        assert invert_position(invert_position(INITIAL_POS)) == INITIAL_POS
 
     def test_invert_mixed(self):
         pos = "bBwWnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
-        assert invertstr(pos) == "wWbBnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+        assert invert_position(pos) == "wWbBnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
 
 
 class TestLearningDBBasic:

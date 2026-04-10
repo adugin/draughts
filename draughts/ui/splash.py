@@ -11,13 +11,17 @@ import math
 import random
 from dataclasses import dataclass
 
-from PyQt6.QtCore import Qt, QTimer, QPointF, QRectF, pyqtSignal
+from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
-    QColor, QPainter, QPen, QFont, QFontMetrics,
-    QLinearGradient, QRadialGradient, QPainterPath,
+    QColor,
+    QFont,
+    QFontMetrics,
+    QLinearGradient,
+    QPainter,
+    QPen,
+    QRadialGradient,
 )
 from PyQt6.QtWidgets import QWidget
-
 
 # ---------------------------------------------------------------------------
 # Particle system for text scatter/assemble effects
