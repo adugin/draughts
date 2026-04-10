@@ -67,7 +67,7 @@ class MainWindow(QMainWindow):
 
         # Main area: board + right panel
         main_h = QHBoxLayout()
-        main_h.setSpacing(4)
+        main_h.setSpacing(0)
 
         # --- Board widget ---
         self.board_widget = BoardWidget()
@@ -187,27 +187,33 @@ class MainWindow(QMainWindow):
 
         outer_v.addLayout(main_h, stretch=1)
 
-        # --- Bottom panel ---
+        # --- Bottom panel (green felt — single unified background) ---
         bottom_panel = QFrame()
         bottom_panel.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         bottom_panel.setLineWidth(1)
         bottom_panel.setStyleSheet(
-            "QFrame { background-color: #0a3010; border: 1px solid #1a4a1a; }")
-        bottom_layout = QHBoxLayout(bottom_panel)
-        bottom_layout.setContentsMargins(6, 4, 6, 4)
-        bottom_layout.setSpacing(8)
+            "QFrame { border: 1px solid #1a4a1a; }")
 
+        # CapturedWidget fills the entire bottom panel and draws felt background
         self.captured_widget = CapturedWidget()
-        self.captured_widget.setStyleSheet("background: transparent;")
         self.captured_widget.set_board_widget(self.board_widget)
-        bottom_layout.addWidget(self.captured_widget, stretch=1)
 
+        # Message label overlaid on top — absolutely positioned via stacked layout
         self.message_label = QLabel("")
-        self.message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.message_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.message_label.setStyleSheet(
             "color: #80d080; font-size: 13px; "
-            "font-style: italic; background: transparent;")
-        bottom_layout.addWidget(self.message_label, stretch=1)
+            "font-style: italic; background: transparent; padding-right: 16px;")
+
+        # Use a simple layout — captured widget takes all space, message on top via overlay
+        bottom_layout = QHBoxLayout(bottom_panel)
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_layout.setSpacing(0)
+        bottom_layout.addWidget(self.captured_widget)
+
+        # Overlay message_label on the right side of captured widget
+        self.message_label.setParent(self.captured_widget)
 
         self._bottom_panel = bottom_panel
         bottom_panel.setMinimumHeight(60)
@@ -414,15 +420,19 @@ class MainWindow(QMainWindow):
     # --- Resize event ---
 
     def resizeEvent(self, event):
-        """Adjust bottom panel height proportionally to board cell size."""
+        """Adjust bottom panel height and message label position."""
         super().resizeEvent(event)
-        # Original 640x480: cell=40px, bottom panel=95px ≈ 2.4 cells
         cell_size = self.board_widget.get_cell_size()
         panel_h = max(60, int(cell_size * 2.4))
-        # Cap at 20% of window height to prevent squishing the board
         max_h = int(self.height() * 0.20)
         panel_h = min(panel_h, max_h)
         self._bottom_panel.setFixedHeight(panel_h)
+
+        # Position message label on the right half of captured widget
+        cw = self.captured_widget
+        w = cw.width()
+        h = cw.height()
+        self.message_label.setGeometry(w // 2, 0, w // 2, h)
 
     # --- Close event ---
 

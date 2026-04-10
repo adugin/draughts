@@ -121,8 +121,8 @@ class BoardWidget(QWidget):
         board_side = cell_size * BOARD_SIZE
         cs = max(1, int(cell_size))
 
-        # Background — dark wood tone
-        painter.fillRect(self.rect(), QColor(45, 30, 18))
+        # Background — exactly match right panel (#3a2a1a) for seamless look
+        painter.fillRect(self.rect(), QColor(0x3a, 0x2a, 0x1a))
 
         # Board frame — dark mahogany wood texture
         frame_margin = cell_size * 0.65
