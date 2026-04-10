@@ -139,7 +139,6 @@ class GameSettings:
     """Mutable game settings with defaults matching the original Pascal code."""
 
     difficulty: int = 1  # 1=Amateur, 2=Normal, 3=Professional
-    speed: int = 1  # 1=Slow, 2=Medium, 3=Fast
     remind: bool = True  # hint for mandatory captures
     sound_effect: bool = False
     pause: float = 0.75  # animation delay multiplier
@@ -153,17 +152,6 @@ class GameSettings:
         repr=False,
         compare=False,
     )
-    SPEED_NAMES: dict[int, str] = field(
-        default_factory=lambda: {1: "Медленно", 2: "Средне", 3: "Быстро"},
-        init=False,
-        repr=False,
-        compare=False,
-    )
-
-    @property
-    def period(self) -> int:
-        """Timer period in seconds based on speed setting."""
-        return {1: 30, 2: 15, 3: 5}[self.speed]
 
 
 # ---------------------------------------------------------------------------

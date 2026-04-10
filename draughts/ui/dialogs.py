@@ -51,12 +51,6 @@ class OptionsDialog(QDialog):
         self._difficulty.setCurrentIndex(settings.difficulty - 1)
         layout.addRow("Сложность:", self._difficulty)
 
-        # Speed
-        self._speed = QComboBox()
-        self._speed.addItems(["Медленно", "Средне", "Быстро"])
-        self._speed.setCurrentIndex(settings.speed - 1)
-        layout.addRow("Скорость:", self._speed)
-
         # Remind
         self._remind = QCheckBox("Подсказка взятия")
         self._remind.setChecked(settings.remind)
@@ -102,7 +96,6 @@ class OptionsDialog(QDialog):
         """Return a new GameSettings with values from the dialog controls."""
         s = GameSettings(
             difficulty=self._difficulty.currentIndex() + 1,
-            speed=self._speed.currentIndex() + 1,
             remind=self._remind.isChecked(),
             sound_effect=self._sound.isChecked(),
             pause=self._pause.value(),

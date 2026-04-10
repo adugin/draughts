@@ -597,7 +597,7 @@ class GameController(QObject):
         """Save current game to file."""
         gs = GameSave(
             difficulty=self.settings.difficulty,
-            speed=self.settings.speed,
+            speed=1,
             remind=self.settings.remind,
             sound_effect=self.settings.sound_effect,
             pause=self.settings.pause,
@@ -610,7 +610,6 @@ class GameController(QObject):
         """Load a game from file."""
         gs = load_game(filepath)
         self.settings.difficulty = gs.difficulty
-        self.settings.speed = gs.speed
         self.settings.remind = gs.remind
         self.settings.sound_effect = gs.sound_effect
         self.settings.pause = gs.pause
@@ -652,7 +651,7 @@ class GameController(QObject):
             filepath = str(get_data_dir() / AUTOSAVE_FILENAME)
             gs = GameSave(
                 difficulty=self.settings.difficulty,
-                speed=self.settings.speed,
+                speed=1,
                 remind=self.settings.remind,
                 sound_effect=self.settings.sound_effect,
                 pause=self.settings.pause,
