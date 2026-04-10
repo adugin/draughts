@@ -4,7 +4,6 @@
 
 Переписать игру **русские шашки** с **Borland Pascal 7.0** (~1998–2000) на **Python 3.12+ / PyQt6**.
 Полный технический разбор оригинала: **[ANALYSIS.md](ANALYSIS.md)**
-Экранная раскладка (640×480): **[SCREEN_LAYOUT.md](SCREEN_LAYOUT.md)**
 
 ---
 
