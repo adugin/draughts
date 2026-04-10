@@ -18,7 +18,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
 
-logger = logging.getLogger('draughts.controller')
+logger = logging.getLogger("draughts.controller")
 
 from draughts.config import AUTOSAVE_FILENAME, LEARNING_DB_FILENAME, GameSettings, get_data_dir
 from draughts.game.ai import AIMove, computer_move, record_learning
@@ -33,23 +33,33 @@ class AIWorker(QObject):
 
     finished = pyqtSignal(object)  # AIMove | None
 
-    def __init__(self, board: Board, difficulty: int, use_base: bool,
-                 learning_db: LearningDB | None, color: str):
+    def __init__(
+        self,
+        board: Board,
+        difficulty: int,
+        use_base: bool,
+        learning_db: LearningDB | None,
+        color: str,
+        search_depth: int = 0,
+    ):
         super().__init__()
         self._board = board
         self._difficulty = difficulty
         self._use_base = use_base
         self._learning_db = learning_db
         self._color = color
+        self._search_depth = search_depth
 
     def run(self):
         try:
+            depth = self._search_depth if self._search_depth > 0 else None
             result = computer_move(
                 self._board.copy(),
                 difficulty=self._difficulty,
                 use_base=self._use_base,
                 learning_db=self._learning_db,
                 color=self._color,
+                depth=depth,
             )
         except Exception:
             logger.exception("AI crashed during computer_move")
@@ -92,9 +102,9 @@ class GameController(QObject):
         self.sounds = SoundManager()
 
         # Game state
-        self._current_turn: str = 'w'  # who moves next
-        self._computer_color: str = 'b'  # AI plays black by default
-        self._player_color: str = 'w'
+        self._current_turn: str = "w"  # who moves next
+        self._computer_color: str = "b"  # AI plays black by default
+        self._player_color: str = "w"
         self._selected: tuple[int, int] | None = None
         self._capture_path: list[tuple[int, int]] = []
         self._pending_captures: set[tuple[int, int]] = set()
@@ -134,7 +144,7 @@ class GameController(QObject):
         msg_path = Path(__file__).parent.parent / "resources" / "messages.txt"
         try:
             text = msg_path.read_text(encoding="utf-8")
-            return [line.strip() for line in text.strip().split('\n') if line.strip()]
+            return [line.strip() for line in text.strip().split("\n") if line.strip()]
         except (FileNotFoundError, UnicodeDecodeError):
             return ["Думаю..."]
 
@@ -143,9 +153,9 @@ class GameController(QObject):
     def new_game(self):
         """Reset everything for a new game."""
         self.board = Board()
-        self._current_turn = 'w'
-        self._computer_color = 'b' if not self.settings.invert_color else 'w'
-        self._player_color = 'w' if not self.settings.invert_color else 'b'
+        self._current_turn = "w"
+        self._computer_color = "b" if not self.settings.invert_color else "w"
+        self._player_color = "w" if not self.settings.invert_color else "b"
         self._selected = None
         self._capture_path = []
         self._pending_captures = set()
@@ -201,8 +211,7 @@ class GameController(QObject):
 
     def on_cell_right_click(self, x: int, y: int):
         """Handle right-click — intermediate capture position."""
-        logger.info(f"Right click: ({x}, {y}), selected={self._selected}, "
-                     f"capture_path={self._capture_path}")
+        logger.info(f"Right click: ({x}, {y}), selected={self._selected}, capture_path={self._capture_path}")
         if self._current_turn != self._player_color:
             return
         if self._selected is None:
@@ -253,7 +262,7 @@ class GameController(QObject):
         logger.debug(f"Right click ({x},{y}) not a valid intermediate capture")
 
     def _is_player_piece(self, piece: str) -> bool:
-        if self._player_color == 'w':
+        if self._player_color == "w":
             return self.board.is_white(piece)
         else:
             return self.board.is_black(piece)
@@ -283,8 +292,7 @@ class GameController(QObject):
                 piece = self.board.piece_at(x, y)
                 if self._is_player_piece(piece):
                     if self.board.get_captures(x, y):
-                        self.message_changed.emit(
-                            f"Шашка {Board.pos_to_notation(x, y)} должна бить!")
+                        self.message_changed.emit(f"Шашка {Board.pos_to_notation(x, y)} должна бить!")
                         return
 
     def _try_move(self, sx: int, sy: int, tx: int, ty: int):
@@ -329,8 +337,7 @@ class GameController(QObject):
 
         if not matching:
             # Check if this could be an intermediate step
-            partial = [p for p in captures
-                       if len(p) > len(full_path) and p[:len(full_path)] == full_path]
+            partial = [p for p in captures if len(p) > len(full_path) and p[: len(full_path)] == full_path]
             if partial:
                 # This is a valid intermediate step — add to path
                 if not self._capture_path:
@@ -350,7 +357,7 @@ class GameController(QObject):
         # Update captured counts
         for cx, cy in captured:
             # The pieces are already removed, but we know they were enemies
-            if self._player_color == 'w':
+            if self._player_color == "w":
                 self._black_captured_count += 1
             else:
                 self._white_captured_count += 1
@@ -362,7 +369,7 @@ class GameController(QObject):
         """Check if a capture path starts with the given partial path."""
         if len(full_path) < len(partial):
             return False
-        return full_path[:len(partial)] == partial and len(full_path) == len(partial)
+        return full_path[: len(partial)] == partial and len(full_path) == len(partial)
 
     def _finish_player_move(self, notation: str):
         """Finalize player's move — record, switch turns, start AI."""
@@ -408,9 +415,12 @@ class GameController(QObject):
         # Start AI in thread
         self._ai_thread = QThread()
         self._ai_worker = AIWorker(
-            self.board, self.settings.difficulty,
-            self.settings.use_base, self.learning_db,
-            self._computer_color
+            self.board,
+            self.settings.difficulty,
+            self.settings.use_base,
+            self.learning_db,
+            self._computer_color,
+            self.settings.search_depth,
         )
         self._ai_worker.moveToThread(self._ai_thread)
         self._ai_thread.started.connect(self._ai_worker.run)
@@ -445,15 +455,15 @@ class GameController(QObject):
         # Execute AI move
         board_before = self.board.copy()
 
-        if result.kind == 'capture':
+        if result.kind == "capture":
             captured = self.board.execute_capture_path(result.path)
             for _ in captured:
-                if self._computer_color == 'b':
+                if self._computer_color == "b":
                     self._white_captured_count += 1
                 else:
                     self._black_captured_count += 1
             notation = ":".join(Board.pos_to_notation(x, y) for x, y in result.path)
-        elif result.kind in ('move', 'sacrifice'):
+        elif result.kind in ("move", "sacrifice"):
             x1, y1 = result.path[0]
             x2, y2 = result.path[1]
             self.board.execute_move(x1, y1, x2, y2)
@@ -504,9 +514,9 @@ class GameController(QObject):
         # Go back 2 half-moves (player + computer)
         self._ply_count -= 2
         if len(self._positions) > self._ply_count + 1:
-            self._positions = self._positions[:self._ply_count + 1]
+            self._positions = self._positions[: self._ply_count + 1]
         if len(self._replay_history) > self._ply_count + 1:
-            self._replay_history = self._replay_history[:self._ply_count + 1]
+            self._replay_history = self._replay_history[: self._ply_count + 1]
 
         # Restore board
         self.board.load_from_position_string(self._positions[-1])
@@ -527,8 +537,8 @@ class GameController(QObject):
 
     def _recalculate_captures(self):
         """Recalculate captured piece counts from current board state."""
-        w = self.board.count_pieces('w')
-        b = self.board.count_pieces('b')
+        w = self.board.count_pieces("w")
+        b = self.board.count_pieces("b")
         self._white_captured_count = 12 - w
         self._black_captured_count = 12 - b
 
@@ -558,28 +568,28 @@ class GameController(QObject):
 
     def _check_game_over(self) -> bool:
         """Check if the game is over. Emit game_over signal if so."""
-        w_count = self.board.count_pieces('w')
-        b_count = self.board.count_pieces('b')
+        w_count = self.board.count_pieces("w")
+        b_count = self.board.count_pieces("b")
         logger.debug(f"_check_game_over: w={w_count}, b={b_count}, turn={self._current_turn}")
 
         if w_count == 0:
-            player_lost = (self._player_color == 'w')
+            player_lost = self._player_color == "w"
             msg = "Вы проиграли!" if player_lost else "Вы выиграли!"
             logger.info(f"Game over: {msg} (no white pieces)")
             self.game_over.emit(msg)
             if self.settings.sound_effect:
                 self.sounds.play_game_lose() if player_lost else self.sounds.play_game_win()
-            self._on_game_end(winner='b')
+            self._on_game_end(winner="b")
             return True
 
         if b_count == 0:
-            player_lost = (self._player_color == 'b')
+            player_lost = self._player_color == "b"
             msg = "Вы проиграли!" if player_lost else "Вы выиграли!"
             logger.info(f"Game over: {msg} (no black pieces)")
             self.game_over.emit(msg)
             if self.settings.sound_effect:
                 self.sounds.play_game_lose() if player_lost else self.sounds.play_game_win()
-            self._on_game_end(winner='w')
+            self._on_game_end(winner="w")
             return True
 
         # Check if the OPPONENT of whoever just moved has any moves
@@ -603,7 +613,7 @@ class GameController(QObject):
         """Handle game end — learning DB updates."""
         self._stop_timer()
         if self.settings.use_base and len(self._positions) >= 3:
-            computer_won = (winner == self._computer_color)
+            computer_won = winner == self._computer_color
             # Record last few positions
             if computer_won and self.settings.black_win:
                 for pos_str in self._positions[-3:]:
@@ -611,6 +621,7 @@ class GameController(QObject):
                 self.learning_db.save()
             elif not computer_won and self.settings.black_lose:
                 from draughts.game.learning import invert_position
+
                 for pos_str in self._positions[-3:]:
                     self.learning_db.add_bad(invert_position(pos_str))
                 self.learning_db.save()
@@ -623,8 +634,11 @@ class GameController(QObject):
             return
         try:
             record_learning(
-                self.learning_db, board_before, board_after,
-                self._computer_color, won=False  # not known yet
+                self.learning_db,
+                board_before,
+                board_after,
+                self._computer_color,
+                won=False,  # not known yet
             )
         except Exception:
             pass  # learning is non-critical
@@ -667,7 +681,7 @@ class GameController(QObject):
 
         # Determine whose turn
         # Even situation = white's turn, odd = black's turn
-        self._current_turn = 'w' if self._ply_count % 2 == 0 else 'b'
+        self._current_turn = "w" if self._ply_count % 2 == 0 else "b"
 
         self._selected = None
         self._capture_path = []

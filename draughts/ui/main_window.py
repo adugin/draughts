@@ -34,7 +34,7 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self.setWindowTitle("Шашки")
         self.setMinimumSize(640, 480)
-        self.resize(900, 660)
+        self.resize(1024, 720)
 
         self._controller = controller
 
@@ -45,6 +45,7 @@ class MainWindow(QMainWindow):
     def _build_ui(self):
         """Construct the complete UI layout."""
         central = QWidget()
+        central.setStyleSheet("background-color: #2a1a0a;")
         self.setCentralWidget(central)
 
         outer_v = QVBoxLayout(central)
@@ -52,22 +53,21 @@ class MainWindow(QMainWindow):
         outer_v.setSpacing(4)
 
         # Header label
-        self.header_label = QLabel("Автор и разработчик программы: Дугин Андрей")
+        self.header_label = QLabel("Автор и разработчик программы: Андрей Дугин")
         self.header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.header_label.setStyleSheet(
-            f"background-color: rgb{COLORS['panel_bg']}; "
-            f"color: rgb{COLORS['window_title']}; "
-            "font-weight: bold; padding: 2px; "
-            "border: 1px solid gray;"
+            "background-color: #2a1a0a; color: #c8a87a; "
+            "font-weight: bold; padding: 4px; "
+            "border: 1px solid #5a3a1a; font-size: 12px;"
         )
-        self.header_label.setFixedHeight(24)
+        self.header_label.setFixedHeight(28)
         self.header_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.header_label.mousePressEvent = lambda e: self._on_about()
         outer_v.addWidget(self.header_label)
 
         # Main area: board + right panel
         main_h = QHBoxLayout()
-        main_h.setSpacing(4)
+        main_h.setSpacing(0)
 
         # --- Board widget ---
         self.board_widget = BoardWidget()
@@ -75,129 +75,145 @@ class MainWindow(QMainWindow):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         main_h.addWidget(self.board_widget, stretch=3)
 
-        # --- Right panel ---
+        # --- Right area: notation columns + buttons column (like original) ---
         right_panel = QFrame()
         right_panel.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         right_panel.setLineWidth(1)
         right_panel.setStyleSheet(
-            f"QFrame {{ background-color: rgb{COLORS['panel_bg']}; }}")
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(6, 6, 6, 6)
-        right_layout.setSpacing(4)
+            "QFrame { background-color: #3a2a1a; border: 1px solid #5a3a1a; }")
 
-        # Turn indicator
+        right_h = QHBoxLayout(right_panel)
+        right_h.setContentsMargins(6, 6, 6, 6)
+        right_h.setSpacing(4)
+
+        # -- Left sub-column: indicators + notation --
+        notation_col = QVBoxLayout()
+        notation_col.setSpacing(4)
+
+        # Turn indicators with piece symbols
         turn_row = QHBoxLayout()
         self.white_indicator = QLabel("  Белые  ")
         self.white_indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.white_indicator.setStyleSheet(
-            "background-color: white; color: black; "
-            "border: 2px solid gray; font-weight: bold; padding: 4px;")
+            "background-color: #f0e6d0; color: #2a1a0a; "
+            "border: 2px solid #8a7a5a; font-weight: bold; padding: 4px; border-radius: 3px;")
         self.black_indicator = QLabel("  Чёрные  ")
         self.black_indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.black_indicator.setStyleSheet(
-            "background-color: black; color: white; "
-            "border: 2px solid gray; font-weight: bold; padding: 4px;")
+            "background-color: #1a1210; color: #c8a87a; "
+            "border: 2px solid #5a4a3a; font-weight: bold; padding: 4px; border-radius: 3px;")
         turn_row.addWidget(self.white_indicator)
         turn_row.addWidget(self.black_indicator)
-        right_layout.addLayout(turn_row)
+        notation_col.addLayout(turn_row)
 
-        # Notation
-        notation_label = QLabel("Нотация ходов")
-        notation_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        notation_label.setStyleSheet(
-            "font-weight: bold; background: transparent;")
-        right_layout.addWidget(notation_label)
-
+        # Two notation columns side by side
         notation_row = QHBoxLayout()
         self.notation_white = QTextEdit()
         self.notation_white.setReadOnly(True)
         self.notation_white.setPlaceholderText("Белые")
         self.notation_white.setStyleSheet(
-            "background-color: white; font-family: Consolas, monospace;")
-        self.notation_white.setMaximumWidth(200)
+            "background-color: #f5ead0; color: #2a1a0a; "
+            "font-family: Consolas, monospace; border: 1px solid #8a7a5a; border-radius: 2px;")
 
         self.notation_black = QTextEdit()
         self.notation_black.setReadOnly(True)
         self.notation_black.setPlaceholderText("Чёрные")
         self.notation_black.setStyleSheet(
-            "background-color: white; font-family: Consolas, monospace;")
-        self.notation_black.setMaximumWidth(200)
+            "background-color: #1a1210; color: #c8a87a; "
+            "font-family: Consolas, monospace; border: 1px solid #5a4a3a; border-radius: 2px;")
 
         notation_row.addWidget(self.notation_white)
         notation_row.addWidget(self.notation_black)
-        right_layout.addLayout(notation_row, stretch=1)
+        notation_col.addLayout(notation_row, stretch=1)
 
-        # Buttons
+        right_h.addLayout(notation_col, stretch=1)
+
+        # -- Right sub-column: buttons + timer/clock --
+        btn_style = (
+            "QPushButton { background-color: #4a3520; color: #e8d8b8; "
+            "border: 1px solid #6a4a2a; padding: 3px 8px; "
+            "border-radius: 3px; font-weight: bold; }"
+            "QPushButton:hover { background-color: #5a4530; "
+            "border-color: #8a6a4a; }"
+            "QPushButton:pressed { background-color: #3a2510; }"
+            "QPushButton:disabled { color: #6a5a4a; background-color: #3a2a1a; }"
+        )
+
+        buttons_col = QVBoxLayout()
+        buttons_col.setSpacing(3)
+
         self.buttons: dict[str, QPushButton] = {}
-        btn_grid = QGridLayout()
-        btn_grid.setSpacing(3)
-        for i, label in enumerate(BTN_LABELS):
+        for label in BTN_LABELS:
             btn = QPushButton(label)
             btn.setMinimumHeight(26)
-            btn.setStyleSheet(
-                "QPushButton { background-color: rgb(192,192,192); "
-                "border: 2px outset rgb(220,220,220); padding: 2px 6px; }"
-                "QPushButton:pressed { border-style: inset; }"
-                "QPushButton:disabled { color: gray; }")
+            btn.setStyleSheet(btn_style)
             self.buttons[label] = btn
-            if i < 8:
-                btn_grid.addWidget(btn, i // 2, i % 2)
-            else:
-                btn_grid.addWidget(btn, i // 2, 0, 1, 2)
-        right_layout.addLayout(btn_grid)
+            buttons_col.addWidget(btn)
+
+        buttons_col.addStretch()
 
         # Timer
         self.timer_label = QLabel("00:30")
         self.timer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.timer_label.setStyleSheet(
-            "font-size: 18px; font-weight: bold; "
+            "font-size: 16px; font-weight: bold; "
             "font-family: Consolas, monospace; "
-            "background-color: white; border: 1px solid gray; padding: 4px;")
-        right_layout.addWidget(self.timer_label)
+            "background-color: #1a1210; color: #d0b080; "
+            "border: 1px solid #5a4a3a; padding: 4px; border-radius: 3px;")
+        buttons_col.addWidget(self.timer_label)
 
         # Clock and date
         self.clock_label = QLabel("00:00:00")
         self.clock_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.clock_label.setStyleSheet(
-            "font-size: 14px; font-family: Consolas, monospace; "
-            "background-color: white; border: 1px solid gray; padding: 2px;")
+            "font-size: 13px; font-family: Consolas, monospace; "
+            "background-color: #1a1210; color: #a09070; "
+            "border: 1px solid #5a4a3a; padding: 2px; border-radius: 2px;")
         self.date_label = QLabel("")
         self.date_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.date_label.setStyleSheet(
-            "font-size: 12px; font-family: Consolas, monospace; "
-            "background-color: white; border: 1px solid gray; padding: 2px;")
-        right_layout.addWidget(self.clock_label)
-        right_layout.addWidget(self.date_label)
+            "font-size: 11px; font-family: Consolas, monospace; "
+            "background-color: #1a1210; color: #a09070; "
+            "border: 1px solid #5a4a3a; padding: 2px; border-radius: 2px;")
+        buttons_col.addWidget(self.clock_label)
+        buttons_col.addWidget(self.date_label)
+
+        right_h.addLayout(buttons_col)
 
         right_panel.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        right_panel.setMinimumWidth(200)
+        right_panel.setMinimumWidth(280)
         main_h.addWidget(right_panel, stretch=2)
 
         outer_v.addLayout(main_h, stretch=1)
 
-        # --- Bottom panel ---
+        # --- Bottom panel (green felt — single unified background) ---
         bottom_panel = QFrame()
         bottom_panel.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         bottom_panel.setLineWidth(1)
-        bp_bg = COLORS['bottom_panel_bg']
         bottom_panel.setStyleSheet(
-            f"QFrame {{ background-color: rgb({bp_bg[0]},{bp_bg[1]},{bp_bg[2]}); }}")
-        bottom_layout = QHBoxLayout(bottom_panel)
-        bottom_layout.setContentsMargins(6, 4, 6, 4)
-        bottom_layout.setSpacing(8)
+            "QFrame { border: 1px solid #1a4a1a; }")
 
+        # CapturedWidget fills the entire bottom panel and draws felt background
         self.captured_widget = CapturedWidget()
-        self.captured_widget.setStyleSheet("background: transparent;")
         self.captured_widget.set_board_widget(self.board_widget)
-        bottom_layout.addWidget(self.captured_widget, stretch=1)
 
+        # Message label overlaid on top — absolutely positioned via stacked layout
         self.message_label = QLabel("")
-        self.message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.message_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.message_label.setStyleSheet(
-            "color: rgb(0,255,0); font-size: 13px; "
-            "font-style: italic; background: transparent;")
-        bottom_layout.addWidget(self.message_label, stretch=1)
+            "color: #80d080; font-size: 13px; "
+            "font-style: italic; background: transparent; padding-right: 16px;")
+
+        # Use a simple layout — captured widget takes all space, message on top via overlay
+        bottom_layout = QHBoxLayout(bottom_panel)
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_layout.setSpacing(0)
+        bottom_layout.addWidget(self.captured_widget)
+
+        # Overlay message_label on the right side of captured widget
+        self.message_label.setParent(self.captured_widget)
 
         self._bottom_panel = bottom_panel
         bottom_panel.setMinimumHeight(60)
@@ -370,20 +386,22 @@ class MainWindow(QMainWindow):
         self.buttons["Сохранить"].setEnabled(self._controller.can_save)
 
     def highlight_turn(self, color: str):
+        active_border = "border: 3px solid #c8a040;"
+        inactive_border = "border: 2px solid #5a4a3a;"
         if color == 'w':
             self.white_indicator.setStyleSheet(
-                "background-color: white; color: black; "
-                "border: 3px solid rgb(0,200,0); font-weight: bold; padding: 4px;")
+                f"background-color: #f0e6d0; color: #2a1a0a; "
+                f"{active_border} font-weight: bold; padding: 4px; border-radius: 3px;")
             self.black_indicator.setStyleSheet(
-                "background-color: black; color: white; "
-                "border: 2px solid gray; font-weight: bold; padding: 4px;")
+                f"background-color: #1a1210; color: #c8a87a; "
+                f"{inactive_border} font-weight: bold; padding: 4px; border-radius: 3px;")
         else:
             self.white_indicator.setStyleSheet(
-                "background-color: white; color: black; "
-                "border: 2px solid gray; font-weight: bold; padding: 4px;")
+                f"background-color: #f0e6d0; color: #2a1a0a; "
+                f"{inactive_border} font-weight: bold; padding: 4px; border-radius: 3px;")
             self.black_indicator.setStyleSheet(
-                "background-color: black; color: white; "
-                "border: 3px solid rgb(0,200,0); font-weight: bold; padding: 4px;")
+                f"background-color: #1a1210; color: #c8a87a; "
+                f"{active_border} font-weight: bold; padding: 4px; border-radius: 3px;")
         self.board_widget.set_turn_indicator(color)
 
     # --- Clock ---
@@ -402,15 +420,19 @@ class MainWindow(QMainWindow):
     # --- Resize event ---
 
     def resizeEvent(self, event):
-        """Adjust bottom panel height proportionally to board cell size."""
+        """Adjust bottom panel height and message label position."""
         super().resizeEvent(event)
-        # Original 640x480: cell=40px, bottom panel=95px ≈ 2.4 cells
         cell_size = self.board_widget.get_cell_size()
         panel_h = max(60, int(cell_size * 2.4))
-        # Cap at 20% of window height to prevent squishing the board
         max_h = int(self.height() * 0.20)
         panel_h = min(panel_h, max_h)
         self._bottom_panel.setFixedHeight(panel_h)
+
+        # Position message label on the right half of captured widget
+        cw = self.captured_widget
+        w = cw.width()
+        h = cw.height()
+        self.message_label.setGeometry(w // 2, 0, w // 2, h)
 
     # --- Close event ---
 

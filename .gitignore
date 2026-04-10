@@ -90,10 +90,11 @@ $RECYCLE.BIN/
 *.json
 !draughts/resources/*.json
 
-# Дебаг-логи
+# Дебаг-логи и скриншоты
 debug.log
 debug_stderr.log
 run_debug.py
+.screenshots/
 
 # ============================================================
 # Claude Code — локальные настройки (персональные правила)

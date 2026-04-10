@@ -50,7 +50,7 @@ class PieceMoveAnimation(QObject):
         self._duration = duration_ms
         self._progress = 0.0
         self._running = False
-        self._piece_char: str = ''
+        self._piece: int = 0
 
         self._timer = QTimer(self)
         self._timer.setInterval(16)  # ~60 fps
@@ -73,8 +73,8 @@ class PieceMoveAnimation(QObject):
             self.finished.emit()
             return
 
-        self._piece_char = board.piece_at(self._x1, self._y1)
-        if not self._piece_char or self._piece_char == 'n':
+        self._piece = board.piece_at(self._x1, self._y1)
+        if self._piece == 0:
             self.finished.emit()
             return
 
@@ -134,7 +134,7 @@ class PieceMoveAnimation(QObject):
         # We use a temporary rect to position the piece
         fake_bx = cx - cell_size / 2 - (1 - 1) * cell_size
         fake_by = cy - cell_size / 2 - (1 - 1) * cell_size
-        self._board._draw_piece(painter, 1, 1, self._piece_char, cell_size, fake_bx, fake_by)
+        self._board._draw_piece(painter, 1, 1, self._piece, cell_size, fake_bx, fake_by)
         painter.end()
 
 
@@ -160,7 +160,7 @@ class PieceRemoveAnimation(QObject):
         self._duration = duration_ms
         self._progress = 0.0
         self._running = False
-        self._piece_char: str = ''
+        self._piece: int = 0
 
         self._timer = QTimer(self)
         self._timer.setInterval(16)
@@ -173,8 +173,8 @@ class PieceRemoveAnimation(QObject):
             self.finished.emit()
             return
 
-        self._piece_char = board.piece_at(self._x, self._y)
-        if not self._piece_char or self._piece_char == 'n':
+        self._piece = board.piece_at(self._x, self._y)
+        if self._piece == 0:
             self.finished.emit()
             return
 
@@ -229,7 +229,7 @@ class PieceRemoveAnimation(QObject):
         painter.translate(cx_pos, cy_pos)
         painter.scale(scale, scale)
         painter.translate(-cx_pos, -cy_pos)
-        self._board._draw_piece(painter, self._x, self._y, self._piece_char, cell_size, bx, by)
+        self._board._draw_piece(painter, self._x, self._y, self._piece, cell_size, bx, by)
         painter.restore()
         painter.end()
 

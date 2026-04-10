@@ -1,15 +1,12 @@
-"""AI module for Russian draughts — faithful port from Borland Pascal 7.0.
+"""AI module for Russian draughts — NumPy engine with alpha-beta minimax.
 
-The AI has three priority levels, called sequentially:
-1. SeeBeat  — mandatory captures (Monte Carlo evaluation)
-2. Combination — tactical sacrifices
-3. Action — normal moves (heuristic scoring; Monte Carlo for kings)
+Architecture:
+    1. Static evaluation function (vectorized, fast)
+    2. Alpha-beta pruning minimax search at configurable depth
+    3. Move ordering for optimal pruning (captures first, then heuristics)
+    4. Legacy 3-tier interface preserved: SeeBeat → Combination → Action
 
-Original constants:
-    maxrnd = 1000   (Monte Carlo iterations)
-    depth0 = 1      (lookahead depth)
-    NeedToSave = 1  (minimum score change for learning)
-    dir[1..4] = ((-1,1),(1,1),(1,-1),(-1,-1))  — 4 diagonal directions
+Piece encoding: BLACK=1, BLACK_KING=2, WHITE=-1, WHITE_KING=-2, EMPTY=0
 """
 
 from __future__ import annotations
@@ -17,31 +14,63 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
+import numpy as np
+
+from draughts.config import (
+    BLACK,
+    BLACK_KING,
+    BOARD_SIZE,
+    DIAGONAL_DIRECTIONS,
+    INT_TO_CHAR,
+    WHITE,
+    WHITE_KING,
+)
 from draughts.game.board import Board
 
 if TYPE_CHECKING:
     from draughts.game.learning import LearningDB
 
 # ---------------------------------------------------------------------------
-# Constants (matching original Pascal)
+# Constants
 # ---------------------------------------------------------------------------
 
-MONTE_CARLO_ITERATIONS = 1000
-LOOKAHEAD_DEPTH = 1
 LEARNING_SCORE_THRESHOLD = 1
 
-# dir[1..4] — (dx, dy) diagonal directions
-DIAGONAL_DIRECTIONS = [(-1, 1), (1, 1), (1, -1), (-1, -1)]
+# Board slice for the active 8x8 area (1-indexed grid is 9x9)
+_BOARD_SLICE = (slice(1, BOARD_SIZE + 1), slice(1, BOARD_SIZE + 1))
 
-BLACKS = frozenset(('b', 'B'))
-WHITES = frozenset(('w', 'W'))
+# Precomputed: row indices for advancement scoring (0-indexed rows mapped to 1..8)
+# Black pawns advance by increasing y; white by decreasing y
+_BLACK_ADVANCE = np.zeros((9, 9), dtype=np.float32)
+_WHITE_ADVANCE = np.zeros((9, 9), dtype=np.float32)
+for _y in range(1, 9):
+    for _x in range(1, 9):
+        _BLACK_ADVANCE[_y, _x] = (_y - 1) / 7.0  # 0 at row 1, 1 at row 8
+        _WHITE_ADVANCE[_y, _x] = (8 - _y) / 7.0  # 1 at row 1, 0 at row 8
 
-BOARD_SIZE = 8
+# Evaluation weights — material MUST dominate positional bonuses.
+# A pawn is worth 5.0; all positional bonuses combined should never
+# exceed ~2.0 to prevent the AI from trading pieces for position.
+_KING_VALUE = 15.0
+_PAWN_VALUE = 5.0
+_ADVANCE_BONUS = 0.15  # per-pawn advancement bonus (max ~0.15 per pawn)
+_CENTER_BONUS = 0.05  # center control bonus
+_SAFETY_BONUS = 0.1  # bonus for safe positions
+_MOBILITY_WEIGHT = 0.02  # per-move mobility bonus
+_THREAT_PENALTY = 0.5  # penalty per threatened piece
+
+# Precomputed center mask (squares near the center get bonus)
+_CENTER_MASK = np.zeros((9, 9), dtype=np.float32)
+for _y in range(1, 9):
+    for _x in range(1, 9):
+        dist = max(abs(_x - 4.5), abs(_y - 4.5))
+        _CENTER_MASK[_y, _x] = max(0, (3.5 - dist) / 3.5)
 
 
 # ---------------------------------------------------------------------------
 # Move representation
 # ---------------------------------------------------------------------------
+
 
 class AIMove:
     """Result returned by the AI.
@@ -56,58 +85,62 @@ class AIMove:
         self.kind = kind
         self.path = path
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"AIMove({self.kind!r}, {self.path})"
 
 
 # ---------------------------------------------------------------------------
-# Helper: in-bounds
+# Helpers
 # ---------------------------------------------------------------------------
+
 
 def _is_on_board(x: int, y: int) -> bool:
     return 1 <= x <= BOARD_SIZE and 1 <= y <= BOARD_SIZE
 
 
 def _max_diagonal_reach(x: int, y: int) -> int:
-    """Maximum diagonal distance from (x, y) to any board edge."""
     return max(BOARD_SIZE - y, y - 1, BOARD_SIZE - x, x - 1)
 
 
+def _find_pieces(grid: np.ndarray, color: str) -> list[tuple[int, int]]:
+    """Find all piece positions for a color. Returns list of (x, y)."""
+    positions = np.argwhere(grid > 0) if color == "b" else np.argwhere(grid < 0)
+    return [(int(p[1]), int(p[0])) for p in positions]
+
+
+def _count_pieces(color: str, grid: np.ndarray) -> int:
+    board_area = grid[_BOARD_SLICE]
+    return int(np.count_nonzero(board_area > 0)) if color == "b" else int(np.count_nonzero(board_area < 0))
+
+
+def _opponent(color: str) -> str:
+    return "w" if color == "b" else "b"
+
+
 # ---------------------------------------------------------------------------
-# Helper: exist — count pieces on a diagonal between two squares
+# Scan diagonal
 # ---------------------------------------------------------------------------
 
-def _scan_diagonal(x1: int, y1: int, x2: int, y2: int,
-           color: str, grid: list[list[str]]) -> tuple[int, int, int]:
-    """Check how many pieces lie on diagonal (x1,y1)→(x2,y2) exclusive.
 
-    Args:
-        color: 'b' (black) or 'w' (white) — the side whose piece we look for.
-
-    Returns:
-        (count, bx, by) where count is total non-empty cells on the path,
-        bx/by is the position of the found *color* piece (if exactly one).
-        count=0 means the path is clear.
-        count=1 and the piece belongs to *color* → capturable.
-    """
+def _scan_diagonal(x1: int, y1: int, x2: int, y2: int, color: str, grid: np.ndarray) -> tuple[int, int, int]:
+    """Check how many pieces lie on diagonal (x1,y1)->(x2,y2) exclusive."""
     if x2 == x1 or y2 == y1:
         return (0, 0, 0)
     if abs(x2 - x1) != abs(y2 - y1):
-        return (0, 0, 0)  # not on same diagonal
+        return (0, 0, 0)
     dx = 1 if x2 > x1 else -1
     dy = 1 if y2 > y1 else -1
     cx, cy = x1 + dx, y1 + dy
     n = 0
     bx, by = 0, 0
     ok = False
-    target = BLACKS if color == 'b' else WHITES
-    # Walk from (x1,y1) toward (x2,y2) exclusive of both endpoints
     while (cx, cy) != (x2, y2):
         if not _is_on_board(cx, cy):
-            return (0, 0, 0)  # off board
-        if grid[cy][cx] != 'n':
+            return (0, 0, 0)
+        cell = int(grid[cy, cx])
+        if cell != 0:
             n += 1
-        if grid[cy][cx] in target:
+        if (color == "b" and cell > 0) or (color == "w" and cell < 0):
             ok = True
             bx, by = cx, cy
         cx += dx
@@ -119,16 +152,14 @@ def _scan_diagonal(x1: int, y1: int, x2: int, y2: int,
     return (2, 0, 0)
 
 
-def _is_path_clear(x1: int, y1: int, x2: int, y2: int,
-             grid: list[list[str]]) -> bool:
-    """Check if diagonal path between two squares is clear."""
+def _is_path_clear(x1: int, y1: int, x2: int, y2: int, grid: np.ndarray) -> bool:
     if x1 == x2 and y1 == y2:
         return True
     dx = 1 if x2 > x1 else -1
     dy = 1 if y2 > y1 else -1
     cx, cy = x1 + dx, y1 + dy
     while not (abs(cx - x2) <= 1 and abs(cy - y2) <= 1):
-        if grid[cy][cx] != 'n':
+        if grid[cy, cx] != 0:
             return False
         cx += dx
         cy += dy
@@ -136,449 +167,127 @@ def _is_path_clear(x1: int, y1: int, x2: int, y2: int,
 
 
 # ---------------------------------------------------------------------------
-# Helper: dangerous_position (matching original Pascal logic precisely)
+# Danger detection
 # ---------------------------------------------------------------------------
 
-def _dangerous_position(x: int, y: int,
-                        grid: list[list[str]], color: str) -> bool:
-    """Check if piece at (x,y) is under attack.
 
-    Faithfully reproduces the original DangerousPosition() from Pascal.
-    """
-    enemies = WHITES if color == 'b' else BLACKS
-    friends = BLACKS if color == 'b' else WHITES
-    enemy_king = 'W' if color == 'b' else 'B'
+def _dangerous_position(x: int, y: int, grid: np.ndarray, color: str) -> bool:
+    """Check if piece at (x,y) is under attack."""
+    piece = int(grid[y, x])
+    if piece == 0:
+        return False
 
     close = [False, False, False, False]
 
     for rr in range(1, _max_diagonal_reach(x, y) + 1):
         for di in range(4):
             dx, dy = DIAGONAL_DIRECTIONS[di]
-            # Behind position (escape square for attacker)
             bx, by = x - dx, y - dy
-            # Attack position
             ax, ay = x + rr * dx, y + rr * dy
 
-            if not _is_on_board(bx, by):
-                continue
-            if not _is_on_board(ax, ay):
+            if not _is_on_board(bx, by) or not _is_on_board(ax, ay):
                 continue
 
-            if grid[by][bx] != 'n':
+            if grid[by, bx] != 0:
                 continue
 
             if rr == 1:
-                attacker = grid[ay][ax]
-                if attacker in enemies:
+                attacker = int(grid[ay, ax])
+                if piece * attacker < 0:
                     return True
-                elif attacker in friends:
+                if piece * attacker > 0:
                     close[di] = True
-            else:  # rr > 1
-                cell = grid[ay][ax]
-                # Check blocking for long-range king attack
-                if color == 'b':
-                    if cell in ('b', 'B', 'w'):
+            else:
+                cell = int(grid[ay, ax])
+                enemy_king = WHITE_KING if color == "b" else BLACK_KING
+                if color == "b":
+                    if cell in (1, 2, -1):
                         close[di] = True
                     elif not close[di] and cell == enemy_king:
                         return True
                 else:
-                    if cell in ('w', 'W', 'b'):
+                    if cell in (-1, -2, 1):
                         close[di] = True
                     elif not close[di] and cell == enemy_king:
                         return True
     return False
 
 
-# ---------------------------------------------------------------------------
-# Helper: dangerous_beat — will the piece be under attack after a capture?
-# ---------------------------------------------------------------------------
+def _any_piece_threatened(color: str, grid: np.ndarray) -> bool:
+    return any(_dangerous_position(x, y, grid, color) for x, y in _find_pieces(grid, color))
 
-def _is_unsafe_after_capture(x1: int, y1: int, x2: int, y2: int,
-                    bx: int, by: int,
-                    grid: list[list[str]], color: str) -> bool:
-    """Check if piece landing at (x2,y2) after capturing piece at (bx,by)
-    will be under attack. Original DangerousBeat()."""
-    enemies = WHITES if color == 'b' else BLACKS
-    enemy_king = 'W' if color == 'b' else 'B'
 
-    close = [False, False, False, False]
-
-    for rr in range(1, _max_diagonal_reach(x2, y2) + 1):
-        for di in range(4):
-            dx, dy = DIAGONAL_DIRECTIONS[di]
-            ax, ay = x2 + rr * dx, y2 + rr * dy
-            ex, ey = x2 - rr * dx, y2 - rr * dy
-
-            if not _is_on_board(ax, ay):
-                continue
-            if not _is_on_board(ex, ey):
-                continue
-
-            if rr == 1:
-                attacker = grid[ay][ax]
-                # Check landing square (behind us from attacker's perspective)
-                landing = grid[ey][ex]
-                landing_free = (landing == 'n' or (ex == bx and ey == by))
-                if attacker in enemies and landing_free:
-                    return True
-            else:
-                cell = grid[ay][ax]
-                if cell != enemy_king and cell != 'n' and not (ax == bx and ay == by):
-                    close[di] = True
-                elif not close[di] and cell == enemy_king:
-                    landing = grid[y2 - dy][x2 - dx]
-                    landing_free = (landing == 'n' or
-                                    (x2 - dx == bx and y2 - dy == by))
-                    if landing_free:
-                        return True
-    return False
+def _count_threatened(color: str, grid: np.ndarray) -> int:
+    """Count how many pieces of given color are under attack."""
+    return sum(1 for x, y in _find_pieces(grid, color) if _dangerous_position(x, y, grid, color))
 
 
 # ---------------------------------------------------------------------------
-# Helper: danger — does any piece of given color have a dangerous position?
+# Position helpers (for legacy Combination logic)
 # ---------------------------------------------------------------------------
 
-def _any_piece_threatened(color: str, grid: list[list[str]]) -> bool:
-    pieces = BLACKS if color == 'b' else WHITES
-    for y in range(1, BOARD_SIZE + 1):
-        for x in range(1, BOARD_SIZE + 1):
-            if x % 2 != y % 2:
-                if grid[y][x] in pieces:
-                    if _dangerous_position(x, y, grid, color):
-                        return True
-    return False
 
-
-# ---------------------------------------------------------------------------
-# Helper: neighbour — is the square "near" an edge or friendly piece?
-# ---------------------------------------------------------------------------
-
-def _is_near_edge_or_ally(x: int, y: int, grid: list[list[str]]) -> bool:
-    """Original neighbour() — checks if position is near edge or friendly."""
-    for di in range(2, 4):  # directions 3 and 4 (index 2,3)
+def _is_near_edge_or_ally(x: int, y: int, grid: np.ndarray) -> bool:
+    for di in range(2, 4):
         dx, dy = DIAGONAL_DIRECTIONS[di]
         nx, ny = x + 2 * dx, y + 2 * dy
         if _is_on_board(nx, ny):
-            adj = grid[y + dy][x + dx]
-            far = grid[ny][nx]
-            behind = grid[y - 2][x] if _is_on_board(x, y - 2) else 'n'
-            if (adj == 'n' and (far in BLACKS or behind in BLACKS)):
+            adj = int(grid[y + dy, x + dx])
+            far = int(grid[ny, nx])
+            behind = int(grid[y - 2, x]) if _is_on_board(x, y - 2) else 0
+            if adj == 0 and (far > 0 or behind > 0):
                 return True
-    if x in (1, BOARD_SIZE) or y in (1, BOARD_SIZE):
-        return True
-    return False
+    return bool(x in (1, BOARD_SIZE) or y in (1, BOARD_SIZE))
 
 
-# ---------------------------------------------------------------------------
-# Helper: side — is a pawn on column 2 or 7 with white threatening edge?
-# ---------------------------------------------------------------------------
-
-def _is_flank_vulnerable(x: int, y: int, grid: list[list[str]]) -> bool:
-    """Original side() function."""
+def _is_flank_vulnerable(x: int, y: int, grid: np.ndarray) -> bool:
     if y + 2 > BOARD_SIZE:
         return False
-    if x == 2:
-        if grid[y + 2][2] in WHITES:
-            if grid[y + 1][1] == 'n':
-                return True
-    elif x == BOARD_SIZE - 1:
-        if grid[y + 2][x] in WHITES:
-            if grid[y + 1][BOARD_SIZE] == 'n':
-                return True
-    return False
+    if x == 2 and int(grid[y + 2, 2]) < 0 and grid[y + 1, 1] == 0:
+        return True
+    return bool(x == BOARD_SIZE - 1 and int(grid[y + 2, x]) < 0 and grid[y + 1, BOARD_SIZE] == 0)
 
 
-# ---------------------------------------------------------------------------
-# Helper: one_beat — does white have exactly one capture available?
-# ---------------------------------------------------------------------------
-
-def _has_single_capture_only(grid: list[list[str]]) -> bool:
-    """Return True if white has exactly one capturable piece (for Combination).
-
-    Original OneBeat() — checks if blacks can be captured in exactly one place.
-    Actually, it checks if among all black pieces, exactly one is capturable
-    by a white piece jumping over it.
-    """
+def _has_single_capture_only(grid: np.ndarray) -> bool:
     first = False
     for y in range(1, BOARD_SIZE + 1):
         for x in range(1, BOARD_SIZE + 1):
-            if grid[y][x] in BLACKS:
+            if grid[y, x] > 0:
                 for di in range(4):
                     dx, dy = DIAGONAL_DIRECTIONS[di]
                     for rr in range(1, _max_diagonal_reach(x, y) + 1):
-                        bx, by = x - dx, y - dy
+                        bkx, bky = x - dx, y - dy
                         ax, ay = x + rr * dx, y + rr * dy
-                        if not _is_on_board(bx, by) or not _is_on_board(ax, ay):
+                        if not _is_on_board(bkx, bky) or not _is_on_board(ax, ay):
                             continue
-                        if grid[by][bx] != 'n':
+                        if grid[bky, bkx] != 0:
                             continue
-                        cell = grid[ay][ax]
-                        if (rr == 1 and cell == 'w') or (cell == 'W' and (rr == 1 or _is_path_clear(x, y, ax, ay, grid))):
+                        cell = int(grid[ay, ax])
+                        if (rr == 1 and cell == WHITE) or (
+                            cell == WHITE_KING and (rr == 1 or _is_path_clear(x, y, ax, ay, grid))
+                        ):
                             if first:
                                 return False
                             first = True
                             break
-    return True  # zero or one captures found
+    return True
 
 
 # ---------------------------------------------------------------------------
-# Helper: count pieces
+# Position string from raw grid
 # ---------------------------------------------------------------------------
 
-def _count_pieces(color: str, grid: list[list[str]]) -> int:
-    pieces = BLACKS if color == 'b' else WHITES
-    count = 0
-    for y in range(1, BOARD_SIZE + 1):
-        for x in range(1, BOARD_SIZE + 1):
-            if grid[y][x] in pieces:
-                count += 1
-    return count
+
+def _grid_to_position_string(grid: np.ndarray) -> str:
+    from draughts.config import DARK_SQUARES as DS
+
+    return "".join(INT_TO_CHAR[int(grid[y, x])] for y, x in DS)
 
 
 # ---------------------------------------------------------------------------
-# Helper: copy grid (list of lists)
+# Learning DB lookup
 # ---------------------------------------------------------------------------
 
-def _copy_grid(grid: list[list[str]]) -> list[list[str]]:
-    return [row[:] for row in grid]
-
-
-# ---------------------------------------------------------------------------
-# Virtual captures — simulate best capture for a side on model board
-# ---------------------------------------------------------------------------
-
-def _virtual_black_beat(sim_grid: list[list[str]], use_base: bool,
-                        learning_db: LearningDB | None) -> int:
-    """Simulate best black capture on model board (Monte Carlo).
-
-    Modifies model in-place if a capture is found.
-    Returns the score of the best capture, 0 if none.
-    """
-    best_score = 0
-    found = False
-    best_capture_steps = None
-
-    for y in range(1, BOARD_SIZE + 1):
-        for x in range(1, BOARD_SIZE + 1):
-            if sim_grid[y][x] != 'b':
-                continue
-            # Check if this pawn can capture
-            can = False
-            for di in range(4):
-                dx, dy = DIAGONAL_DIRECTIONS[di]
-                nx, ny = x + 2 * dx, y + 2 * dy
-                if _is_on_board(nx, ny) and sim_grid[ny][nx] == 'n' and sim_grid[y + dy][x + dx] in WHITES:
-                    can = True
-                    break
-            if not can:
-                continue
-
-            for _ in range(MONTE_CARLO_ITERATIONS):
-                move_sequence = [0] * 11  # move_sequence[1]=start_x, move_sequence[2]=start_y, move_sequence[3..]=dirs
-                move_sequence[1] = x
-                move_sequence[2] = y
-                x1, y1 = x, y
-                count = 2
-                trial_grid = _copy_grid(sim_grid)
-                score = 0
-                promoted = False
-
-                capture_done = False
-                max_attempts = 100
-                attempt = 0
-                while not capture_done:
-                    attempt += 1
-                    if attempt > max_attempts:
-                        break
-                    d = random.randint(0, 3)
-                    dx, dy = DIAGONAL_DIRECTIONS[d]
-                    nx, ny = x1 + 2 * dx, y1 + 2 * dy
-                    if _is_on_board(nx, ny) and trial_grid[ny][nx] == 'n' and trial_grid[y1 + dy][x1 + dx] in WHITES:
-                        found = True
-                        count += 1
-                        if count < len(move_sequence):
-                            move_sequence[count] = d + 1  # 1-based direction
-                        if trial_grid[y1 + dy][x1 + dx] == 'W':
-                            score += 2
-                        trial_grid[y1][x1] = 'n'
-                        trial_grid[y1 + dy][x1 + dx] = 'n'
-                        trial_grid[ny][nx] = 'b'
-                        x1, y1 = nx, ny
-                        if y1 == BOARD_SIZE and not promoted:
-                            score += 2
-                            promoted = True
-                        # Check if more captures possible
-                        capture_done = True
-                        attempt = 0
-                        for dd in range(4):
-                            ddx, ddy = DIAGONAL_DIRECTIONS[dd]
-                            nnx, nny = x1 + 2 * ddx, y1 + 2 * ddy
-                            if _is_on_board(nnx, nny) and trial_grid[nny][nnx] == 'n' and trial_grid[y1 + ddy][x1 + ddx] in WHITES:
-                                capture_done = False
-                                break
-                    else:
-                        # Random direction didn't work — check if any valid capture exists
-                        any_valid = False
-                        for dd in range(4):
-                            ddx, ddy = DIAGONAL_DIRECTIONS[dd]
-                            nnx, nny = x1 + 2 * ddx, y1 + 2 * ddy
-                            if _is_on_board(nnx, nny) and trial_grid[nny][nnx] == 'n' and trial_grid[y1 + ddy][x1 + ddx] in WHITES:
-                                any_valid = True
-                                break
-                        if not any_valid:
-                            capture_done = True
-
-                score += count - 2
-                if not _dangerous_position(x1, y1, trial_grid, 'b'):
-                    score += 1
-                if score > best_score:
-                    best_score = score
-                    best_capture_steps = (move_sequence[:], count, _copy_grid(trial_grid))
-
-    # Execute the best capture on model
-    if found and best_capture_steps is not None:
-        seq, count, _ = best_capture_steps
-        cx, cy = seq[1], seq[2]
-        for i in range(3, count + 1):
-            if i >= len(seq) or seq[i] == 0:
-                break
-            d = seq[i] - 1  # 0-based
-            dx, dy = DIAGONAL_DIRECTIONS[d]
-            # Promote if reaching last row
-            if cy + 2 * dy == BOARD_SIZE:
-                sim_grid[cy + 2 * dy][cx + 2 * dx] = 'B'
-            else:
-                sim_grid[cy + 2 * dy][cx + 2 * dx] = sim_grid[cy][cx]
-            sim_grid[cy][cx] = 'n'
-            sim_grid[cy + dy][cx + dx] = 'n'
-            cx = cx + 2 * dx
-            cy = cy + 2 * dy
-
-    return best_score
-
-
-def _virtual_white_beat(sim_grid: list[list[str]], use_base: bool,
-                        learning_db: LearningDB | None) -> int:
-    """Simulate best white capture on model board (Monte Carlo).
-
-    Modifies model in-place if a capture is found.
-    Returns the score of the best capture, 0 if none.
-    """
-    best_score = 0
-    found = False
-    best_capture_steps = None
-
-    for y in range(1, BOARD_SIZE + 1):
-        for x in range(1, BOARD_SIZE + 1):
-            if sim_grid[y][x] != 'w':
-                continue
-            can = False
-            for di in range(4):
-                dx, dy = DIAGONAL_DIRECTIONS[di]
-                nx, ny = x + 2 * dx, y + 2 * dy
-                if _is_on_board(nx, ny) and sim_grid[ny][nx] == 'n' and sim_grid[y + dy][x + dx] in BLACKS:
-                    can = True
-                    break
-            if not can:
-                continue
-
-            for _ in range(MONTE_CARLO_ITERATIONS):
-                move_sequence = [0] * 11
-                move_sequence[1] = x
-                move_sequence[2] = y
-                x1, y1 = x, y
-                count = 2
-                trial_grid = _copy_grid(sim_grid)
-                score = 0
-                promoted = False
-
-                capture_done = False
-                max_attempts = 100
-                attempt = 0
-                while not capture_done:
-                    attempt += 1
-                    if attempt > max_attempts:
-                        break
-                    d = random.randint(0, 3)
-                    dx, dy = DIAGONAL_DIRECTIONS[d]
-                    nx, ny = x1 + 2 * dx, y1 + 2 * dy
-                    if _is_on_board(nx, ny) and trial_grid[ny][nx] == 'n' and trial_grid[y1 + dy][x1 + dx] in BLACKS:
-                        found = True
-                        count += 1
-                        if count < len(move_sequence):
-                            move_sequence[count] = d + 1
-                        if trial_grid[y1 + dy][x1 + dx] == 'B':
-                            score += 2
-                        trial_grid[y1][x1] = 'n'
-                        trial_grid[y1 + dy][x1 + dx] = 'n'
-                        trial_grid[ny][nx] = 'w'
-                        x1, y1 = nx, ny
-                        if y1 == 1 and not promoted:
-                            score += 2
-                            promoted = True
-                        capture_done = True
-                        attempt = 0
-                        for dd in range(4):
-                            ddx, ddy = DIAGONAL_DIRECTIONS[dd]
-                            nnx, nny = x1 + 2 * ddx, y1 + 2 * ddy
-                            if _is_on_board(nnx, nny) and trial_grid[nny][nnx] == 'n' and trial_grid[y1 + ddy][x1 + ddx] in BLACKS:
-                                capture_done = False
-                                break
-                    else:
-                        any_valid = False
-                        for dd in range(4):
-                            ddx, ddy = DIAGONAL_DIRECTIONS[dd]
-                            nnx, nny = x1 + 2 * ddx, y1 + 2 * ddy
-                            if _is_on_board(nnx, nny) and trial_grid[nny][nnx] == 'n' and trial_grid[y1 + ddy][x1 + ddx] in BLACKS:
-                                any_valid = True
-                                break
-                        if not any_valid:
-                            capture_done = True
-
-                score += count - 2
-                if not _dangerous_position(x1, y1, trial_grid, 'w'):
-                    score += 2  # white gets +2 for safe position (original)
-                if score > best_score:
-                    best_score = score
-                    best_capture_steps = (move_sequence[:], count, _copy_grid(trial_grid))
-
-    # Execute best capture on model
-    if found and best_capture_steps is not None:
-        seq, count, _ = best_capture_steps
-        cx, cy = seq[1], seq[2]
-        for i in range(3, count + 1):
-            if i >= len(seq) or seq[i] == 0:
-                break
-            d = seq[i] - 1
-            dx, dy = DIAGONAL_DIRECTIONS[d]
-            if cy + 2 * dy == 1:
-                sim_grid[cy + 2 * dy][cx + 2 * dx] = 'W'
-            else:
-                sim_grid[cy + 2 * dy][cx + 2 * dx] = sim_grid[cy][cx]
-            sim_grid[cy][cx] = 'n'
-            sim_grid[cy + dy][cx + dx] = 'n'
-            cx = cx + 2 * dx
-            cy = cy + 2 * dy
-
-    return best_score
-
-
-# ---------------------------------------------------------------------------
-# Position string from raw grid (matching Board.to_position_string)
-# ---------------------------------------------------------------------------
-
-def _grid_to_position_string(grid: list[list[str]]) -> str:
-    result = []
-    for y in range(1, BOARD_SIZE + 1):
-        for x in range(1, BOARD_SIZE + 1):
-            if x % 2 != y % 2:
-                result.append(grid[y][x])
-    return ''.join(result)
-
-
-# ---------------------------------------------------------------------------
-# _search_db — lookup position in learning database
-# ---------------------------------------------------------------------------
 
 def _lookup_position(learning_db: LearningDB | None, position: str) -> str | None:
     if learning_db is None:
@@ -587,519 +296,375 @@ def _lookup_position(learning_db: LearningDB | None, position: str) -> str | Non
 
 
 # ===========================================================================
-# SEEBEAT — mandatory captures with Monte Carlo evaluation
+# STATIC EVALUATION — vectorized position scoring
 # ===========================================================================
 
-def _see_beat(board: Board, color: str, use_base: bool,
-              learning_db: LearningDB | None) -> AIMove | None:
-    """Find the best mandatory capture using Monte Carlo simulation.
 
-    Matches the original SeeBeat() function.
+def evaluate_position(grid: np.ndarray, color: str) -> float:
+    """Evaluate board position from perspective of `color`.
+
+    Uses vectorized NumPy operations for speed:
+    - Material count (pawns + kings with different values)
+    - Advancement bonus (pawns closer to promotion)
+    - Center control
+    - Piece safety (threatened pieces penalty)
+
+    Returns positive score if `color` is winning, negative if losing.
+    """
+    board_area = grid[_BOARD_SLICE]
+
+    # Material (vectorized)
+    black_pawns = int(np.count_nonzero(board_area == BLACK))
+    black_kings = int(np.count_nonzero(board_area == BLACK_KING))
+    white_pawns = int(np.count_nonzero(board_area == WHITE))
+    white_kings = int(np.count_nonzero(board_area == WHITE_KING))
+
+    # Terminal states
+    black_total = black_pawns + black_kings
+    white_total = white_pawns + white_kings
+    if black_total == 0:
+        return -1000.0 if color == "b" else 1000.0
+    if white_total == 0:
+        return 1000.0 if color == "b" else -1000.0
+
+    # Material balance
+    black_material = black_pawns * _PAWN_VALUE + black_kings * _KING_VALUE
+    white_material = white_pawns * _PAWN_VALUE + white_kings * _KING_VALUE
+    material = black_material - white_material
+
+    # Advancement bonus (vectorized: multiply grid masks by advancement tables)
+    black_pawn_mask = (grid == BLACK).astype(np.float32)
+    white_pawn_mask = (grid == WHITE).astype(np.float32)
+    black_advance = float(np.sum(black_pawn_mask * _BLACK_ADVANCE)) * _ADVANCE_BONUS
+    white_advance = float(np.sum(white_pawn_mask * _WHITE_ADVANCE)) * _ADVANCE_BONUS
+    advancement = black_advance - white_advance
+
+    # Center control (vectorized)
+    black_all = (grid > 0).astype(np.float32)
+    white_all = (grid < 0).astype(np.float32)
+    center = float(np.sum(black_all * _CENTER_MASK) - np.sum(white_all * _CENTER_MASK)) * _CENTER_BONUS
+
+    # Mobility (count of available moves)
+    temp_board = Board(empty=True)
+    temp_board.grid = grid
+    black_mobility = 0
+    white_mobility = 0
+    for x, y in _find_pieces(grid, "b"):
+        black_mobility += len(temp_board.get_valid_moves(x, y)) + len(temp_board.get_captures(x, y))
+    for x, y in _find_pieces(grid, "w"):
+        white_mobility += len(temp_board.get_valid_moves(x, y)) + len(temp_board.get_captures(x, y))
+
+    # No moves = loss
+    if color == "b" and black_mobility == 0:
+        return -1000.0
+    if color == "w" and white_mobility == 0:
+        return -1000.0
+
+    mobility = (black_mobility - white_mobility) * _MOBILITY_WEIGHT
+
+    # Threats (count threatened pieces)
+    black_threatened = _count_threatened("b", grid)
+    white_threatened = _count_threatened("w", grid)
+    threats = (white_threatened - black_threatened) * _THREAT_PENALTY
+
+    total = material + advancement + center + mobility + threats
+
+    return total if color == "b" else -total
+
+
+def _evaluate_fast(grid: np.ndarray, color: str) -> float:
+    """Ultra-fast evaluation using integer arithmetic where possible.
+
+    Avoids .astype() conversions — uses np.where() with precomputed weight tables.
+    """
+    board_area = grid[_BOARD_SLICE]
+
+    # Count pieces using vectorized comparisons (single pass)
+    has_black = bool(np.any(board_area > 0))
+    has_white = bool(np.any(board_area < 0))
+
+    if not has_black:
+        return -1000.0 if color == "b" else 1000.0
+    if not has_white:
+        return 1000.0 if color == "b" else -1000.0
+
+    # Material: use the signed encoding directly
+    # BLACK=1, BLACK_KING=2, WHITE=-1, WHITE_KING=-2
+    # For material: pawns=1pt, kings=3pt
+    # abs(piece) tells us: 1=pawn, 2=king. Value = 1 + (abs-1)*2 = 2*abs-1
+    # Actually: pawn=1, king=3. piece_value = 1 if abs==1 else 3
+    # Simpler: iterate with precomputed weight map
+    total = 0.0
+
+    # Material score: count each piece type
+    black_pawns = int(np.count_nonzero(board_area == 1))
+    black_kings = int(np.count_nonzero(board_area == 2))
+    white_pawns = int(np.count_nonzero(board_area == -1))
+    white_kings = int(np.count_nonzero(board_area == -2))
+
+    material = (black_pawns * _PAWN_VALUE + black_kings * _KING_VALUE) - (
+        white_pawns * _PAWN_VALUE + white_kings * _KING_VALUE
+    )
+    total += material
+
+    # Advancement: use np.where to avoid .astype()
+    # Only pawns get advancement bonus; precomputed tables are float32
+    total += float(np.sum(np.where(grid == 1, _BLACK_ADVANCE, 0.0))) * _ADVANCE_BONUS
+    total -= float(np.sum(np.where(grid == -1, _WHITE_ADVANCE, 0.0))) * _ADVANCE_BONUS
+
+    # Center control: use np.where
+    total += float(np.sum(np.where(grid > 0, _CENTER_MASK, 0.0))) * _CENTER_BONUS
+    total -= float(np.sum(np.where(grid < 0, _CENTER_MASK, 0.0))) * _CENTER_BONUS
+
+    return total if color == "b" else -total
+
+
+# ===========================================================================
+# MOVE GENERATION — all legal moves for a position
+# ===========================================================================
+
+
+def _generate_all_moves(board: Board, color: str) -> list[tuple[str, list[tuple[int, int]]]]:
+    """Generate all legal moves for a color.
+
+    Returns list of (kind, path) tuples.
+    Captures are mandatory in Russian draughts — if any exist, only captures are returned.
     """
     grid = board.grid
-    my_pawn = 'b' if color == 'b' else 'w'
-    my_king = 'B' if color == 'b' else 'W'
-    enemies = WHITES if color == 'b' else BLACKS
-    promote_row = BOARD_SIZE if color == 'b' else 1
+    captures = []
+    normal_moves = []
 
-    max_score = -100
-    best_capture_stepsimum = None
-    best_start = None
-    found_any = False
+    for x, y in _find_pieces(grid, color):
+        # Captures
+        cap_paths = board.get_captures(x, y)
+        for path in cap_paths:
+            captures.append(("capture", path))
 
-    for y in range(1, BOARD_SIZE + 1):
-        for x in range(1, BOARD_SIZE + 1):
-            piece = grid[y][x]
+        # Normal moves (only if no captures found)
+        if not captures:
+            moves = board.get_valid_moves(x, y)
+            for nx, ny in moves:
+                normal_moves.append(("move", [(x, y), (nx, ny)]))
 
-            if piece == my_pawn:
-                # Check if pawn can capture at all
-                can_capture = False
-                for di in range(4):
-                    dx, dy = DIAGONAL_DIRECTIONS[di]
-                    nx, ny = x + 2 * dx, y + 2 * dy
-                    if (_is_on_board(nx, ny) and
-                            grid[y + dy][x + dx] in enemies and
-                            grid[ny][nx] == 'n'):
-                        can_capture = True
-                        break
-                if not can_capture:
-                    continue
-
-                # Monte Carlo: try random capture sequences
-                for _ in range(MONTE_CARLO_ITERATIONS):
-                    capture_steps = []  # list of (direction_index, distance)
-                    x1, y1 = x, y
-                    sim_grid = _copy_grid(grid)
-                    score = 0
-                    promoted = False
-
-                    capture_done = False
-                    max_attempts = 100
-                    attempt = 0
-                    while not capture_done:
-                        attempt += 1
-                        if attempt > max_attempts:
-                            break
-                        d = random.randint(0, 3)
-                        dx, dy = DIAGONAL_DIRECTIONS[d]
-                        nx, ny = x1 + 2 * dx, y1 + 2 * dy
-                        if (_is_on_board(nx, ny) and
-                                sim_grid[y1 + dy][x1 + dx] in enemies and
-                                sim_grid[ny][nx] == 'n'):
-                            found_any = True
-                            capture_steps.append((d, 2))
-                            cap_piece = sim_grid[y1 + dy][x1 + dx]
-                            if cap_piece == my_king or (y1 + dy == promote_row - (1 if color == 'b' else -1)):
-                                pass
-                            if cap_piece in (my_king,):
-                                pass
-                            if cap_piece == ('W' if color == 'b' else 'B'):
-                                score += 2
-                            if y1 + dy == (2 if color == 'b' else BOARD_SIZE - 1):
-                                score += 2
-                            sim_grid[y1 + dy][x1 + dx] = 'n'
-                            if ny == promote_row:
-                                sim_grid[ny][nx] = my_king
-                            else:
-                                sim_grid[ny][nx] = sim_grid[y1][x1]
-                            sim_grid[y1][x1] = 'n'
-                            x1, y1 = nx, ny
-                            if y1 == promote_row and not promoted:
-                                score += 2
-                                promoted = True
-
-                            # Check if more captures available
-                            capture_done = True
-                            attempt = 0
-                            if sim_grid[y1][x1] == my_pawn:
-                                for dd in range(4):
-                                    ddx, ddy = DIAGONAL_DIRECTIONS[dd]
-                                    nnx, nny = x1 + 2 * ddx, y1 + 2 * ddy
-                                    if (_is_on_board(nnx, nny) and
-                                            sim_grid[y1 + ddy][x1 + ddx] in enemies and
-                                            sim_grid[nny][nnx] == 'n'):
-                                        capture_done = False
-                                        break
-                            elif sim_grid[y1][x1] == my_king:
-                                # King can capture at longer range
-                                for rr in range(2, BOARD_SIZE - 1 + 1):
-                                    for dd in range(4):
-                                        ddx, ddy = DIAGONAL_DIRECTIONS[dd]
-                                        nnx, nny = x1 + rr * ddx, y1 + rr * ddy
-                                        if (_is_on_board(nnx, nny) and
-                                                sim_grid[nny][nnx] == 'n'):
-                                            ec, ebx, eby = _scan_diagonal(x1, y1, nnx, nny,
-                                                                   'w' if color == 'b' else 'b',
-                                                                   sim_grid)
-                                            if ec == 1:
-                                                capture_done = False
-                                                break
-                                    if not capture_done:
-                                        break
-                        else:
-                            # Random direction didn't work; check if any capture exists
-                            capture_done = True
-                            if sim_grid[y1][x1] == my_pawn:
-                                for dd in range(4):
-                                    ddx, ddy = DIAGONAL_DIRECTIONS[dd]
-                                    nnx, nny = x1 + 2 * ddx, y1 + 2 * ddy
-                                    if (_is_on_board(nnx, nny) and
-                                            sim_grid[y1 + ddy][x1 + ddx] in enemies and
-                                            sim_grid[nny][nnx] == 'n'):
-                                        capture_done = False
-                                        break
-                            elif sim_grid[y1][x1] == my_king:
-                                for rr in range(2, BOARD_SIZE - 1 + 1):
-                                    for dd in range(4):
-                                        ddx, ddy = DIAGONAL_DIRECTIONS[dd]
-                                        nnx, nny = x1 + rr * ddx, y1 + rr * ddy
-                                        if (_is_on_board(nnx, nny) and sim_grid[nny][nnx] == 'n'):
-                                            ec, _, _ = _scan_diagonal(x1, y1, nnx, nny,
-                                                              'w' if color == 'b' else 'b',
-                                                              sim_grid)
-                                            if ec == 1:
-                                                capture_done = False
-                                                break
-                                    if not capture_done:
-                                        break
-
-                    # Score the result
-                    score += len(capture_steps)  # +1 per captured piece
-                    if use_base:
-                        pos_str = _grid_to_position_string(sim_grid)
-                        db_result = _lookup_position(learning_db, pos_str)
-                        if db_result == 'good':
-                            score += 3
-                        elif db_result == 'bad':
-                            score -= 3
-                    if not _dangerous_position(x1, y1, sim_grid, color):
-                        score += 1
-                    if score > max_score:
-                        max_score = score
-                        best_capture_stepsimum = capture_steps
-                        best_start = (x, y)
-
-            elif piece == my_king:
-                # King captures
-                can_capture = False
-                enemy_color = 'w' if color == 'b' else 'b'
-                for rr in range(2, BOARD_SIZE - 1 + 1):
-                    for di in range(4):
-                        dx, dy = DIAGONAL_DIRECTIONS[di]
-                        nx, ny = x + rr * dx, y + rr * dy
-                        if _is_on_board(nx, ny) and grid[ny][nx] == 'n':
-                            ec, _, _ = _scan_diagonal(x, y, nx, ny, enemy_color, grid)
-                            if ec == 1:
-                                can_capture = True
-                                break
-                    if can_capture:
-                        break
-                if not can_capture:
-                    continue
-
-                for _ in range(MONTE_CARLO_ITERATIONS):
-                    capture_steps = []  # list of (direction_index, distance)
-                    x1, y1 = x, y
-                    sim_grid = _copy_grid(grid)
-                    init_dangerous = _dangerous_position(x, y, grid, color)
-                    score = 1 if init_dangerous else 0
-
-                    capture_done = False
-                    max_attempts = 100
-                    attempt = 0
-                    while not capture_done:
-                        attempt += 1
-                        if attempt > max_attempts:
-                            break
-                        rr = random.randint(2, BOARD_SIZE - 2 + 1)
-                        d = random.randint(0, 3)
-                        dx, dy = DIAGONAL_DIRECTIONS[d]
-                        nx, ny = x1 + rr * dx, y1 + rr * dy
-                        if _is_on_board(nx, ny) and sim_grid[ny][nx] == 'n':
-                            ec, bx, by = _scan_diagonal(x1, y1, nx, ny, enemy_color, sim_grid)
-                            if ec == 1:
-                                found_any = True
-                                capture_steps.append((d, rr))
-                                sim_grid[y1][x1] = 'n'
-                                # Score for capturing king or near-promotion row
-                                cap = sim_grid[by][bx]
-                                if by == (2 if color == 'b' else BOARD_SIZE - 1):
-                                    if cap == ('w' if color == 'b' else 'b'):
-                                        score += 1
-                                if by == (2 if color == 'b' else BOARD_SIZE - 1) or cap == ('W' if color == 'b' else 'B'):
-                                    score += 2
-                                sim_grid[by][bx] = 'n'
-                                sim_grid[ny][nx] = my_king
-                                x1, y1 = nx, ny
-
-                        # Check end of beat
-                        capture_done = True
-                        for rrr in range(2, _max_diagonal_reach(x1, y1) + 1):
-                            for dd in range(4):
-                                ddx, ddy = DIAGONAL_DIRECTIONS[dd]
-                                nnx, nny = x1 + rrr * ddx, y1 + rrr * ddy
-                                if _is_on_board(nnx, nny) and sim_grid[nny][nnx] == 'n':
-                                    ec2, _, _ = _scan_diagonal(x1, y1, nnx, nny, enemy_color, sim_grid)
-                                    if ec2 == 1:
-                                        capture_done = False
-                                        break
-                            if not capture_done:
-                                break
-
-                    score += len(capture_steps)  # +1 per capture
-                    if use_base:
-                        pos_str = _grid_to_position_string(sim_grid)
-                        db_result = _lookup_position(learning_db, pos_str)
-                        if db_result == 'good':
-                            score += 3
-                        elif db_result == 'bad':
-                            score -= 3
-                    if not _dangerous_position(x1, y1, sim_grid, color):
-                        score += 1
-                    if score > max_score:
-                        max_score = score
-                        best_capture_stepsimum = capture_steps
-                        best_start = (x, y)
-
-    if not found_any or best_capture_stepsimum is None or best_start is None:
-        return None
-
-    # Build the capture path
-    path = [best_start]
-    cx, cy = best_start
-    piece = grid[cy][cx]
-    for d_idx, dist in best_capture_stepsimum:
-        dx, dy = DIAGONAL_DIRECTIONS[d_idx]
-        nx, ny = cx + dist * dx, cy + dist * dy
-
-        # For king's last move, find safest landing
-        if piece == my_king and (d_idx, dist) == best_capture_stepsimum[-1]:
-            # Try to find the actual landing that avoids danger
-            enemy_color = 'w' if color == 'b' else 'b'
-            ec, bx, by = _scan_diagonal(cx, cy, nx, ny, enemy_color, grid)
-            if ec == 1:
-                # Try to find a safe landing along this direction
-                for r_try in range(2, BOARD_SIZE - 1 + 1):
-                    tnx, tny = cx + r_try * dx, cy + r_try * dy
-                    if _is_on_board(tnx, tny) and grid[tny][tnx] == 'n':
-                        tec, tbx, tby = _scan_diagonal(cx, cy, tnx, tny, enemy_color, grid)
-                        if tec == 1:
-                            if not _is_unsafe_after_capture(cx, cy, tnx, tny, tbx, tby, grid, color):
-                                nx, ny = tnx, tny
-                                break
-
-        path.append((nx, ny))
-        cx, cy = nx, ny
-
-    return AIMove('capture', path)
+    # Mandatory capture rule
+    if captures:
+        return captures
+    return normal_moves
 
 
-# ===========================================================================
-# COMBINATION — tactical sacrifices
-# ===========================================================================
+def _apply_move(board: Board, kind: str, path: list[tuple[int, int]]) -> Board:
+    """Apply a move to a board copy and return the new board.
 
-def _combination(board: Board, color: str, use_base: bool,
-                 learning_db: LearningDB | None) -> AIMove | None:
-    """Find a profitable sacrifice move.
-
-    Matches the original Combination() procedure.
-    Only considers regular pieces (not kings), only if we have > 1 piece.
+    Uses direct grid copy to avoid Board.__init__ overhead.
     """
-    grid = board.grid
-    my_pawn = 'b' if color == 'b' else 'w'
-    enemies = WHITES if color == 'b' else BLACKS
-
-    if _count_pieces(color, grid) <= 1:
-        return None
-
-    max_score = -100
-    best_move = None
-
-    for y in range(1, BOARD_SIZE + 1):
-        for x in range(1, BOARD_SIZE + 1):
-            if grid[y][x] != my_pawn:
-                continue
-
-            # Only forward directions for sacrifice (dirs 0,1 for black; 2,3 for white)
-            forward_dirs = range(0, 2) if color == 'b' else range(2, 4)
-
-            for di in forward_dirs:
-                dx, dy = DIAGONAL_DIRECTIONS[di]
-                # Check: target square is empty, and beyond it is an enemy
-                tx, ty = x + dx, y + dy
-                ex, ey = x + 2 * dx, y + 2 * dy
-                if not _is_on_board(ex, ey):
-                    continue
-                if not _is_on_board(tx, ty):
-                    continue
-                if grid[ty][tx] != 'n':
-                    continue
-                if grid[ey][ex] not in enemies:
-                    continue
-
-                # Simulate the sacrifice
-                score = 0
-                sim_grid = _copy_grid(grid)
-                sim_grid[y][x] = 'n'
-                sim_grid[ty][tx] = my_pawn
-
-                if not _has_single_capture_only(sim_grid):
-                    continue
-
-                # Lookahead: white captures, then black captures
-                for _depth in range(LOOKAHEAD_DEPTH):
-                    delta_w = _virtual_white_beat(sim_grid, use_base, learning_db)
-                    if delta_w == 0:
-                        break
-                    score -= delta_w
-                    delta_b = _virtual_black_beat(sim_grid, use_base, learning_db)
-                    if delta_b == 0:
-                        break
-                    score += delta_b
-
-                if score > max_score:
-                    max_score = score
-                    best_move = ((x, y), (tx, ty))
-
-    if best_move is not None and max_score > 2 and _count_pieces(color, grid) > 1:
-        return AIMove('sacrifice', [best_move[0], best_move[1]])
-    return None
+    new_board = Board.__new__(Board)
+    new_board.grid = board.grid.copy()
+    if kind == "capture":
+        new_board.execute_capture_path(path)
+    else:
+        (x1, y1), (x2, y2) = path[0], path[1]
+        new_board.execute_move(x1, y1, x2, y2)
+    return new_board
 
 
 # ===========================================================================
-# ACTION — normal move with heuristic scoring
+# MOVE ORDERING — sort moves for better alpha-beta pruning
 # ===========================================================================
 
-def _action(board: Board, color: str, use_base: bool,
-            learning_db: LearningDB | None) -> AIMove | None:
-    """Find the best normal (non-capture) move.
 
-    Matches the original Action() procedure.
+def _order_moves(
+    moves: list[tuple[str, list[tuple[int, int]]]],
+    board: Board,
+    color: str,
+) -> list[tuple[str, list[tuple[int, int]]]]:
+    """Order moves to improve alpha-beta pruning.
+
+    Priority: captures first (by path length), then moves scored by quick heuristic.
     """
-    grid = board.grid
-    my_pawn = 'b' if color == 'b' else 'w'
-    my_king = 'B' if color == 'b' else 'W'
-    promote_row = BOARD_SIZE if color == 'b' else 1
-    enemy_color = 'w' if color == 'b' else 'b'
+    if len(moves) <= 1:
+        return moves
 
-    max_score = -100.0
-    best_move = None
-    found = False
+    scored = []
+    for kind, path in moves:
+        priority = 0.0
+        if kind == "capture":
+            # Longer capture chains are likely better
+            priority = 100.0 + len(path) * 10.0
+            # Bonus for capturing kings
+            for i in range(len(path) - 1):
+                x1, y1 = path[i]
+                x2, y2 = path[i + 1]
+                dx = 1 if x2 > x1 else -1
+                dy = 1 if y2 > y1 else -1
+                cx, cy = x1 + dx, y1 + dy
+                while (cx, cy) != (x2, y2):
+                    cap = int(board.grid[cy, cx])
+                    if cap != 0:
+                        if abs(cap) == 2:
+                            priority += 20.0
+                        break
+                    cx += dx
+                    cy += dy
+        else:
+            # Simple move heuristic: promotion moves first, center moves next
+            (x1, y1), (x2, y2) = path
+            promote_row = BOARD_SIZE if color == "b" else 1
+            priority = 50.0 if y2 == promote_row else float(_CENTER_MASK[y2, x2]) * 10.0
+        scored.append((priority, kind, path))
 
-    for y in range(1, BOARD_SIZE + 1):
-        for x in range(1, BOARD_SIZE + 1):
-            piece = grid[y][x]
+    scored.sort(key=lambda x: -x[0])
+    return [(kind, path) for _, kind, path in scored]
 
-            if piece == my_pawn:
-                # Forward directions only (dirs 0,1 for black moving down; 2,3 for white moving up)
-                forward_dirs = range(0, 2) if color == 'b' else range(2, 4)
 
-                for di in forward_dirs:
-                    dx, dy = DIAGONAL_DIRECTIONS[di]
-                    nx, ny = x + dx, y + dy
-                    if not _is_on_board(nx, ny):
-                        continue
-                    if grid[ny][nx] != 'n':
-                        continue
+# ===========================================================================
+# ALPHA-BETA MINIMAX
+# ===========================================================================
 
-                    score = 0.0
-                    sim_grid = _copy_grid(grid)
 
-                    was_side = _is_flank_vulnerable(x, y, sim_grid)
-                    was_danger = _any_piece_threatened(color, sim_grid)
+def _alphabeta(
+    board: Board,
+    depth: int,
+    alpha: float,
+    beta: float,
+    maximizing: bool,
+    color: str,
+    root_color: str,
+) -> float:
+    """Alpha-beta pruning minimax search.
 
-                    sim_grid[y][x] = 'n'
-                    sim_grid[ny][nx] = my_pawn
+    Args:
+        board: Current board state.
+        depth: Remaining search depth.
+        alpha: Best score for maximizer.
+        beta: Best score for minimizer.
+        maximizing: True if current player is the maximizing player.
+        color: Current player's color ('b' or 'w').
+        root_color: The AI's color (for evaluation perspective).
 
-                    if _is_near_edge_or_ally(nx, ny, sim_grid):
-                        score += 0.5
-                    if was_side and not _is_flank_vulnerable(nx, ny, sim_grid):
-                        score += 1.0
-                    if ny == promote_row:
-                        score += 2.0
-                    if was_danger and not _any_piece_threatened(color, sim_grid):
-                        score += 1.0
-                    if not _dangerous_position(nx, ny, sim_grid, color):
-                        score += 1.5
-                    else:
-                        score -= 2.0
+    Returns:
+        Evaluation score from root_color's perspective.
+    """
+    # Terminal depth — use fast evaluation
+    if depth <= 0:
+        return _evaluate_fast(board.grid, root_color)
 
-                    if use_base:
-                        pos_str = _grid_to_position_string(sim_grid)
-                        db_result = _lookup_position(learning_db, pos_str)
-                        if db_result == 'good':
-                            score += 3.0
-                        elif db_result == 'bad':
-                            score -= 3.0
+    # Generate moves
+    moves = _generate_all_moves(board, color)
 
-                    # Lookahead
-                    for _depth in range(LOOKAHEAD_DEPTH):
-                        delta_w = _virtual_white_beat(sim_grid, use_base, learning_db)
-                        if delta_w == 0:
-                            break
-                        score -= delta_w
-                        delta_b = _virtual_black_beat(sim_grid, use_base, learning_db)
-                        if delta_b == 0:
-                            break
-                        score += delta_b
+    # Terminal state — no moves available
+    if not moves:
+        # Current player has no moves = they lose
+        return -1000.0 if maximizing else 1000.0
 
-                    if score > max_score or (score == max_score and random.randint(0, 1) == 1):
-                        found = True
-                        max_score = score
-                        best_move = ((x, y), (nx, ny))
+    # At depth >= 3, use fast eval; at depth < 3, full eval for leaf ordering
+    use_ordering = depth >= 2
+    if use_ordering:
+        moves = _order_moves(moves, board, color)
 
-            elif piece == my_king:
-                # King moves — Monte Carlo sampling of direction/distance
-                for _ in range(MONTE_CARLO_ITERATIONS):
-                    r = random.randint(1, BOARD_SIZE - 2)
-                    d = random.randint(0, 3)
-                    dx, dy = DIAGONAL_DIRECTIONS[d]
-                    nx, ny = x + r * dx, y + r * dy
+    opp = _opponent(color)
 
-                    if not _is_on_board(nx, ny):
-                        continue
+    if maximizing:
+        value = -float("inf")
+        for kind, path in moves:
+            child = _apply_move(board, kind, path)
+            child_val = _alphabeta(child, depth - 1, alpha, beta, False, opp, root_color)
+            value = max(value, child_val)
+            alpha = max(alpha, value)
+            if alpha >= beta:
+                break
+        return value
+    else:
+        value = float("inf")
+        for kind, path in moves:
+            child = _apply_move(board, kind, path)
+            child_val = _alphabeta(child, depth - 1, alpha, beta, True, opp, root_color)
+            value = min(value, child_val)
+            beta = min(beta, value)
+            if alpha >= beta:
+                break
+        return value
 
-                    sim_grid = _copy_grid(grid)
-                    if sim_grid[ny][nx] != 'n':
-                        continue
 
-                    # Check path is clear (no pieces in the way)
-                    ec, _, _ = _scan_diagonal(x, y, nx, ny, enemy_color, sim_grid)
-                    if ec != 0:
-                        continue
+def _search_best_move(
+    board: Board,
+    color: str,
+    depth: int,
+    use_base: bool = False,
+    learning_db: LearningDB | None = None,
+) -> AIMove | None:
+    """Search for the best move using alpha-beta minimax.
 
-                    found = True
-                    score = 0.0
+    Args:
+        board: Current board state.
+        color: AI's color.
+        depth: Search depth (1 = evaluate immediate positions, etc.)
+        use_base: Whether to use learning database for leaf evaluation.
+        learning_db: Learning database instance.
 
-                    white_danger_before = _any_piece_threatened(enemy_color, sim_grid)
-                    black_danger_before = _any_piece_threatened(color, sim_grid)
-
-                    sim_grid[y][x] = 'n'
-                    sim_grid[ny][nx] = my_king
-
-                    white_danger_after = _any_piece_threatened(enemy_color, sim_grid)
-                    black_danger_after = _any_piece_threatened(color, sim_grid)
-                    new_pos_dangerous = _dangerous_position(nx, ny, sim_grid, color)
-
-                    # Heuristic scoring matching original
-                    if (not white_danger_before and white_danger_after and
-                            not new_pos_dangerous and not black_danger_after) or (not white_danger_before and white_danger_after and
-                          not new_pos_dangerous):
-                        score += 1.0
-
-                    if not black_danger_after and not new_pos_dangerous:
-                        score += 1.0
-
-                    if black_danger_before and not black_danger_after:
-                        score += 2.0
-
-                    if new_pos_dangerous:
-                        score -= 3.0
-
-                    if use_base:
-                        pos_str = _grid_to_position_string(sim_grid)
-                        db_result = _lookup_position(learning_db, pos_str)
-                        if db_result == 'good':
-                            score += 3.0
-                        elif db_result == 'bad':
-                            score -= 3.0
-
-                    # Lookahead
-                    for _depth in range(LOOKAHEAD_DEPTH):
-                        delta_w = _virtual_white_beat(sim_grid, use_base, learning_db)
-                        if delta_w == 0:
-                            break
-                        score -= delta_w
-                        delta_b = _virtual_black_beat(sim_grid, use_base, learning_db)
-                        if delta_b == 0:
-                            break
-                        score += delta_b
-
-                    if score > max_score:
-                        max_score = score
-                        best_move = ((x, y), (nx, ny))
-
-    if not found or best_move is None:
+    Returns:
+        Best AIMove or None.
+    """
+    moves = _generate_all_moves(board, color)
+    if not moves:
         return None
 
-    return AIMove('move', [best_move[0], best_move[1]])
+    # Order moves for better pruning
+    moves = _order_moves(moves, board, color)
+
+    opp = _opponent(color)
+    best_score = -float("inf")
+    best_moves: list[tuple[str, list[tuple[int, int]]]] = []
+
+    alpha = -float("inf")
+    beta = float("inf")
+
+    for kind, path in moves:
+        child = _apply_move(board, kind, path)
+        score = _alphabeta(child, depth - 1, alpha, beta, False, opp, color)
+
+        # Penalize moves that allow opponent captures — discourage unnecessary exchanges
+        if kind != "capture":
+            opp_moves = _generate_all_moves(child, opp)
+            if any(k == "capture" for k, _ in opp_moves):
+                score -= _PAWN_VALUE * 0.5  # significant penalty for walking into danger
+
+        # Learning DB bonus at root level
+        if use_base and learning_db is not None:
+            pos_str = child.to_position_string()
+            db_result = _lookup_position(learning_db, pos_str)
+            if db_result == "good":
+                score += 3.0
+            elif db_result == "bad":
+                score -= 3.0
+
+        if score > best_score:
+            best_score = score
+            best_moves = [(kind, path)]
+            alpha = max(alpha, score)
+        elif score == best_score:
+            best_moves.append((kind, path))
+
+    # Break ties randomly
+    if not best_moves:
+        return None
+    kind, path = random.choice(best_moves)
+    return AIMove(kind, path)
 
 
 # ===========================================================================
 # MAIN ENTRY POINT
 # ===========================================================================
 
-def computer_move(board: Board,
-                  difficulty: int = 2,
-                  use_base: bool = False,
-                  learning_db: LearningDB | None = None,
-                  color: str = 'b') -> AIMove | None:
-    """Compute the AI's move.
 
-    Priority:
-        1. SeeBeat — mandatory captures (always checked first)
-        2. Combination — tactical sacrifices (difficulty >= 2)
-        3. Action — normal moves
+def computer_move(
+    board: Board,
+    difficulty: int = 2,
+    use_base: bool = False,
+    learning_db: LearningDB | None = None,
+    color: str = "b",
+    depth: int | None = None,
+) -> AIMove | None:
+    """Compute the AI's move.
 
     Args:
         board: Current board state.
@@ -1107,52 +672,42 @@ def computer_move(board: Board,
         use_base: Whether to use the learning database.
         learning_db: LearningDB instance or None.
         color: 'b' or 'w' — which side the computer plays.
+        depth: Search depth override. If None, derived from difficulty:
+               difficulty 1 → depth 3, difficulty 2 → depth 5, difficulty 3 → depth 7.
 
     Returns:
         An AIMove describing the chosen move, or None if no legal move exists.
     """
-    # 1. Mandatory captures (SeeBeat)
-    move = _see_beat(board, color, use_base, learning_db)
-    if move is not None:
-        return move
+    # Determine search depth — minimum depth=3 so AI always sees opponent responses
+    if depth is None:
+        depth = {1: 3, 2: 5, 3: 7}.get(difficulty, 5)
 
-    # 2. Tactical sacrifices (Combination) — only on higher difficulties
-    if difficulty >= 2:
-        move = _combination(board, color, use_base, learning_db)
-        if move is not None:
-            return move
+    # Adaptive depth: reduce for complex positions to keep response time reasonable
+    piece_count = board.count_pieces("b") + board.count_pieces("w")
+    if piece_count > 16 and depth > 4:
+        depth = 4  # opening positions have too many moves for deep search
+    elif piece_count <= 6 and depth < 8:
+        depth = min(depth + 2, 10)  # endgames can search deeper
 
-    # 3. Normal moves (Action)
-    move = _action(board, color, use_base, learning_db)
-    if move is not None:
-        return move
-
-    return None
+    return _search_best_move(board, color, depth, use_base, learning_db)
 
 
 # ===========================================================================
 # LEARNING: record positions after game outcome
 # ===========================================================================
 
-def record_learning(learning_db: LearningDB,
-                    board_before: Board,
-                    board_after: Board,
-                    color: str,
-                    won: bool) -> None:
-    """Record a position in the learning database after a game outcome.
 
-    Args:
-        learning_db: The database to update.
-        board_before: Board state before the move.
-        board_after: Board state after the move.
-        color: The AI's color.
-        won: True if the AI won, False if it lost.
-    """
+def record_learning(
+    learning_db: LearningDB,
+    board_before: Board,
+    board_after: Board,
+    color: str,
+    won: bool,
+) -> None:
+    """Record a position in the learning database after a game outcome."""
     from draughts.game.learning import invert_position
 
     pos_str = board_after.to_position_string()
-
-    # Calculate score change
     score = _appreciate(board_before.grid, board_after.grid, color)
 
     if won and score > LEARNING_SCORE_THRESHOLD:
@@ -1163,25 +718,9 @@ def record_learning(learning_db: LearningDB,
         learning_db.save()
 
 
-def _appreciate(field1: list[list[str]], field2: list[list[str]],
-                color: str) -> int:
-    """Evaluate how much the position changed in favor of a given color.
-
-    Matches the original appreciate() function.
-    """
-    k = -1 if color == 'b' else 1
-    score = 0
-    for y in range(1, BOARD_SIZE + 1):
-        for x in range(1, BOARD_SIZE + 1):
-            p1 = field1[y][x]
-            p2 = field2[y][x]
-            for p, sign in [(p1, 1), (p2, -1)]:
-                if p == 'b':
-                    score += sign * k
-                elif p == 'w':
-                    score -= sign * k
-                elif p == 'B':
-                    score += sign * 2 * k
-                elif p == 'W':
-                    score -= sign * 2 * k
-    return score
+def _appreciate(field1: np.ndarray, field2: np.ndarray, color: str) -> int:
+    """Evaluate how much the position changed in favor of a given color."""
+    val1 = int(np.sum(field1[_BOARD_SLICE]))
+    val2 = int(np.sum(field2[_BOARD_SLICE]))
+    delta = val2 - val1
+    return delta if color == "b" else -delta

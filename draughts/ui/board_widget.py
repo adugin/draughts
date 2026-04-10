@@ -18,6 +18,7 @@ from draughts.config import (
 )
 from draughts.game.board import Board
 from draughts.ui.piece_painter import draw_piece
+from draughts.ui.textures import TextureCache, draw_realistic_piece
 
 
 class BoardWidget(QWidget):
@@ -33,6 +34,7 @@ class BoardWidget(QWidget):
         self._capture_highlights: list[tuple[int, int]] = []
         self._turn_color: str = 'w'  # whose turn: 'w' or 'b'
         self._anim_hidden_cells: set[tuple[int, int]] = set()  # cells hidden during animation
+        self._textures = TextureCache()
 
         self.setMinimumSize(240, 240)
         self.setMouseTracking(False)
@@ -79,8 +81,8 @@ class BoardWidget(QWidget):
         h = self.height()
         side = min(w, h)
 
-        # Reserve ~8% on each side for labels/frame
-        margin = max(int(side * 0.08), 16)
+        # Reserve space for frame + labels
+        margin = max(int(side * 0.06), 16)
         board_side = side - 2 * margin
         cell_size = board_side / BOARD_SIZE
 
@@ -117,37 +119,33 @@ class BoardWidget(QWidget):
 
         margin, cell_size, bx, by = self._metrics()
         board_side = cell_size * BOARD_SIZE
+        cs = max(1, int(cell_size))
 
-        # Background fill
-        painter.fillRect(self.rect(), QColor(COLORS['panel_bg'][0], COLORS['panel_bg'][1], COLORS['panel_bg'][2]))
+        # Background — exactly match right panel (#3a2a1a) for seamless look
+        painter.fillRect(self.rect(), QColor(0x3a, 0x2a, 0x1a))
 
-        # Board background (dark area behind labels)
-        bg = COLORS['board_bg']
-        frame_margin = cell_size * 0.15
-        painter.fillRect(
-            QRectF(bx - frame_margin, by - frame_margin,
-                   board_side + 2 * frame_margin, board_side + 2 * frame_margin),
-            QColor(bg[0], bg[1], bg[2]),
-        )
+        # Board frame — dark mahogany wood texture
+        frame_margin = cell_size * 0.65
+        frame_rect = QRectF(bx - frame_margin, by - frame_margin,
+                            board_side + 2 * frame_margin, board_side + 2 * frame_margin)
+        frame_tex = self._textures.get_frame_wood(max(1, int(board_side + 2 * frame_margin)))
+        painter.drawPixmap(frame_rect.toRect(), frame_tex)
 
-        # Yellow frame around the board
-        frame_c = COLORS['board_frame']
-        pen = QPen(QColor(frame_c[0], frame_c[1], frame_c[2]), max(2, cell_size * 0.06))
-        painter.setPen(pen)
+        # Subtle frame border
+        painter.setPen(QPen(QColor(30, 20, 10), max(1, cell_size * 0.03)))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRect(QRectF(bx - frame_margin, by - frame_margin,
-                                board_side + 2 * frame_margin, board_side + 2 * frame_margin))
+        painter.drawRect(frame_rect)
 
-        # Draw cells
+        # Draw cells with wood textures
+        light_tex = self._textures.get_light_wood(cs)
+        dark_tex = self._textures.get_dark_wood(cs)
+
         for y in range(1, BOARD_SIZE + 1):
             for x in range(1, BOARD_SIZE + 1):
                 rect = self._cell_rect(x, y, cell_size, bx, by)
                 is_dark = (x % 2 != y % 2)
-                color_key = 'dark_cell' if is_dark else 'light_cell'
-                c = COLORS[color_key]
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(QColor(c[0], c[1], c[2]))
-                painter.drawRect(rect)
+                tex = dark_tex if is_dark else light_tex
+                painter.drawPixmap(rect.toRect(), tex)
 
         # Draw highlights (selection / capture)
         if self._selection:
@@ -183,7 +181,7 @@ class BoardWidget(QWidget):
 
         painter.end()
 
-    def _draw_piece(self, painter: QPainter, x: int, y: int, piece: str,
+    def _draw_piece(self, painter: QPainter, x: int, y: int, piece: int,
                     cell_size: float, bx: float, by: float):
         """Draw a single piece (regular or king) at board position (x, y)."""
         rect = self._cell_rect(x, y, cell_size, bx, by)
@@ -192,43 +190,50 @@ class BoardWidget(QWidget):
         radius = cell_size * 0.40
         is_black = piece in (BLACK, BLACK_KING)
         is_king = piece in (BLACK_KING, WHITE_KING)
-        draw_piece(painter, cx, cy, radius, is_black, is_king)
+        draw_realistic_piece(painter, cx, cy, radius, is_black, is_king)
 
     def _draw_labels(self, painter: QPainter, cell_size: float,
                      bx: float, by: float, board_side: float):
-        """Draw column letters (a-h) and row numbers (8-1) around the board."""
-        font_size = max(8, int(cell_size * 0.28))
-        font = QFont("Arial", font_size)
-        font.setBold(True)
-        painter.setFont(font)
-        painter.setPen(QColor(255, 255, 200))
+        """Draw column letters (a-h) and row numbers (8-1) around the board.
 
-        label_offset = cell_size * 0.35
+        Labels are centered in the frame margin between the board edge and frame edge.
+        """
+        font_size = max(8, int(cell_size * 0.32))
+        font = QFont("Georgia", font_size)
+        painter.setFont(font)
+        painter.setPen(QColor(190, 165, 120))
+
+        # Label strip matches frame margin
+        strip = cell_size * 0.65
 
         for i in range(BOARD_SIZE):
-            # Column letters below
+            # Cell center X for column labels
+            cell_cx = bx + (i + 0.5) * cell_size
             letter = COLUMN_LETTERS[i]
-            lx = bx + (i + 0.5) * cell_size
-            ly = by + board_side + label_offset
-            r = QRectF(lx - cell_size / 2, ly - font_size / 2, cell_size, font_size * 1.5)
-            painter.drawText(r, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, letter)
 
-            # Column letters above
-            ly_top = by - label_offset
-            r_top = QRectF(lx - cell_size / 2, ly_top - font_size, cell_size, font_size * 1.5)
-            painter.drawText(r_top, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom, letter)
+            # Below board — centered in strip between board bottom and frame bottom
+            r_bot = QRectF(cell_cx - cell_size / 2, by + board_side,
+                           cell_size, strip)
+            painter.drawText(r_bot, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, letter)
 
-            # Row numbers left
+            # Above board
+            r_top = QRectF(cell_cx - cell_size / 2, by - strip,
+                           cell_size, strip)
+            painter.drawText(r_top, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, letter)
+
+            # Cell center Y for row labels
+            cell_cy = by + (i + 0.5) * cell_size
             number = ROW_NUMBERS[i]
-            rx = bx - label_offset
-            ry = by + (i + 0.5) * cell_size
-            r_left = QRectF(rx - cell_size, ry - cell_size / 2, cell_size, cell_size)
-            painter.drawText(r_left, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, number)
 
-            # Row numbers right
-            rx_right = bx + board_side + label_offset
-            r_right = QRectF(rx_right, ry - cell_size / 2, cell_size, cell_size)
-            painter.drawText(r_right, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, number)
+            # Left of board
+            r_left = QRectF(bx - strip, cell_cy - cell_size / 2,
+                            strip, cell_size)
+            painter.drawText(r_left, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, number)
+
+            # Right of board
+            r_right = QRectF(bx + board_side, cell_cy - cell_size / 2,
+                             strip, cell_size)
+            painter.drawText(r_right, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, number)
 
     # --- Mouse events ---
 
