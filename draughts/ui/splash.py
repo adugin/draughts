@@ -1,15 +1,12 @@
 """Animated splash screen — pixel-level scatter/reassemble.
 
-Faithful recreation of the original Pascal breaking() algorithm:
-  1. Render text to offscreen image, extract pixel positions
-  2. Scatter pixels radially outward from center
-  3. Pull pixels back toward center (they form a cloud near center)
-  4. Clear and show next text, repeat
-  5. Final text: lightning strike, then per-pixel color shimmer
+Sequence: "Andrey Dugin" (fade-in) → scatter → reassemble as "presents"
+→ scatter → reassemble as "Шашки" → lightning → per-pixel shimmer.
 """
 
 from __future__ import annotations
 
+import math
 import random
 from dataclasses import dataclass, field
 
@@ -18,23 +15,23 @@ from PyQt6.QtGui import (
     QColor,
     QFont,
     QImage,
-    QLinearGradient,
     QPainter,
     QPen,
-    QRadialGradient,
 )
 from PyQt6.QtWidgets import QWidget
 
-# Maximum number of pixels to track (matching original mas[1..2000])
 _MAX_PIXELS = 2000
 
 
 @dataclass
 class _Dot:
-    """A single pixel extracted from rendered text."""
+    """A pixel with current position, velocity, and target."""
     x: float
     y: float
-    color: QColor | None = None
+    target_x: float = 0.0
+    target_y: float = 0.0
+    vx: float = 0.0
+    vy: float = 0.0
 
 
 @dataclass
@@ -46,25 +43,28 @@ class _LightningBolt:
     branches: list[list[tuple[float, float]]] = field(default_factory=list)
 
 
-# Phase timing
-_T_NAME_SHOW = 0.0
-_T_NAME_HOLD = 1.5
-_T_SCATTER_1_END = 2.8
-_T_ASSEMBLE_1_END = 4.1
-_T_PRESENTS_HOLD = 5.1
-_T_SCATTER_2_END = 6.4
-_T_ASSEMBLE_2_END = 7.7
-_T_TITLE_HOLD = 8.7
-_T_LIGHTNING = 8.7
-_T_LIGHTNING_FLASH = 8.9
-_T_SHIMMER_START = 9.0
-_T_FADEOUT_START = 12.0
-_T_END = 12.8
+# Phase timing (seconds)
+_T_FADE_IN_START = 0.0
+_T_FADE_IN_END = 1.2
+_T_NAME_HOLD = 2.0
+_T_EXPLODE_1 = 2.0       # name explodes
+_T_OFFSCREEN_1 = 2.6     # all pixels off-screen
+_T_ASSEMBLE_1 = 2.6      # start flying back → "presents"
+_T_ASSEMBLED_1 = 3.4     # "presents" assembled
+_T_PRESENTS_HOLD = 4.2   # hold "presents"
+_T_EXPLODE_2 = 4.2       # presents explodes
+_T_OFFSCREEN_2 = 4.8
+_T_ASSEMBLE_2 = 4.8
+_T_ASSEMBLED_2 = 5.6     # "Шашки" assembled
+_T_TITLE_HOLD = 6.6      # hold title
+_T_LIGHTNING = 6.6
+_T_LIGHTNING_FLASH = 6.8
+_T_SHIMMER_START = 6.9
+_T_FADEOUT_START = 10.0
+_T_END = 10.8
 
 
 class SplashScreen(QWidget):
-    """Full-screen animated splash with pixel scatter/reassemble."""
-
     finished = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -79,33 +79,27 @@ class SplashScreen(QWidget):
         self._elapsed = 0.0
         self._fps_interval = 16
 
-        # Pixel dots for scatter/assemble
         self._dots: list[_Dot] = []
+        self._fade_in_alpha = 0.0
+        self._static_text: str | None = None
 
-        # Title pixel positions (for shimmer)
+        # Shimmer
         self._title_dot_positions: list[tuple[float, float]] = []
         self._title_dot_colors: list[QColor] = []
         self._shimmer_active = False
 
-        # Static text image (shown when text is fully assembled, not animating)
-        self._static_text: str | None = None
-
         # Lightning
         self._bolts: list[_LightningBolt] = []
         self._flash_alpha = 0.0
-
         self._fade_alpha = 0.0
 
-        # Timer
         self._timer = QTimer(self)
         self._timer.setInterval(self._fps_interval)
         self._timer.timeout.connect(self._tick)
 
         self._initialized = False
         self._phase_done: set[str] = set()
-
-        # Text rendering cache
-        self._text_configs: dict[str, tuple[str, int, QColor]] = {}
+        self._text_configs: dict[str, tuple[str, int]] = {}
 
         # Screenshot support
         self._screenshot_callback = None
@@ -126,41 +120,32 @@ class SplashScreen(QWidget):
         w = self.width()
         h = self.height()
         scale = min(w / 800, h / 600)
-
         self._text_configs = {
-            "name": ("Andrey Dugin", int(42 * scale), QColor(255, 255, 255)),
-            "presents": ("presents", int(28 * scale), QColor(255, 255, 255)),
-            "title": ("Шашки", int(80 * scale), QColor(255, 255, 255)),
+            "name": ("Andrey Dugin", int(42 * scale)),
+            "presents": ("presents", int(28 * scale)),
+            "title": ("Шашки", int(80 * scale)),
         }
-
-        # Start with name shown as static text
         self._static_text = "name"
+        self._fade_in_alpha = 0.0
         self._elapsed = 0.0
         self._timer.start()
 
-    def _render_text_to_pixels(self, text_key: str) -> list[tuple[float, float]]:
-        """Render text to an offscreen image, extract non-black pixel positions."""
-        text, font_size, color = self._text_configs[text_key]
+    def _render_text_pixels(self, text_key: str) -> list[tuple[float, float]]:
+        """Render text offscreen, extract pixel positions."""
+        text, font_size = self._text_configs[text_key]
         w = self.width()
         h = self.height()
 
-        # Render to offscreen image
         img = QImage(w, h, QImage.Format.Format_ARGB32)
         img.fill(QColor(0, 0, 0, 255))
-
         painter = QPainter(img)
         font = QFont("Georgia", font_size)
         font.setBold(True)
         painter.setFont(font)
-        painter.setPen(color)
-        painter.drawText(
-            QRectF(0, 0, w, h),
-            Qt.AlignmentFlag.AlignCenter,
-            text,
-        )
+        painter.setPen(QColor(255, 255, 255))
+        painter.drawText(QRectF(0, 0, w, h), Qt.AlignmentFlag.AlignCenter, text)
         painter.end()
 
-        # Extract pixel positions where text was drawn
         pixels = []
         for y in range(h):
             for x in range(w):
@@ -168,41 +153,94 @@ class SplashScreen(QWidget):
                 if c.red() > 30 or c.green() > 30 or c.blue() > 30:
                     pixels.append((float(x), float(y)))
 
-        # Sample if too many pixels
         if len(pixels) > _MAX_PIXELS:
             pixels = random.sample(pixels, _MAX_PIXELS)
-
         return pixels
 
-    def _scatter_from_center(self, step: float):
-        """Push dots radially outward from screen center.
-
-        Matches original: mas[n] += (mas[n] - center) * random/step
-        """
+    def _explode_dots(self):
+        """Give each dot a radial velocity away from center — fast, like an explosion."""
         cx = self.width() / 2
         cy = self.height() / 2
+        # Screen diagonal — pixels must fly beyond this distance
+        diag = math.sqrt(self.width() ** 2 + self.height() ** 2)
         for dot in self._dots:
-            k1 = random.random() / max(step, 0.5)
-            k2 = random.random() / max(step, 0.5)
             dx = dot.x - cx
             dy = dot.y - cy
-            dot.x = dot.x + dx * k1
-            dot.y = dot.y + dy * k2
+            dist = math.sqrt(dx * dx + dy * dy) + 1
+            # Normalize direction, apply speed proportional to screen size
+            speed = diag * random.uniform(1.5, 3.0)
+            dot.vx = (dx / dist) * speed
+            dot.vy = (dy / dist) * speed
 
-    def _pull_toward_center(self, step: float):
-        """Pull dots toward screen center.
+    def _assign_targets(self, text_key: str):
+        """Assign each dot a target position from the next text's pixels.
 
-        Matches original: mas[n] -= (mas[n] - center) * random/step
+        Extra dots get random off-screen targets (will be invisible).
+        If we need more dots, spawn them from off-screen positions.
         """
-        cx = self.width() / 2
-        cy = self.height() / 2
+        targets = self._render_text_pixels(text_key)
+        random.shuffle(targets)
+        w = self.width()
+        h = self.height()
+        diag = math.sqrt(w * w + h * h)
+
+        # Assign targets to existing dots
+        for i, dot in enumerate(self._dots):
+            if i < len(targets):
+                dot.target_x, dot.target_y = targets[i]
+            else:
+                # Extra dot — target off-screen, will fade
+                dot.target_x = -9999
+                dot.target_y = -9999
+
+        # Spawn missing dots from off-screen positions
+        for i in range(len(self._dots), len(targets)):
+            angle = random.uniform(0, 2 * math.pi)
+            r = diag * random.uniform(0.6, 1.0)
+            sx = w / 2 + math.cos(angle) * r
+            sy = h / 2 + math.sin(angle) * r
+            tx, ty = targets[i]
+            self._dots.append(_Dot(x=sx, y=sy, target_x=tx, target_y=ty))
+
+    def _animate_explosion(self, dt: float):
+        """Move dots along their velocity (outward from center)."""
         for dot in self._dots:
-            k1 = random.random() / max(step, 0.5)
-            k2 = random.random() / max(step, 0.5)
-            dx = dot.x - cx
-            dy = dot.y - cy
-            dot.x = dot.x - dx * k1
-            dot.y = dot.y - dy * k2
+            dot.x += dot.vx * dt
+            dot.y += dot.vy * dt
+            # Acceleration — speed up as they fly out
+            dot.vx *= 1.05
+            dot.vy *= 1.05
+
+    def _animate_assembly(self, progress: float):
+        """Move dots from current position toward targets. progress: 0→1."""
+        t = min(progress, 1.0)
+        # Ease-in-out: slow start, fast middle, smooth landing
+        if t < 0.5:
+            eased = 2 * t * t
+        else:
+            eased = 1 - (-2 * t + 2) ** 2 / 2
+
+        for dot in self._dots:
+            if dot.target_x < -9000:
+                continue  # skip dead dots
+            if not hasattr(dot, '_asm_sx'):
+                dot._asm_sx = dot.x
+                dot._asm_sy = dot.y
+            dot.x = dot._asm_sx + (dot.target_x - dot._asm_sx) * eased
+            dot.y = dot._asm_sy + (dot.target_y - dot._asm_sy) * eased
+
+    def _snap_to_targets(self):
+        """Snap all dots to their targets."""
+        for dot in self._dots:
+            if dot.target_x > -9000:
+                dot.x = dot.target_x
+                dot.y = dot.target_y
+            if hasattr(dot, '_asm_sx'):
+                del dot._asm_sx
+                del dot._asm_sy
+
+    def _is_dot_visible(self, dot: _Dot) -> bool:
+        return -10 <= dot.x <= self.width() + 10 and -10 <= dot.y <= self.height() + 10
 
     def _generate_lightning(self, target_y: float) -> _LightningBolt:
         w = self.width()
@@ -243,80 +281,82 @@ class SplashScreen(QWidget):
         self._elapsed += dt
         t = self._elapsed
 
-        # === Phase: Name visible (0 - 1.5s) ===
+        # === Fade in "Andrey Dugin" (0 - 1.2s) ===
+        if t < _T_FADE_IN_END:
+            self._fade_in_alpha = min(1.0, t / _T_FADE_IN_END)
+
         if t >= 1.4 and "name" not in self._screenshot_phases_done:
             self._screenshot_phases_done.add("name")
             self._fire_screenshot("name")
 
-        # === Scatter name (1.5 - 2.8s) ===
-        if t >= _T_NAME_HOLD and "init_scatter_1" not in self._phase_done:
-            self._phase_done.add("init_scatter_1")
+        # === Explode name (2.0s) ===
+        if t >= _T_EXPLODE_1 and "explode_1" not in self._phase_done:
+            self._phase_done.add("explode_1")
             self._static_text = None
-            # Extract pixels from rendered name text
-            pixels = self._render_text_to_pixels("name")
-            self._dots = [_Dot(x=x, y=y, color=QColor(255, 255, 255)) for x, y in pixels]
+            self._fade_in_alpha = 1.0
+            pixels = self._render_text_pixels("name")
+            self._dots = [_Dot(x=x, y=y) for x, y in pixels]
+            self._explode_dots()
 
-        if _T_NAME_HOLD < t < _T_SCATTER_1_END:
-            # Scatter step decreases from 100 to 1 (matching original `for a:=1 to 100`)
-            total = _T_SCATTER_1_END - _T_NAME_HOLD
-            progress = (t - _T_NAME_HOLD) / total
-            step = 100.0 * (1.0 - progress) + 1.0
-            self._scatter_from_center(step)
+        if _T_EXPLODE_1 < t < _T_OFFSCREEN_1:
+            self._animate_explosion(dt)
 
-        # === Pull toward center → show "presents" (2.8 - 4.1s) ===
-        if _T_SCATTER_1_END <= t < _T_ASSEMBLE_1_END:
-            total = _T_ASSEMBLE_1_END - _T_SCATTER_1_END
-            progress = (t - _T_SCATTER_1_END) / total
-            step = 100.0 * (1.0 - progress) + 1.0
-            self._pull_toward_center(step)
+        # === Assign targets for "presents", fly back (2.6 - 3.4s) ===
+        if t >= _T_ASSEMBLE_1 and "target_1" not in self._phase_done:
+            self._phase_done.add("target_1")
+            self._assign_targets("presents")
 
-        if t >= _T_ASSEMBLE_1_END and "show_presents" not in self._phase_done:
-            self._phase_done.add("show_presents")
+        if _T_ASSEMBLE_1 <= t < _T_ASSEMBLED_1:
+            progress = (t - _T_ASSEMBLE_1) / (_T_ASSEMBLED_1 - _T_ASSEMBLE_1)
+            self._animate_assembly(progress)
+
+        if t >= _T_ASSEMBLED_1 and "snap_1" not in self._phase_done:
+            self._phase_done.add("snap_1")
+            self._snap_to_targets()
             self._dots.clear()
             self._static_text = "presents"
 
-        if t >= _T_ASSEMBLE_1_END + 0.1 and "presents" not in self._screenshot_phases_done:
+        if t >= _T_ASSEMBLED_1 + 0.1 and "presents" not in self._screenshot_phases_done:
             self._screenshot_phases_done.add("presents")
             self._fire_screenshot("presents")
 
-        # === Scatter presents (5.1 - 6.4s) ===
-        if t >= _T_PRESENTS_HOLD and "init_scatter_2" not in self._phase_done:
-            self._phase_done.add("init_scatter_2")
+        # === Explode presents (4.2s) ===
+        if t >= _T_EXPLODE_2 and "explode_2" not in self._phase_done:
+            self._phase_done.add("explode_2")
             self._static_text = None
-            pixels = self._render_text_to_pixels("presents")
-            self._dots = [_Dot(x=x, y=y, color=QColor(255, 255, 255)) for x, y in pixels]
+            pixels = self._render_text_pixels("presents")
+            self._dots = [_Dot(x=x, y=y) for x, y in pixels]
+            self._explode_dots()
 
-        if _T_PRESENTS_HOLD < t < _T_SCATTER_2_END:
-            total = _T_SCATTER_2_END - _T_PRESENTS_HOLD
-            progress = (t - _T_PRESENTS_HOLD) / total
-            step = 100.0 * (1.0 - progress) + 1.0
-            self._scatter_from_center(step)
+        if _T_EXPLODE_2 < t < _T_OFFSCREEN_2:
+            self._animate_explosion(dt)
 
-        # === Pull toward center → show "Шашки" (6.4 - 7.7s) ===
-        if _T_SCATTER_2_END <= t < _T_ASSEMBLE_2_END:
-            total = _T_ASSEMBLE_2_END - _T_SCATTER_2_END
-            progress = (t - _T_SCATTER_2_END) / total
-            step = 100.0 * (1.0 - progress) + 1.0
-            self._pull_toward_center(step)
+        # === Assign targets for "Шашки", fly back (4.8 - 5.6s) ===
+        if t >= _T_ASSEMBLE_2 and "target_2" not in self._phase_done:
+            self._phase_done.add("target_2")
+            self._assign_targets("title")
 
-        if t >= _T_ASSEMBLE_2_END and "show_title" not in self._phase_done:
-            self._phase_done.add("show_title")
+        if _T_ASSEMBLE_2 <= t < _T_ASSEMBLED_2:
+            progress = (t - _T_ASSEMBLE_2) / (_T_ASSEMBLED_2 - _T_ASSEMBLE_2)
+            self._animate_assembly(progress)
+
+        if t >= _T_ASSEMBLED_2 and "snap_2" not in self._phase_done:
+            self._phase_done.add("snap_2")
+            self._snap_to_targets()
             self._dots.clear()
             self._static_text = "title"
-            # Pre-extract title pixels for shimmer
-            self._title_dot_positions = self._render_text_to_pixels("title")
+            self._title_dot_positions = self._render_text_pixels("title")
             self._title_dot_colors = [QColor(255, 255, 255)] * len(self._title_dot_positions)
 
-        if t >= _T_ASSEMBLE_2_END + 0.1 and "title" not in self._screenshot_phases_done:
+        if t >= _T_ASSEMBLED_2 + 0.1 and "title" not in self._screenshot_phases_done:
             self._screenshot_phases_done.add("title")
             self._fire_screenshot("title")
 
-        # === Lightning (8.7s) ===
+        # === Lightning (6.6s) ===
         if t >= _T_LIGHTNING and "lightning" not in self._phase_done:
             self._phase_done.add("lightning")
-            target_y = self.height() / 2
             for _ in range(3):
-                self._bolts.append(self._generate_lightning(target_y))
+                self._bolts.append(self._generate_lightning(self.height() / 2))
 
         if _T_LIGHTNING <= t < _T_LIGHTNING_FLASH:
             self._flash_alpha = min(0.6, (t - _T_LIGHTNING) * 3.0)
@@ -329,12 +369,11 @@ class SplashScreen(QWidget):
             bolt.alpha -= dt * 2.0
         self._bolts = [b for b in self._bolts if b.alpha > 0]
 
-        # === Shimmer: per-pixel random colors (9.0s+) ===
+        # === Shimmer ===
         if t >= _T_SHIMMER_START and self._title_dot_positions:
             self._shimmer_active = True
-            self._static_text = None  # switch from static text to per-pixel drawing
+            self._static_text = None
             n = len(self._title_dot_positions)
-            # Randomly recolor ~15% of pixels each frame (like original loop)
             for _ in range(max(1, n // 7)):
                 idx = random.randint(0, n - 1)
                 self._title_dot_colors[idx] = QColor(
@@ -343,9 +382,9 @@ class SplashScreen(QWidget):
                     random.randint(30, 255),
                 )
 
-        if t >= _T_SHIMMER_START + 0.5 and "subtitle" not in self._screenshot_phases_done:
-            self._screenshot_phases_done.add("subtitle")
-            self._fire_screenshot("subtitle")
+        if t >= _T_SHIMMER_START + 0.5 and "shimmer" not in self._screenshot_phases_done:
+            self._screenshot_phases_done.add("shimmer")
+            self._fire_screenshot("shimmer")
 
         # === Fade out ===
         if t >= _T_FADEOUT_START:
@@ -364,40 +403,38 @@ class SplashScreen(QWidget):
             return
 
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w = self.width()
         h = self.height()
 
         # Black background
         painter.fillRect(self.rect(), QColor(0, 0, 0))
 
-        # Draw static text (when not animating)
+        # Static text (with fade-in support)
         if self._static_text is not None and not self._shimmer_active:
-            text, font_size, color = self._text_configs[self._static_text]
+            text, font_size = self._text_configs[self._static_text]
             font = QFont("Georgia", font_size)
             font.setBold(True)
             painter.setFont(font)
+            color = QColor(255, 255, 255)
+            color.setAlphaF(self._fade_in_alpha if self._static_text == "name" and self._elapsed < _T_FADE_IN_END + 0.5 else 1.0)
             painter.setPen(color)
-            painter.drawText(
-                QRectF(0, 0, w, h),
-                Qt.AlignmentFlag.AlignCenter,
-                text,
-            )
+            painter.drawText(QRectF(0, 0, w, h), Qt.AlignmentFlag.AlignCenter, text)
 
-        # Draw scatter/assemble dots
+        # Scatter/assemble dots
         if self._dots:
+            painter.setPen(Qt.PenStyle.NoPen)
+            white = QColor(255, 255, 255)
+            painter.setBrush(white)
             for dot in self._dots:
-                if dot.color:
-                    painter.setPen(Qt.PenStyle.NoPen)
-                    painter.setBrush(dot.color)
-                    painter.drawRect(int(dot.x), int(dot.y), 1, 1)
+                ix, iy = int(dot.x), int(dot.y)
+                if -10 <= ix <= w + 10 and -10 <= iy <= h + 10:
+                    painter.drawRect(ix, iy, 1, 1)
 
-        # Draw shimmer dots
+        # Shimmer
         if self._shimmer_active and self._title_dot_positions:
+            painter.setPen(Qt.PenStyle.NoPen)
             for i, (x, y) in enumerate(self._title_dot_positions):
-                color = self._title_dot_colors[i]
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(color)
+                painter.setBrush(self._title_dot_colors[i])
                 painter.drawRect(int(x), int(y), 1, 1)
 
         # Lightning
@@ -410,7 +447,7 @@ class SplashScreen(QWidget):
             flash.setAlphaF(self._flash_alpha)
             painter.fillRect(self.rect(), flash)
 
-        # Fade
+        # Fade overlay
         if self._fade_alpha > 0:
             overlay = QColor(0, 0, 0)
             overlay.setAlphaF(self._fade_alpha)
