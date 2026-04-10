@@ -36,12 +36,15 @@ class _Particle:
     # Current position
     x: float
     y: float
+    # Start position (for direct interpolation)
+    sx: float = 0.0
+    sy: float = 0.0
     # Velocity for scatter phase
-    vx: float
-    vy: float
+    vx: float = 0.0
+    vy: float = 0.0
     # Appearance
-    char: str
-    color: QColor
+    char: str = ""
+    color: QColor | None = None
     alpha: float = 0.0
     font_size: int = 24
     settled: bool = False
@@ -113,6 +116,16 @@ class SplashScreen(QWidget):
 
         self._initialized = False
 
+        # Screenshot support: callback(phase_name, widget) called once per phase
+        self._screenshot_callback = None
+        self._screenshot_phases_done: set[str] = set()
+
+    def _fire_screenshot(self, phase_name: str):
+        if self._screenshot_callback is not None:
+            self.update()
+            self.repaint()
+            self._screenshot_callback(phase_name, self)
+
     def show_animated(self):
         """Start the splash animation."""
         self.showFullScreen()
@@ -180,7 +193,7 @@ class SplashScreen(QWidget):
                 continue
 
             char_w = fm.horizontalAdvance(ch)
-            tx = x_cursor + char_w / 2
+            tx = x_cursor
             ty = baseline_y
 
             # Start from random scattered position
@@ -192,7 +205,7 @@ class SplashScreen(QWidget):
             particles.append(_Particle(
                 tx=tx, ty=ty,
                 x=sx, y=sy,
-                vx=0, vy=0,
+                sx=sx, sy=sy,
                 char=ch,
                 color=QColor(color),
                 alpha=0.0,
@@ -274,6 +287,11 @@ class SplashScreen(QWidget):
             phase_t = _phase_progress(t, 0.5, 1.5)
             self._update_particles(self._name_particles, phase_t)
 
+        # Screenshot: name fully assembled (just before fade)
+        if t >= 1.6 and "name" not in self._screenshot_phases_done:
+            self._screenshot_phases_done.add("name")
+            self._fire_screenshot("name")
+
         # Fade out name (1.7 - 2.0)
         if _phase_active(t, 1.7, 2.1):
             fade = _phase_progress(t, 1.7, 2.1)
@@ -284,6 +302,11 @@ class SplashScreen(QWidget):
         if _phase_active(t, 1.8, 2.6):
             phase_t = _phase_progress(t, 1.8, 2.5)
             self._update_particles(self._presents_particles, phase_t)
+
+        # Screenshot: presents fully assembled
+        if t >= 2.5 and "presents" not in self._screenshot_phases_done:
+            self._screenshot_phases_done.add("presents")
+            self._fire_screenshot("presents")
 
         # Fade out presents (2.6 - 3.0)
         if _phase_active(t, 2.6, 3.1):
@@ -296,9 +319,19 @@ class SplashScreen(QWidget):
             phase_t = _phase_progress(t, 2.9, 3.8)
             self._update_particles(self._title_particles, phase_t)
 
+        # Screenshot: title fully assembled
+        if t >= 3.9 and "title" not in self._screenshot_phases_done:
+            self._screenshot_phases_done.add("title")
+            self._fire_screenshot("title")
+
         # Subtitle fade in (4.0 - 4.5)
         if t >= 4.0:
             self._subtitle_alpha = min(1.0, _phase_progress(t, 4.0, 4.4))
+
+        # Screenshot: subtitle visible
+        if t >= 4.4 and "subtitle" not in self._screenshot_phases_done:
+            self._screenshot_phases_done.add("subtitle")
+            self._fire_screenshot("subtitle")
 
         # Final fade out (4.5 - 5.0)
         if t >= 4.5:
@@ -315,13 +348,14 @@ class SplashScreen(QWidget):
 
     def _update_particles(self, particles: list[_Particle], progress: float):
         """Move particles toward their targets based on animation progress."""
-        # Ease-out cubic
-        t = 1.0 - (1.0 - min(progress, 1.0)) ** 3
+        t = min(progress, 1.0)
+        # Ease-out cubic: fast start, smooth landing
+        eased = 1.0 - (1.0 - t) ** 3
 
         for p in particles:
-            p.x = p.x + (p.tx - p.x) * min(t * 0.3 + 0.02, 1.0)
-            p.y = p.y + (p.ty - p.y) * min(t * 0.3 + 0.02, 1.0)
-            p.alpha = min(1.0, t * 1.5)
+            p.x = p.sx + (p.tx - p.sx) * eased
+            p.y = p.sy + (p.ty - p.sy) * eased
+            p.alpha = min(1.0, eased * 1.5)
 
     def paintEvent(self, event):
         if not self._initialized:
