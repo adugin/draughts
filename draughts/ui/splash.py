@@ -1,7 +1,7 @@
 """Animated splash screen — pixel-level scatter/reassemble.
 
-Sequence: "Andrey Dugin" (fade-in) → scatter → reassemble as "presents"
-→ scatter → reassemble as "Шашки" → lightning → per-pixel shimmer.
+"Andrey Dugin" (fade-in) → explode → reverse-explode into "presents"
+→ explode → reverse-explode into "Шашки" → lightning → shimmer.
 """
 
 from __future__ import annotations
@@ -20,18 +20,17 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QWidget
 
-_MAX_PIXELS = 2000
+_MAX_PIXELS = 8000
 
 
 @dataclass
 class _Dot:
-    """A pixel with current position, velocity, and target."""
     x: float
     y: float
+    start_x: float = 0.0
+    start_y: float = 0.0
     target_x: float = 0.0
     target_y: float = 0.0
-    vx: float = 0.0
-    vy: float = 0.0
 
 
 @dataclass
@@ -43,25 +42,50 @@ class _LightningBolt:
     branches: list[list[tuple[float, float]]] = field(default_factory=list)
 
 
-# Phase timing (seconds)
-_T_FADE_IN_START = 0.0
-_T_FADE_IN_END = 1.2
-_T_NAME_HOLD = 2.0
-_T_EXPLODE_1 = 2.0       # name explodes
-_T_OFFSCREEN_1 = 2.6     # all pixels off-screen
-_T_ASSEMBLE_1 = 2.6      # start flying back → "presents"
-_T_ASSEMBLED_1 = 3.4     # "presents" assembled
-_T_PRESENTS_HOLD = 4.2   # hold "presents"
-_T_EXPLODE_2 = 4.2       # presents explodes
-_T_OFFSCREEN_2 = 4.8
-_T_ASSEMBLE_2 = 4.8
-_T_ASSEMBLED_2 = 5.6     # "Шашки" assembled
-_T_TITLE_HOLD = 6.6      # hold title
-_T_LIGHTNING = 6.6
-_T_LIGHTNING_FLASH = 6.8
-_T_SHIMMER_START = 6.9
-_T_FADEOUT_START = 10.0
-_T_END = 10.8
+# Phase timing
+_T_FADE_IN_END = 0.8
+_T_NAME_HOLD = 1.2           # 0.8s fade-in + 0.4s hold
+
+# Transition 1: name → presents
+_T_EXPLODE_1_DUR = 0.4
+_T_ASSEMBLE_1_DUR = 0.5
+
+_T_PRESENTS_HOLD_DUR = 0.4   # short hold
+
+# Transition 2: presents → title
+_T_EXPLODE_2_DUR = 0.4
+_T_ASSEMBLE_2_DUR = 0.5
+
+_T_TITLE_HOLD_DUR = 0.5      # hold title before lightning
+
+# Shimmer
+_T_SHIMMER_DUR = 3.0
+_T_FADEOUT_DUR = 0.8
+
+
+def _compute_times():
+    """Compute absolute timestamps from durations."""
+    t = {}
+    t["explode_1_start"] = _T_NAME_HOLD
+    t["explode_1_end"] = t["explode_1_start"] + _T_EXPLODE_1_DUR
+    t["assemble_1_start"] = t["explode_1_end"]  # NO gap
+    t["assemble_1_end"] = t["assemble_1_start"] + _T_ASSEMBLE_1_DUR
+    t["presents_hold_end"] = t["assemble_1_end"] + _T_PRESENTS_HOLD_DUR
+
+    t["explode_2_start"] = t["presents_hold_end"]
+    t["explode_2_end"] = t["explode_2_start"] + _T_EXPLODE_2_DUR
+    t["assemble_2_start"] = t["explode_2_end"]  # NO gap
+    t["assemble_2_end"] = t["assemble_2_start"] + _T_ASSEMBLE_2_DUR
+    t["title_hold_end"] = t["assemble_2_end"] + _T_TITLE_HOLD_DUR
+
+    t["lightning"] = t["title_hold_end"]
+    t["shimmer_start"] = t["lightning"] + 0.2
+    t["fadeout_start"] = t["shimmer_start"] + _T_SHIMMER_DUR
+    t["end"] = t["fadeout_start"] + _T_FADEOUT_DUR
+    return t
+
+
+_T = _compute_times()
 
 
 class SplashScreen(QWidget):
@@ -79,7 +103,11 @@ class SplashScreen(QWidget):
         self._elapsed = 0.0
         self._fps_interval = 16
 
-        self._dots: list[_Dot] = []
+        # Explosion dots (current text flying outward)
+        self._explode_dots: list[_Dot] = []
+        # Assembly dots (next text flying inward from pre-computed positions)
+        self._assemble_dots: list[_Dot] = []
+
         self._fade_in_alpha = 0.0
         self._static_text: str | None = None
 
@@ -101,7 +129,6 @@ class SplashScreen(QWidget):
         self._phase_done: set[str] = set()
         self._text_configs: dict[str, tuple[str, int]] = {}
 
-        # Screenshot support
         self._screenshot_callback = None
         self._screenshot_phases_done: set[str] = set()
 
@@ -131,11 +158,9 @@ class SplashScreen(QWidget):
         self._timer.start()
 
     def _render_text_pixels(self, text_key: str) -> list[tuple[float, float]]:
-        """Render text offscreen, extract pixel positions."""
         text, font_size = self._text_configs[text_key]
         w = self.width()
         h = self.height()
-
         img = QImage(w, h, QImage.Format.Format_ARGB32)
         img.fill(QColor(0, 0, 0, 255))
         painter = QPainter(img)
@@ -157,90 +182,59 @@ class SplashScreen(QWidget):
             pixels = random.sample(pixels, _MAX_PIXELS)
         return pixels
 
-    def _explode_dots(self):
-        """Give each dot a radial velocity away from center — fast, like an explosion."""
+    def _compute_exploded_position(self, px: float, py: float) -> tuple[float, float]:
+        """Compute where a pixel at (px, py) would end up after radial explosion.
+
+        Flies far beyond screen edges along the radial direction from center.
+        """
         cx = self.width() / 2
         cy = self.height() / 2
-        # Screen diagonal — pixels must fly beyond this distance
+        dx = px - cx
+        dy = py - cy
+        dist = math.sqrt(dx * dx + dy * dy) + 1
+        # Fly to 2-3x screen diagonal distance
         diag = math.sqrt(self.width() ** 2 + self.height() ** 2)
-        for dot in self._dots:
-            dx = dot.x - cx
-            dy = dot.y - cy
-            dist = math.sqrt(dx * dx + dy * dy) + 1
-            # Normalize direction, apply speed proportional to screen size
-            speed = diag * random.uniform(1.5, 3.0)
-            dot.vx = (dx / dist) * speed
-            dot.vy = (dy / dist) * speed
+        factor = diag * random.uniform(1.5, 2.5) / dist
+        return (px + dx * factor, py + dy * factor)
 
-    def _assign_targets(self, text_key: str):
-        """Assign each dot a target position from the next text's pixels.
+    def _create_explode_dots(self, text_key: str) -> list[_Dot]:
+        """Create dots for explosion: start at text positions, targets far off-screen."""
+        pixels = self._render_text_pixels(text_key)
+        dots = []
+        for px, py in pixels:
+            ex, ey = self._compute_exploded_position(px, py)
+            dots.append(_Dot(x=px, y=py, start_x=px, start_y=py, target_x=ex, target_y=ey))
+        return dots
 
-        Extra dots get random off-screen targets (will be invisible).
-        If we need more dots, spawn them from off-screen positions.
+    def _create_assemble_dots(self, text_key: str) -> list[_Dot]:
+        """Create dots for reverse-explosion: start far off-screen, targets at text positions.
+
+        This is the reverse of an explosion — each pixel of the next text starts from
+        where it WOULD HAVE BEEN after exploding, and flies back to its text position.
         """
-        targets = self._render_text_pixels(text_key)
-        random.shuffle(targets)
-        w = self.width()
-        h = self.height()
-        diag = math.sqrt(w * w + h * h)
+        pixels = self._render_text_pixels(text_key)
+        dots = []
+        for px, py in pixels:
+            ex, ey = self._compute_exploded_position(px, py)
+            dots.append(_Dot(x=ex, y=ey, start_x=ex, start_y=ey, target_x=px, target_y=py))
+        return dots
 
-        # Assign targets to existing dots
-        for i, dot in enumerate(self._dots):
-            if i < len(targets):
-                dot.target_x, dot.target_y = targets[i]
-            else:
-                # Extra dot — target off-screen, will fade
-                dot.target_x = -9999
-                dot.target_y = -9999
+    def _animate_dots(self, dots: list[_Dot], progress: float):
+        """Interpolate dots from start to target. progress: 0→1.
 
-        # Spawn missing dots from off-screen positions
-        for i in range(len(self._dots), len(targets)):
-            angle = random.uniform(0, 2 * math.pi)
-            r = diag * random.uniform(0.6, 1.0)
-            sx = w / 2 + math.cos(angle) * r
-            sy = h / 2 + math.sin(angle) * r
-            tx, ty = targets[i]
-            self._dots.append(_Dot(x=sx, y=sy, target_x=tx, target_y=ty))
-
-    def _animate_explosion(self, dt: float):
-        """Move dots along their velocity (outward from center)."""
-        for dot in self._dots:
-            dot.x += dot.vx * dt
-            dot.y += dot.vy * dt
-            # Acceleration — speed up as they fly out
-            dot.vx *= 1.05
-            dot.vy *= 1.05
-
-    def _animate_assembly(self, progress: float):
-        """Move dots from current position toward targets. progress: 0→1."""
-        t = min(progress, 1.0)
-        # Ease-in-out: slow start, fast middle, smooth landing
+        Uses ease-in for explosion (slow start, fast end)
+        and ease-out for assembly (fast start, slow landing).
+        """
+        t = max(0.0, min(progress, 1.0))
+        # Ease-in-out quadratic
         if t < 0.5:
             eased = 2 * t * t
         else:
             eased = 1 - (-2 * t + 2) ** 2 / 2
 
-        for dot in self._dots:
-            if dot.target_x < -9000:
-                continue  # skip dead dots
-            if not hasattr(dot, '_asm_sx'):
-                dot._asm_sx = dot.x
-                dot._asm_sy = dot.y
-            dot.x = dot._asm_sx + (dot.target_x - dot._asm_sx) * eased
-            dot.y = dot._asm_sy + (dot.target_y - dot._asm_sy) * eased
-
-    def _snap_to_targets(self):
-        """Snap all dots to their targets."""
-        for dot in self._dots:
-            if dot.target_x > -9000:
-                dot.x = dot.target_x
-                dot.y = dot.target_y
-            if hasattr(dot, '_asm_sx'):
-                del dot._asm_sx
-                del dot._asm_sy
-
-    def _is_dot_visible(self, dot: _Dot) -> bool:
-        return -10 <= dot.x <= self.width() + 10 and -10 <= dot.y <= self.height() + 10
+        for dot in dots:
+            dot.x = dot.start_x + (dot.target_x - dot.start_x) * eased
+            dot.y = dot.start_y + (dot.target_y - dot.start_y) * eased
 
     def _generate_lightning(self, target_y: float) -> _LightningBolt:
         w = self.width()
@@ -255,7 +249,6 @@ class SplashScreen(QWidget):
             points.append((x, min(y, target_y)))
             if y >= target_y:
                 break
-
         branches = []
         for _ in range(random.randint(2, 4)):
             if len(points) < 3:
@@ -268,7 +261,6 @@ class SplashScreen(QWidget):
                 by += random.uniform(10, 40)
                 bpts.append((bx, by))
             branches.append(bpts)
-
         return _LightningBolt(
             points=points, alpha=1.0,
             width=random.uniform(2.0, 4.0),
@@ -281,87 +273,72 @@ class SplashScreen(QWidget):
         self._elapsed += dt
         t = self._elapsed
 
-        # === Fade in "Andrey Dugin" (0 - 1.2s) ===
+        # === Fade in name ===
         if t < _T_FADE_IN_END:
             self._fade_in_alpha = min(1.0, t / _T_FADE_IN_END)
 
-        if t >= 1.4 and "name" not in self._screenshot_phases_done:
-            self._screenshot_phases_done.add("name")
-            self._fire_screenshot("name")
+        # === Transition 1: name → presents ===
 
-        # === Explode name (2.0s) ===
-        if t >= _T_EXPLODE_1 and "explode_1" not in self._phase_done:
+        # Explode name
+        if t >= _T["explode_1_start"] and "explode_1" not in self._phase_done:
             self._phase_done.add("explode_1")
+            self._fire_screenshot("name")
             self._static_text = None
             self._fade_in_alpha = 1.0
-            pixels = self._render_text_pixels("name")
-            self._dots = [_Dot(x=x, y=y) for x, y in pixels]
-            self._explode_dots()
+            self._explode_dots = self._create_explode_dots("name")
+            self._assemble_dots = self._create_assemble_dots("presents")
 
-        if _T_EXPLODE_1 < t < _T_OFFSCREEN_1:
-            self._animate_explosion(dt)
+        if _T["explode_1_start"] <= t < _T["explode_1_end"]:
+            progress = (t - _T["explode_1_start"]) / _T_EXPLODE_1_DUR
+            self._animate_dots(self._explode_dots, progress)
 
-        # === Assign targets for "presents", fly back (2.6 - 3.4s) ===
-        if t >= _T_ASSEMBLE_1 and "target_1" not in self._phase_done:
-            self._phase_done.add("target_1")
-            self._assign_targets("presents")
+        # Assemble presents (starts immediately after explode ends)
+        if _T["assemble_1_start"] <= t < _T["assemble_1_end"]:
+            self._explode_dots.clear()  # explosion done
+            progress = (t - _T["assemble_1_start"]) / _T_ASSEMBLE_1_DUR
+            self._animate_dots(self._assemble_dots, progress)
 
-        if _T_ASSEMBLE_1 <= t < _T_ASSEMBLED_1:
-            progress = (t - _T_ASSEMBLE_1) / (_T_ASSEMBLED_1 - _T_ASSEMBLE_1)
-            self._animate_assembly(progress)
-
-        if t >= _T_ASSEMBLED_1 and "snap_1" not in self._phase_done:
+        if t >= _T["assemble_1_end"] and "snap_1" not in self._phase_done:
             self._phase_done.add("snap_1")
-            self._snap_to_targets()
-            self._dots.clear()
+            self._assemble_dots.clear()
             self._static_text = "presents"
-
-        if t >= _T_ASSEMBLED_1 + 0.1 and "presents" not in self._screenshot_phases_done:
-            self._screenshot_phases_done.add("presents")
             self._fire_screenshot("presents")
 
-        # === Explode presents (4.2s) ===
-        if t >= _T_EXPLODE_2 and "explode_2" not in self._phase_done:
+        # === Transition 2: presents → title ===
+
+        if t >= _T["explode_2_start"] and "explode_2" not in self._phase_done:
             self._phase_done.add("explode_2")
             self._static_text = None
-            pixels = self._render_text_pixels("presents")
-            self._dots = [_Dot(x=x, y=y) for x, y in pixels]
-            self._explode_dots()
+            self._explode_dots = self._create_explode_dots("presents")
+            self._assemble_dots = self._create_assemble_dots("title")
 
-        if _T_EXPLODE_2 < t < _T_OFFSCREEN_2:
-            self._animate_explosion(dt)
+        if _T["explode_2_start"] <= t < _T["explode_2_end"]:
+            progress = (t - _T["explode_2_start"]) / _T_EXPLODE_2_DUR
+            self._animate_dots(self._explode_dots, progress)
 
-        # === Assign targets for "Шашки", fly back (4.8 - 5.6s) ===
-        if t >= _T_ASSEMBLE_2 and "target_2" not in self._phase_done:
-            self._phase_done.add("target_2")
-            self._assign_targets("title")
+        if _T["assemble_2_start"] <= t < _T["assemble_2_end"]:
+            self._explode_dots.clear()
+            progress = (t - _T["assemble_2_start"]) / _T_ASSEMBLE_2_DUR
+            self._animate_dots(self._assemble_dots, progress)
 
-        if _T_ASSEMBLE_2 <= t < _T_ASSEMBLED_2:
-            progress = (t - _T_ASSEMBLE_2) / (_T_ASSEMBLED_2 - _T_ASSEMBLE_2)
-            self._animate_assembly(progress)
-
-        if t >= _T_ASSEMBLED_2 and "snap_2" not in self._phase_done:
+        if t >= _T["assemble_2_end"] and "snap_2" not in self._phase_done:
             self._phase_done.add("snap_2")
-            self._snap_to_targets()
-            self._dots.clear()
+            self._assemble_dots.clear()
             self._static_text = "title"
             self._title_dot_positions = self._render_text_pixels("title")
             self._title_dot_colors = [QColor(255, 255, 255)] * len(self._title_dot_positions)
-
-        if t >= _T_ASSEMBLED_2 + 0.1 and "title" not in self._screenshot_phases_done:
-            self._screenshot_phases_done.add("title")
             self._fire_screenshot("title")
 
-        # === Lightning (6.6s) ===
-        if t >= _T_LIGHTNING and "lightning" not in self._phase_done:
+        # === Lightning ===
+        if t >= _T["lightning"] and "lightning" not in self._phase_done:
             self._phase_done.add("lightning")
             for _ in range(3):
                 self._bolts.append(self._generate_lightning(self.height() / 2))
 
-        if _T_LIGHTNING <= t < _T_LIGHTNING_FLASH:
-            self._flash_alpha = min(0.6, (t - _T_LIGHTNING) * 3.0)
-        elif _T_LIGHTNING_FLASH <= t < _T_SHIMMER_START:
-            self._flash_alpha = max(0.0, 0.6 - (t - _T_LIGHTNING_FLASH) * 6.0)
+        if _T["lightning"] <= t < _T["lightning"] + 0.2:
+            self._flash_alpha = min(0.6, (t - _T["lightning"]) * 3.0)
+        elif _T["lightning"] + 0.2 <= t < _T["shimmer_start"]:
+            self._flash_alpha = max(0.0, 0.6 - (t - _T["lightning"] - 0.2) * 6.0)
         else:
             self._flash_alpha = 0.0
 
@@ -369,28 +346,29 @@ class SplashScreen(QWidget):
             bolt.alpha -= dt * 2.0
         self._bolts = [b for b in self._bolts if b.alpha > 0]
 
-        # === Shimmer ===
-        if t >= _T_SHIMMER_START and self._title_dot_positions:
-            self._shimmer_active = True
-            self._static_text = None
+        # === Shimmer (drawn over static text — don't clear static_text) ===
+        if t >= _T["shimmer_start"] and self._title_dot_positions:
+            if not self._shimmer_active:
+                self._shimmer_active = True
+                # First shimmer frame — fire screenshot after a few iterations
+                self._shimmer_frame_count = 0
+            self._shimmer_frame_count = getattr(self, '_shimmer_frame_count', 0) + 1
+            if self._shimmer_frame_count == 30:  # ~0.5s of shimmer
+                self._fire_screenshot("shimmer")
             n = len(self._title_dot_positions)
             for _ in range(max(1, n // 7)):
                 idx = random.randint(0, n - 1)
                 self._title_dot_colors[idx] = QColor(
-                    random.randint(30, 255),
-                    random.randint(30, 255),
-                    random.randint(30, 255),
+                    random.randint(100, 255),
+                    random.randint(100, 255),
+                    random.randint(100, 255),
                 )
 
-        if t >= _T_SHIMMER_START + 0.5 and "shimmer" not in self._screenshot_phases_done:
-            self._screenshot_phases_done.add("shimmer")
-            self._fire_screenshot("shimmer")
-
         # === Fade out ===
-        if t >= _T_FADEOUT_START:
-            self._fade_alpha = min(1.0, (t - _T_FADEOUT_START) / (_T_END - _T_FADEOUT_START))
+        if t >= _T["fadeout_start"]:
+            self._fade_alpha = min(1.0, (t - _T["fadeout_start"]) / _T_FADEOUT_DUR)
 
-        if t >= _T_END:
+        if t >= _T["end"]:
             self._timer.stop()
             self.finished.emit()
             self.close()
@@ -401,53 +379,50 @@ class SplashScreen(QWidget):
     def paintEvent(self, event):
         if not self._initialized:
             return
-
         painter = QPainter(self)
         w = self.width()
         h = self.height()
 
-        # Black background
         painter.fillRect(self.rect(), QColor(0, 0, 0))
 
-        # Static text (with fade-in support)
-        if self._static_text is not None and not self._shimmer_active:
+        # Static text (always drawn when set — shimmer overlays on top)
+        if self._static_text is not None:
             text, font_size = self._text_configs[self._static_text]
             font = QFont("Georgia", font_size)
             font.setBold(True)
             painter.setFont(font)
+            alpha = self._fade_in_alpha if self._static_text == "name" and self._elapsed < _T_FADE_IN_END + 0.5 else 1.0
             color = QColor(255, 255, 255)
-            color.setAlphaF(self._fade_in_alpha if self._static_text == "name" and self._elapsed < _T_FADE_IN_END + 0.5 else 1.0)
+            color.setAlphaF(alpha)
             painter.setPen(color)
             painter.drawText(QRectF(0, 0, w, h), Qt.AlignmentFlag.AlignCenter, text)
 
-        # Scatter/assemble dots
-        if self._dots:
+        # Explosion + assembly dots
+        all_dots = self._explode_dots + self._assemble_dots
+        if all_dots:
             painter.setPen(Qt.PenStyle.NoPen)
-            white = QColor(255, 255, 255)
-            painter.setBrush(white)
-            for dot in self._dots:
+            painter.setBrush(QColor(255, 255, 255))
+            for dot in all_dots:
                 ix, iy = int(dot.x), int(dot.y)
-                if -10 <= ix <= w + 10 and -10 <= iy <= h + 10:
+                if 0 <= ix < w and 0 <= iy < h:
                     painter.drawRect(ix, iy, 1, 1)
 
-        # Shimmer
+        # Shimmer — draw 2x2 dots to compensate for pixel sampling
         if self._shimmer_active and self._title_dot_positions:
             painter.setPen(Qt.PenStyle.NoPen)
             for i, (x, y) in enumerate(self._title_dot_positions):
                 painter.setBrush(self._title_dot_colors[i])
-                painter.drawRect(int(x), int(y), 1, 1)
+                painter.drawRect(int(x), int(y), 2, 2)
 
         # Lightning
         for bolt in self._bolts:
             self._draw_bolt(painter, bolt)
 
-        # Flash
         if self._flash_alpha > 0:
             flash = QColor(100, 255, 100)
             flash.setAlphaF(self._flash_alpha)
             painter.fillRect(self.rect(), flash)
 
-        # Fade overlay
         if self._fade_alpha > 0:
             overlay = QColor(0, 0, 0)
             overlay.setAlphaF(self._fade_alpha)
