@@ -398,10 +398,12 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):
         """Adjust bottom panel height proportionally to board cell size."""
         super().resizeEvent(event)
-        # In the original 640x480: cell=40px, bottom panel~95px = 2.4 cells
-        # Scale the bottom panel to match
+        # Original 640x480: cell=40px, bottom panel=95px ≈ 2.4 cells
         cell_size = self.board_widget.get_cell_size()
         panel_h = max(60, int(cell_size * 2.4))
+        # Cap at 20% of window height to prevent squishing the board
+        max_h = int(self.height() * 0.20)
+        panel_h = min(panel_h, max_h)
         self._bottom_panel.setFixedHeight(panel_h)
 
     # --- Close event ---

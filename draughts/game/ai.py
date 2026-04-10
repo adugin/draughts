@@ -389,7 +389,12 @@ def _virtual_black_beat(model: list[list[str]], use_base: bool,
                 promoted = False
 
                 eob = False
+                max_attempts = 100
+                attempt = 0
                 while not eob:
+                    attempt += 1
+                    if attempt > max_attempts:
+                        break
                     d = random.randint(0, 3)
                     dx, dy = DIRS[d]
                     nx, ny = x1 + 2 * dx, y1 + 2 * dy
@@ -409,6 +414,7 @@ def _virtual_black_beat(model: list[list[str]], use_base: bool,
                             promoted = True
                         # Check if more captures possible
                         eob = True
+                        attempt = 0
                         for dd in range(4):
                             ddx, ddy = DIRS[dd]
                             nnx, nny = x1 + 2 * ddx, y1 + 2 * ddy
@@ -416,16 +422,16 @@ def _virtual_black_beat(model: list[list[str]], use_base: bool,
                                 eob = False
                                 break
                     else:
-                        # Random direction didn't work, keep trying
-                        # In original Pascal this just loops until eob via until
-                        # We need to ensure the loop terminates with Monte Carlo
-                        eob = True
+                        # Random direction didn't work — check if any valid capture exists
+                        any_valid = False
                         for dd in range(4):
                             ddx, ddy = DIRS[dd]
                             nnx, nny = x1 + 2 * ddx, y1 + 2 * ddy
                             if _between(nnx, nny) and mas[nny][nnx] == 'n' and mas[y1 + ddy][x1 + ddx] in WHITES:
-                                eob = False
+                                any_valid = True
                                 break
+                        if not any_valid:
+                            eob = True
 
                 score += count - 2
                 if not _dangerous_position(x1, y1, mas, 'b'):
@@ -492,7 +498,12 @@ def _virtual_white_beat(model: list[list[str]], use_base: bool,
                 promoted = False
 
                 eob = False
+                max_attempts = 100
+                attempt = 0
                 while not eob:
+                    attempt += 1
+                    if attempt > max_attempts:
+                        break
                     d = random.randint(0, 3)
                     dx, dy = DIRS[d]
                     nx, ny = x1 + 2 * dx, y1 + 2 * dy
@@ -511,6 +522,7 @@ def _virtual_white_beat(model: list[list[str]], use_base: bool,
                             score += 2
                             promoted = True
                         eob = True
+                        attempt = 0
                         for dd in range(4):
                             ddx, ddy = DIRS[dd]
                             nnx, nny = x1 + 2 * ddx, y1 + 2 * ddy
@@ -518,13 +530,15 @@ def _virtual_white_beat(model: list[list[str]], use_base: bool,
                                 eob = False
                                 break
                     else:
-                        eob = True
+                        any_valid = False
                         for dd in range(4):
                             ddx, ddy = DIRS[dd]
                             nnx, nny = x1 + 2 * ddx, y1 + 2 * ddy
                             if _between(nnx, nny) and mas[nny][nnx] == 'n' and mas[y1 + ddy][x1 + ddx] in BLACKS:
-                                eob = False
+                                any_valid = True
                                 break
+                        if not any_valid:
+                            eob = True
 
                 score += count - 2
                 if not _dangerous_position(x1, y1, mas, 'w'):
@@ -625,7 +639,12 @@ def _see_beat(board: Board, color: str, use_base: bool,
                     promoted = False
 
                     eob = False
+                    max_attempts = 100
+                    attempt = 0
                     while not eob:
+                        attempt += 1
+                        if attempt > max_attempts:
+                            break
                         d = random.randint(0, 3)
                         dx, dy = DIRS[d]
                         nx, ny = x1 + 2 * dx, y1 + 2 * dy
@@ -634,14 +653,11 @@ def _see_beat(board: Board, color: str, use_base: bool,
                                 model[ny][nx] == 'n'):
                             found_any = True
                             opt.append((d, 2))
-                            # Score for capturing king or near-promotion
                             cap_piece = model[y1 + dy][x1 + dx]
                             if cap_piece == my_king or (y1 + dy == promote_row - (1 if color == 'b' else -1)):
                                 pass
                             if cap_piece in (my_king,):
                                 pass
-                            # Original: +2 for capturing king(W) or if y+dir = 2
-                            # For black: y+dir[d,2] is y+dy which is y1+dy
                             if cap_piece == ('W' if color == 'b' else 'B'):
                                 score += 2
                             if y1 + dy == (2 if color == 'b' else BOARD_SIZE - 1):
@@ -659,6 +675,7 @@ def _see_beat(board: Board, color: str, use_base: bool,
 
                             # Check if more captures available
                             eob = True
+                            attempt = 0
                             if model[y1][x1] == my_pawn:
                                 for dd in range(4):
                                     ddx, ddy = DIRS[dd]
@@ -753,7 +770,12 @@ def _see_beat(board: Board, color: str, use_base: bool,
                     score = 1 if init_dangerous else 0
 
                     eob = False
+                    max_attempts = 100
+                    attempt = 0
                     while not eob:
+                        attempt += 1
+                        if attempt > max_attempts:
+                            break
                         rr = random.randint(2, BOARD_SIZE - 2 + 1)
                         d = random.randint(0, 3)
                         dx, dy = DIRS[d]
