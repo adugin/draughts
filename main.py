@@ -1,5 +1,6 @@
 """Entry point for the Draughts application."""
 
+import os
 import sys
 
 from PyQt6.QtCore import QTimer
@@ -9,12 +10,16 @@ from draughts.game.controller import GameController
 from draughts.ui.main_window import MainWindow
 from draughts.ui.splash import SplashScreen
 
+_SCREENSHOT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".screenshots")
+
 
 def _save_screenshot(widget, filename: str):
-    """Grab a widget and save it as PNG."""
+    """Grab a widget and save it as PNG into .screenshots/ directory."""
+    os.makedirs(_SCREENSHOT_DIR, exist_ok=True)
+    filepath = os.path.join(_SCREENSHOT_DIR, filename)
     pixmap = widget.grab()
-    pixmap.save(filename, "PNG")
-    print(f"Screenshot saved: {filename}")
+    pixmap.save(filepath, "PNG")
+    print(f"Screenshot saved: {filepath}")
 
 
 def main():
