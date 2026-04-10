@@ -145,6 +145,7 @@ class GameSettings:
     pause: float = 0.75  # animation delay multiplier
     use_base: bool = True  # use learning database
     invert_color: bool = False  # player plays black instead of white
+    search_depth: int = 0  # 0=auto (from difficulty), 1-10=manual override
 
     # Learning flags
     black_win: bool = True

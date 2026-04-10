@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -30,6 +31,7 @@ from draughts.config import GameSettings
 # ---------------------------------------------------------------------------
 # 1. OptionsDialog
 # ---------------------------------------------------------------------------
+
 
 class OptionsDialog(QDialog):
     """Settings dialog — difficulty, speed, hints, sound, delay, etc."""
@@ -73,6 +75,14 @@ class OptionsDialog(QDialog):
         self._pause.setValue(settings.pause)
         layout.addRow("Задержка:", self._pause)
 
+        # Search depth
+        self._search_depth = QSpinBox()
+        self._search_depth.setRange(0, 10)
+        self._search_depth.setValue(settings.search_depth)
+        self._search_depth.setSpecialValueText("Авто")
+        self._search_depth.setToolTip("0 = автоматически из сложности, 1-10 = ручная глубина")
+        layout.addRow("Глубина поиска:", self._search_depth)
+
         # Use learning database
         self._use_base = QCheckBox("База (обучение)")
         self._use_base.setChecked(settings.use_base)
@@ -84,10 +94,7 @@ class OptionsDialog(QDialog):
         layout.addRow(self._invert_color)
 
         # Buttons
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel
-        )
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Ок")
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
         buttons.accepted.connect(self.accept)
@@ -106,6 +113,7 @@ class OptionsDialog(QDialog):
             pause=self._pause.value(),
             use_base=self._use_base.isChecked(),
             invert_color=self._invert_color.isChecked(),
+            search_depth=self._search_depth.value(),
             # Preserve learning flags from original settings
             black_win=self._settings.black_win,
             white_win=self._settings.white_win,
@@ -118,6 +126,7 @@ class OptionsDialog(QDialog):
 # ---------------------------------------------------------------------------
 # 2. DevelopmentDialog
 # ---------------------------------------------------------------------------
+
 
 class DevelopmentDialog(QDialog):
     """Learning control dialog — choose which outcomes trigger DB updates."""
@@ -150,10 +159,7 @@ class DevelopmentDialog(QDialog):
 
         layout.addWidget(group)
 
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel
-        )
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Ок")
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
         buttons.accepted.connect(self.accept)
@@ -187,6 +193,7 @@ class DevelopmentDialog(QDialog):
 # ---------------------------------------------------------------------------
 # 3. InfoDialog
 # ---------------------------------------------------------------------------
+
 
 class InfoDialog(QDialog):
     """Scrollable help text dialog loaded from resources/help.txt."""
@@ -232,6 +239,7 @@ class InfoDialog(QDialog):
 # 4. AboutDialog
 # ---------------------------------------------------------------------------
 
+
 class AboutDialog(QDialog):
     """About the author / program dialog."""
 
@@ -263,6 +271,7 @@ class AboutDialog(QDialog):
 # 5. SaveDialog (module-level function)
 # ---------------------------------------------------------------------------
 
+
 def show_save_dialog(parent: QWidget | None = None) -> str | None:
     """Show a native file-save dialog for JSON game files.
 
@@ -281,6 +290,7 @@ def show_save_dialog(parent: QWidget | None = None) -> str | None:
 # 6. LoadDialog (module-level function)
 # ---------------------------------------------------------------------------
 
+
 def show_load_dialog(parent: QWidget | None = None) -> str | None:
     """Show a native file-open dialog for JSON game files.
 
@@ -298,6 +308,7 @@ def show_load_dialog(parent: QWidget | None = None) -> str | None:
 # ---------------------------------------------------------------------------
 # 7. GameOverDialog
 # ---------------------------------------------------------------------------
+
 
 class GameOverDialog(QDialog):
     """End-of-game dialog — win / lose / draw with replay or exit."""
@@ -364,6 +375,7 @@ class GameOverDialog(QDialog):
 # 8. ConfirmExitDialog
 # ---------------------------------------------------------------------------
 
+
 class ConfirmExitDialog(QDialog):
     """Exit confirmation dialog — 'Are you sure you want to quit?'"""
 
@@ -378,10 +390,7 @@ class ConfirmExitDialog(QDialog):
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(label)
 
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Yes
-            | QDialogButtonBox.StandardButton.No
-        )
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Yes | QDialogButtonBox.StandardButton.No)
         buttons.button(QDialogButtonBox.StandardButton.Yes).setText("Да")
         buttons.button(QDialogButtonBox.StandardButton.No).setText("Нет")
         buttons.accepted.connect(self.accept)
@@ -392,6 +401,7 @@ class ConfirmExitDialog(QDialog):
 # ---------------------------------------------------------------------------
 # 9. ConfiscateWarningDialog
 # ---------------------------------------------------------------------------
+
 
 class ConfiscateWarningDialog(QDialog):
     """Warning shown when the player ignores a mandatory capture.
@@ -416,10 +426,7 @@ class ConfiscateWarningDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        msg = QLabel(
-            f"Шашка на <b>{piece_position}</b> должна бить!\n"
-            "Обязательное взятие."
-        )
+        msg = QLabel(f"Шашка на <b>{piece_position}</b> должна бить!\nОбязательное взятие.")
         msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
         msg.setWordWrap(True)
         layout.addWidget(msg)

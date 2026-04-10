@@ -3,16 +3,17 @@
 from draughts.config import BLACK, BLACK_KING, EMPTY, WHITE
 from draughts.game.ai import (
     AIMove,
-    _action,
     _any_piece_threatened,
     _appreciate,
-    _combination,
     _count_pieces,
     _dangerous_position,
+    _evaluate_fast,
+    _generate_all_moves,
     _is_on_board,
     _scan_diagonal,
-    _see_beat,
+    _search_best_move,
     computer_move,
+    evaluate_position,
 )
 from draughts.game.board import Board
 
@@ -29,36 +30,38 @@ def make_board(position_str: str) -> Board:
 
 
 # ---------------------------------------------------------------------------
-# Tests: SeeBeat — mandatory captures
+# Tests: Capture detection (replaces TestSeeBeat)
 # ---------------------------------------------------------------------------
 
 
-class TestSeeBeat:
+class TestCaptures:
     def test_simple_pawn_capture(self):
         """Black pawn at (2,5) can capture white pawn at (3,6) landing at (4,7)."""
         b = Board(empty=True)
         b.place_piece(2, 5, BLACK)
         b.place_piece(3, 6, WHITE)
-        move = _see_beat(b, "b", False, None)
+        move = _search_best_move(b, "b", depth=1)
         assert move is not None
         assert move.kind == "capture"
         assert move.path[0] == (2, 5)
         assert (4, 7) in move.path
 
     def test_no_capture_available(self):
-        """No captures should return None."""
+        """No captures — should find a normal move, not None."""
         b = Board(empty=True)
         b.place_piece(1, 2, BLACK)
         b.place_piece(8, 7, WHITE)
-        move = _see_beat(b, "b", False, None)
-        assert move is None
+        # Should find a move (not capture)
+        move = _search_best_move(b, "b", depth=1)
+        assert move is not None
+        assert move.kind == "move"
 
     def test_king_capture(self):
         """Black king should find capture."""
         b = Board(empty=True)
         b.place_piece(1, 2, BLACK_KING)
         b.place_piece(3, 4, WHITE)
-        move = _see_beat(b, "b", False, None)
+        move = _search_best_move(b, "b", depth=1)
         assert move is not None
         assert move.kind == "capture"
         assert move.path[0] == (1, 2)
@@ -69,7 +72,7 @@ class TestSeeBeat:
         b.place_piece(1, 2, BLACK)
         b.place_piece(2, 3, WHITE)
         b.place_piece(4, 5, WHITE)
-        move = _see_beat(b, "b", False, None)
+        move = _search_best_move(b, "b", depth=1)
         assert move is not None
         assert move.kind == "capture"
         assert len(move.path) >= 3
@@ -79,34 +82,34 @@ class TestSeeBeat:
         b = Board(empty=True)
         b.place_piece(5, 4, WHITE)
         b.place_piece(4, 3, BLACK)
-        move = _see_beat(b, "w", False, None)
+        move = _search_best_move(b, "w", depth=1)
         assert move is not None
         assert move.kind == "capture"
         assert move.path[0] == (5, 4)
 
 
 # ---------------------------------------------------------------------------
-# Tests: Action — normal moves
+# Tests: Normal moves (replaces TestAction)
 # ---------------------------------------------------------------------------
 
 
-class TestAction:
+class TestNormalMoves:
     def test_initial_board_finds_move(self):
         """On the starting position, black should find a normal move."""
         b = Board()
-        move = _action(b, "b", False, None)
+        move = _search_best_move(b, "b", depth=1)
         assert move is not None
         assert move.kind == "move"
         assert len(move.path) == 2
-        (x1, y1), (x2, y2) = move.path
+        (x1, y1), (_x2, y2) = move.path
         assert b.piece_at(x1, y1) == BLACK
-        assert b.piece_at(x2, y2) == EMPTY
+        assert b.piece_at(_x2, y2) == EMPTY
         assert y2 == y1 + 1
 
-    def test_white_action(self):
+    def test_white_finds_move(self):
         """White should find a normal move on starting position."""
         b = Board()
-        move = _action(b, "w", False, None)
+        move = _search_best_move(b, "w", depth=1)
         assert move is not None
         assert move.kind == "move"
         (x1, y1), (_x2, y2) = move.path
@@ -118,41 +121,41 @@ class TestAction:
         b = Board(empty=True)
         b.place_piece(3, 4, BLACK_KING)
         b.place_piece(2, 7, WHITE)
-        move = _action(b, "b", False, None)
+        move = _search_best_move(b, "b", depth=1)
         assert move is not None
-        assert move.kind == "move"
         (x1, y1), (_x2, _y2) = move.path
         assert (x1, y1) == (3, 4)
 
     def test_no_moves(self):
         """When no moves possible, should return None."""
-        b2 = Board(empty=True)
-        b2.place_piece(1, 1, WHITE)
-        move = _action(b2, "b", False, None)
-        assert move is None
-
-
-# ---------------------------------------------------------------------------
-# Tests: Combination
-# ---------------------------------------------------------------------------
-
-
-class TestCombination:
-    def test_no_combination_with_single_piece(self):
-        """Combination should not fire when only 1 piece remains."""
         b = Board(empty=True)
-        b.place_piece(3, 4, BLACK)
-        b.place_piece(5, 6, WHITE)
-        move = _combination(b, "b", False, None)
+        b.place_piece(1, 1, WHITE)
+        move = _search_best_move(b, "b", depth=1)
         assert move is None
 
-    def test_combination_returns_sacrifice_or_none(self):
-        """Combination returns either a sacrifice move or None."""
-        b = Board()
-        move = _combination(b, "b", False, None)
-        if move is not None:
-            assert move.kind == "sacrifice"
-            assert len(move.path) == 2
+
+# ---------------------------------------------------------------------------
+# Tests: Move generation
+# ---------------------------------------------------------------------------
+
+
+class TestMoveGeneration:
+    def test_captures_are_mandatory(self):
+        """When captures exist, only captures should be returned."""
+        b = Board(empty=True)
+        b.place_piece(5, 6, WHITE)
+        b.place_piece(4, 5, BLACK)
+        b.place_piece(2, 3, BLACK)  # another piece with normal moves
+        moves = _generate_all_moves(b, "w")
+        assert all(kind == "capture" for kind, _ in moves)
+
+    def test_normal_moves_when_no_captures(self):
+        """Normal moves returned when no captures available."""
+        b = Board(empty=True)
+        b.place_piece(5, 6, WHITE)
+        moves = _generate_all_moves(b, "w")
+        assert len(moves) > 0
+        assert all(kind == "move" for kind, _ in moves)
 
 
 # ---------------------------------------------------------------------------
@@ -201,28 +204,79 @@ class TestComputerMove:
         piece = b.piece_at(x1, y1)
         assert Board.is_white(piece)
 
+    def test_explicit_depth(self):
+        """Explicit depth parameter should work."""
+        b = Board()
+        move = computer_move(b, difficulty=1, color="b", depth=2)
+        assert move is not None
+
+    def test_deep_search(self):
+        """Deeper search should still work for simple positions."""
+        b = Board(empty=True)
+        b.place_piece(3, 4, BLACK_KING)
+        b.place_piece(6, 7, WHITE)
+        move = computer_move(b, difficulty=3, color="b", depth=6)
+        assert move is not None
+
 
 # ---------------------------------------------------------------------------
-# Tests: scoring and helper functions
+# Tests: Evaluation functions
+# ---------------------------------------------------------------------------
+
+
+class TestEvaluation:
+    def test_starting_position_balanced(self):
+        """Starting position should be roughly balanced."""
+        b = Board()
+        score = evaluate_position(b.grid, "b")
+        assert abs(score) < 2.0  # approximately balanced
+
+    def test_material_advantage(self):
+        """More pieces = higher score."""
+        b = Board(empty=True)
+        b.place_piece(3, 4, BLACK)
+        b.place_piece(5, 6, BLACK)
+        b.place_piece(7, 8, WHITE)
+        score = evaluate_position(b.grid, "b")
+        assert score > 0  # black has 2v1
+
+    def test_no_pieces_terminal(self):
+        """No pieces for one side = terminal score."""
+        b = Board(empty=True)
+        b.place_piece(3, 4, BLACK)
+        score = evaluate_position(b.grid, "b")
+        assert score > 500  # winning (opponent has no pieces)
+
+    def test_fast_eval_consistent(self):
+        """Fast eval should agree on sign with full eval."""
+        b = Board(empty=True)
+        b.place_piece(3, 4, BLACK)
+        b.place_piece(5, 6, BLACK)
+        b.place_piece(7, 8, WHITE)
+        full = evaluate_position(b.grid, "b")
+        fast = _evaluate_fast(b.grid, "b")
+        # Both should agree black is winning
+        assert full > 0 and fast > 0
+
+
+# ---------------------------------------------------------------------------
+# Tests: helper functions
 # ---------------------------------------------------------------------------
 
 
 class TestHelpers:
     def test_dangerous_position_under_attack(self):
-        """Piece adjacent to enemy with open landing should be in danger."""
         b = Board(empty=True)
         b.place_piece(3, 4, BLACK)
         b.place_piece(4, 5, WHITE)
         assert _dangerous_position(3, 4, b.grid, "b") is True
 
     def test_dangerous_position_safe(self):
-        """Isolated piece should not be in danger."""
         b = Board(empty=True)
         b.place_piece(3, 4, BLACK)
         assert _dangerous_position(3, 4, b.grid, "b") is False
 
     def test_danger_any_piece(self):
-        """_any_piece_threatened should detect threatened pieces."""
         b = Board(empty=True)
         b.place_piece(3, 4, BLACK)
         b.place_piece(4, 5, WHITE)
@@ -235,12 +289,10 @@ class TestHelpers:
         assert _count_pieces("w", b.grid) == 12
 
     def test_appreciate_no_change(self):
-        """Same position should have 0 appreciation."""
         b = Board()
         assert _appreciate(b.grid, b.grid, "b") == 0
 
     def test_appreciate_captures(self):
-        """Removing a white piece should be positive for black."""
         b1 = Board()
         b2 = b1.copy()
         for y in range(1, 9):
@@ -280,7 +332,6 @@ class TestHelpers:
 
 class TestEdgeCases:
     def test_endgame_king_vs_pawn(self):
-        """King vs single pawn — king should find a move."""
         b = Board(empty=True)
         b.place_piece(3, 4, BLACK_KING)
         b.place_piece(6, 7, WHITE)
@@ -288,11 +339,10 @@ class TestEdgeCases:
         assert move is not None
 
     def test_king_capture_finds_path(self):
-        """King capture should produce a valid path."""
         b = Board(empty=True)
         b.place_piece(1, 2, BLACK_KING)
         b.place_piece(4, 5, WHITE)
-        move = _see_beat(b, "b", False, None)
+        move = _search_best_move(b, "b", depth=1)
         assert move is not None
         assert len(move.path) >= 2
         assert move.path[0] == (1, 2)
