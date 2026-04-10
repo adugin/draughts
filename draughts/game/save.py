@@ -15,13 +15,13 @@ from pathlib import Path
 class GameSave:
     """Represents a saved game state."""
 
-    difficulty: int = 1          # 1-3
-    speed: int = 1               # 1-3
-    remind: bool = True          # hint for mandatory captures
+    difficulty: int = 1  # 1-3
+    speed: int = 1  # 1-3
+    remind: bool = True  # hint for mandatory captures
     sound_effect: bool = False
-    pause: float = 0.75          # animation delay multiplier (0.0-5.0)
-    positions: list[str] = field(default_factory=list)   # history of 32-char board states
-    replay_positions: list[str] = field(default_factory=list)       # same positions for playback
+    pause: float = 0.75  # animation delay multiplier (0.0-5.0)
+    positions: list[str] = field(default_factory=list)  # history of 32-char board states
+    replay_positions: list[str] = field(default_factory=list)  # same positions for playback
 
     def __post_init__(self):
         if not 1 <= self.difficulty <= 3:
@@ -32,14 +32,10 @@ class GameSave:
             raise ValueError(f"pause must be 0.0-5.0, got {self.pause}")
         for i, pos in enumerate(self.positions):
             if len(pos) != 32:
-                raise ValueError(
-                    f"positions[{i}] must be 32 chars, got {len(pos)}"
-                )
+                raise ValueError(f"positions[{i}] must be 32 chars, got {len(pos)}")
         for i, pos in enumerate(self.replay_positions):
             if len(pos) != 32:
-                raise ValueError(
-                    f"replay_positions[{i}] must be 32 chars, got {len(pos)}"
-                )
+                raise ValueError(f"replay_positions[{i}] must be 32 chars, got {len(pos)}")
 
 
 def save_game(filepath: str | Path, game_save: GameSave) -> None:

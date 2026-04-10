@@ -4,7 +4,6 @@ from draughts.config import BLACK, BLACK_KING, EMPTY, WHITE
 from draughts.game.ai import (
     AIMove,
     _any_piece_threatened,
-    _appreciate,
     _count_pieces,
     _dangerous_position,
     _evaluate_fast,
@@ -287,24 +286,6 @@ class TestHelpers:
         b = Board()
         assert _count_pieces("b", b.grid) == 12
         assert _count_pieces("w", b.grid) == 12
-
-    def test_appreciate_no_change(self):
-        b = Board()
-        assert _appreciate(b.grid, b.grid, "b") == 0
-
-    def test_appreciate_captures(self):
-        b1 = Board()
-        b2 = b1.copy()
-        for y in range(1, 9):
-            for x in range(1, 9):
-                if b2.piece_at(x, y) == WHITE:
-                    b2.place_piece(x, y, EMPTY)
-                    break
-            else:
-                continue
-            break
-        score = _appreciate(b1.grid, b2.grid, "b")
-        assert score > 0
 
     def test_is_on_board(self):
         assert _is_on_board(1, 1) is True

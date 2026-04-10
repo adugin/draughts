@@ -12,7 +12,6 @@ Piece encoding: BLACK=1, BLACK_KING=2, WHITE=-1, WHITE_KING=-2, EMPTY=0
 from __future__ import annotations
 
 import random
-from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -21,20 +20,10 @@ from draughts.config import (
     BLACK_KING,
     BOARD_SIZE,
     DIAGONAL_DIRECTIONS,
-    INT_TO_CHAR,
     WHITE,
     WHITE_KING,
 )
 from draughts.game.board import Board
-
-if TYPE_CHECKING:
-    from draughts.game.learning import LearningDB
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-LEARNING_SCORE_THRESHOLD = 1
 
 # Board slice for the active 8x8 area (1-indexed grid is 9x9)
 _BOARD_SLICE = (slice(1, BOARD_SIZE + 1), slice(1, BOARD_SIZE + 1))
@@ -271,28 +260,6 @@ def _has_single_capture_only(grid: np.ndarray) -> bool:
                             first = True
                             break
     return True
-
-
-# ---------------------------------------------------------------------------
-# Position string from raw grid
-# ---------------------------------------------------------------------------
-
-
-def _grid_to_position_string(grid: np.ndarray) -> str:
-    from draughts.config import DARK_SQUARES as DS
-
-    return "".join(INT_TO_CHAR[int(grid[y, x])] for y, x in DS)
-
-
-# ---------------------------------------------------------------------------
-# Learning DB lookup
-# ---------------------------------------------------------------------------
-
-
-def _lookup_position(learning_db: LearningDB | None, position: str) -> str | None:
-    if learning_db is None:
-        return None
-    return learning_db.search(position)
 
 
 # ===========================================================================
@@ -585,21 +552,13 @@ def _alphabeta(
         return value
 
 
-def _search_best_move(
-    board: Board,
-    color: str,
-    depth: int,
-    use_base: bool = False,
-    learning_db: LearningDB | None = None,
-) -> AIMove | None:
+def _search_best_move(board: Board, color: str, depth: int) -> AIMove | None:
     """Search for the best move using alpha-beta minimax.
 
     Args:
         board: Current board state.
         color: AI's color.
         depth: Search depth (1 = evaluate immediate positions, etc.)
-        use_base: Whether to use learning database for leaf evaluation.
-        learning_db: Learning database instance.
 
     Returns:
         Best AIMove or None.
@@ -608,7 +567,6 @@ def _search_best_move(
     if not moves:
         return None
 
-    # Order moves for better pruning
     moves = _order_moves(moves, board, color)
 
     opp = _opponent(color)
@@ -626,16 +584,7 @@ def _search_best_move(
         if kind != "capture":
             opp_moves = _generate_all_moves(child, opp)
             if any(k == "capture" for k, _ in opp_moves):
-                score -= _PAWN_VALUE * 0.5  # significant penalty for walking into danger
-
-        # Learning DB bonus at root level
-        if use_base and learning_db is not None:
-            pos_str = child.to_position_string()
-            db_result = _lookup_position(learning_db, pos_str)
-            if db_result == "good":
-                score += 3.0
-            elif db_result == "bad":
-                score -= 3.0
+                score -= _PAWN_VALUE * 0.5
 
         if score > best_score:
             best_score = score
@@ -659,8 +608,6 @@ def _search_best_move(
 def computer_move(
     board: Board,
     difficulty: int = 2,
-    use_base: bool = False,
-    learning_db: LearningDB | None = None,
     color: str = "b",
     depth: int | None = None,
 ) -> AIMove | None:
@@ -669,8 +616,6 @@ def computer_move(
     Args:
         board: Current board state.
         difficulty: 1=amateur, 2=normal, 3=professional.
-        use_base: Whether to use the learning database.
-        learning_db: LearningDB instance or None.
         color: 'b' or 'w' — which side the computer plays.
         depth: Search depth override. If None, derived from difficulty:
                difficulty 1 → depth 3, difficulty 2 → depth 5, difficulty 3 → depth 7.
@@ -678,49 +623,14 @@ def computer_move(
     Returns:
         An AIMove describing the chosen move, or None if no legal move exists.
     """
-    # Determine search depth — minimum depth=3 so AI always sees opponent responses
     if depth is None:
         depth = {1: 3, 2: 5, 3: 7}.get(difficulty, 5)
 
     # Adaptive depth: reduce for complex positions to keep response time reasonable
     piece_count = board.count_pieces("b") + board.count_pieces("w")
     if piece_count > 16 and depth > 4:
-        depth = 4  # opening positions have too many moves for deep search
+        depth = 4
     elif piece_count <= 6 and depth < 8:
-        depth = min(depth + 2, 10)  # endgames can search deeper
+        depth = min(depth + 2, 10)
 
-    return _search_best_move(board, color, depth, use_base, learning_db)
-
-
-# ===========================================================================
-# LEARNING: record positions after game outcome
-# ===========================================================================
-
-
-def record_learning(
-    learning_db: LearningDB,
-    board_before: Board,
-    board_after: Board,
-    color: str,
-    won: bool,
-) -> None:
-    """Record a position in the learning database after a game outcome."""
-    from draughts.game.learning import invert_position
-
-    pos_str = board_after.to_position_string()
-    score = _appreciate(board_before.grid, board_after.grid, color)
-
-    if won and score > LEARNING_SCORE_THRESHOLD:
-        learning_db.add_good(pos_str)
-        learning_db.save()
-    elif not won and score < -LEARNING_SCORE_THRESHOLD:
-        learning_db.add_bad(invert_position(pos_str))
-        learning_db.save()
-
-
-def _appreciate(field1: np.ndarray, field2: np.ndarray, color: str) -> int:
-    """Evaluate how much the position changed in favor of a given color."""
-    val1 = int(np.sum(field1[_BOARD_SLICE]))
-    val2 = int(np.sum(field2[_BOARD_SLICE]))
-    delta = val2 - val1
-    return delta if color == "b" else -delta
+    return _search_best_move(board, color, depth)

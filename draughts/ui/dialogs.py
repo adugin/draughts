@@ -51,21 +51,10 @@ class OptionsDialog(QDialog):
         self._difficulty.setCurrentIndex(settings.difficulty - 1)
         layout.addRow("Сложность:", self._difficulty)
 
-        # Speed
-        self._speed = QComboBox()
-        self._speed.addItems(["Медленно", "Средне", "Быстро"])
-        self._speed.setCurrentIndex(settings.speed - 1)
-        layout.addRow("Скорость:", self._speed)
-
         # Remind
         self._remind = QCheckBox("Подсказка взятия")
         self._remind.setChecked(settings.remind)
         layout.addRow(self._remind)
-
-        # Sound
-        self._sound = QCheckBox("Звук")
-        self._sound.setChecked(settings.sound_effect)
-        layout.addRow(self._sound)
 
         # Pause (delay multiplier)
         self._pause = QDoubleSpinBox()
@@ -82,11 +71,6 @@ class OptionsDialog(QDialog):
         self._search_depth.setSpecialValueText("Авто")
         self._search_depth.setToolTip("0 = автоматически из сложности, 1-10 = ручная глубина")
         layout.addRow("Глубина поиска:", self._search_depth)
-
-        # Use learning database
-        self._use_base = QCheckBox("База (обучение)")
-        self._use_base.setChecked(settings.use_base)
-        layout.addRow(self._use_base)
 
         # Invert color
         self._invert_color = QCheckBox("Играть чёрными")
@@ -107,18 +91,10 @@ class OptionsDialog(QDialog):
         """Return a new GameSettings with values from the dialog controls."""
         s = GameSettings(
             difficulty=self._difficulty.currentIndex() + 1,
-            speed=self._speed.currentIndex() + 1,
             remind=self._remind.isChecked(),
-            sound_effect=self._sound.isChecked(),
             pause=self._pause.value(),
-            use_base=self._use_base.isChecked(),
             invert_color=self._invert_color.isChecked(),
             search_depth=self._search_depth.value(),
-            # Preserve learning flags from original settings
-            black_win=self._settings.black_win,
-            white_win=self._settings.white_win,
-            black_lose=self._settings.black_lose,
-            white_lose=self._settings.white_lose,
         )
         return s
 
