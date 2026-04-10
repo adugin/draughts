@@ -179,30 +179,34 @@ def _concat(*tracks: list[float]) -> list[float]:
 # ---------------------------------------------------------------------------
 
 def _gen_piece_move() -> list[float]:
-    """Soft click/tap — short filtered noise burst + quiet high sine tap."""
-    burst = _noise(0.015, 0.6)
-    burst = _bandpass_simple(burst, 3000.0, 1.5)
-    burst = _envelope_exp(burst, 0.006)
-    tap = _sine(1800.0, 0.012, 0.2)
-    tap = _envelope_exp(tap, 0.005)
-    samples = _mix(burst, tap)
-    samples = _fade(samples, 0.001, 0.005)
-    return _normalize(samples, 0.5)
+    """Soft wooden tap — audible click when placing a piece."""
+    # Woody knock
+    knock = _sine(800.0, 0.08, 0.7)
+    knock = _envelope_exp(knock, 0.025)
+    # Body resonance
+    body = _sine(300.0, 0.12, 0.4)
+    body = _envelope_exp(body, 0.05)
+    # Surface noise
+    click = _noise(0.04, 0.3)
+    click = _bandpass_simple(click, 2500.0, 1.5)
+    click = _envelope_exp(click, 0.015)
+    samples = _mix(knock, body, click)
+    samples = _fade(samples, 0.002, 0.02)
+    return _normalize(samples, 0.6)
 
 
 def _gen_piece_capture() -> list[float]:
-    """Louder impact — low thud + mid crack."""
-    thud = _sine(120.0, 0.1, 0.8)
-    thud = _envelope_exp(thud, 0.04)
-    crack = _noise(0.03, 1.0)
-    crack = _bandpass_simple(crack, 2000.0, 1.2)
-    crack = _envelope_exp(crack, 0.012)
-    # Short mid-tone
-    mid = _sine(400.0, 0.06, 0.4)
-    mid = _envelope_exp(mid, 0.025)
+    """Satisfying impact — deep thud + sharp crack."""
+    thud = _sine(100.0, 0.2, 0.9)
+    thud = _envelope_exp(thud, 0.08)
+    crack = _noise(0.06, 1.0)
+    crack = _bandpass_simple(crack, 1800.0, 1.2)
+    crack = _envelope_exp(crack, 0.025)
+    mid = _sine(350.0, 0.12, 0.5)
+    mid = _envelope_exp(mid, 0.05)
     samples = _mix(thud, crack, mid)
-    samples = _fade(samples, 0.001, 0.01)
-    return _normalize(samples, 0.7)
+    samples = _fade(samples, 0.002, 0.03)
+    return _normalize(samples, 0.8)
 
 
 def _gen_piece_king() -> list[float]:
@@ -225,15 +229,15 @@ def _gen_piece_king() -> list[float]:
 
 
 def _gen_error() -> list[float]:
-    """Soft buzzer — two short low tones."""
-    t1 = _sine(220.0, 0.08, 0.5)
-    t1 = _envelope_exp(t1, 0.04)
-    gap = _silence(0.04)
-    t2 = _sine(180.0, 0.1, 0.5)
-    t2 = _envelope_exp(t2, 0.05)
+    """Noticeable buzzer — two descending low tones."""
+    t1 = _sine(300.0, 0.12, 0.6)
+    t1 = _envelope_exp(t1, 0.06)
+    gap = _silence(0.05)
+    t2 = _sine(200.0, 0.15, 0.6)
+    t2 = _envelope_exp(t2, 0.07)
     samples = _concat(t1, gap, t2)
-    samples = _fade(samples, 0.003, 0.01)
-    return _normalize(samples, 0.45)
+    samples = _fade(samples, 0.005, 0.02)
+    return _normalize(samples, 0.55)
 
 
 def _gen_timer_warning() -> list[float]:

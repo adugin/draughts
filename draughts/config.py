@@ -140,7 +140,7 @@ class GameSettings:
 
     difficulty: int = 1  # 1=Amateur, 2=Normal, 3=Professional
     remind: bool = True  # hint for mandatory captures
-    sound_effect: bool = False
+    sound_effect: bool = True
     pause: float = 0.75  # animation delay multiplier
     invert_color: bool = False  # player plays black instead of white
     search_depth: int = 0  # 0=auto (from difficulty), 1-10=manual override
