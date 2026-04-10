@@ -56,11 +56,6 @@ class OptionsDialog(QDialog):
         self._remind.setChecked(settings.remind)
         layout.addRow(self._remind)
 
-        # Sound
-        self._sound = QCheckBox("Звук")
-        self._sound.setChecked(settings.sound_effect)
-        layout.addRow(self._sound)
-
         # Pause (delay multiplier)
         self._pause = QDoubleSpinBox()
         self._pause.setRange(0.0, 5.0)
@@ -97,7 +92,6 @@ class OptionsDialog(QDialog):
         s = GameSettings(
             difficulty=self._difficulty.currentIndex() + 1,
             remind=self._remind.isChecked(),
-            sound_effect=self._sound.isChecked(),
             pause=self._pause.value(),
             invert_color=self._invert_color.isChecked(),
             search_depth=self._search_depth.value(),

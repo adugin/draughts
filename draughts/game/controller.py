@@ -24,7 +24,6 @@ from draughts.config import AUTOSAVE_FILENAME, GameSettings, get_data_dir
 from draughts.game.ai import AIMove, computer_move
 from draughts.game.board import Board
 from draughts.game.save import GameSave, autosave, load_game, save_game
-from draughts.ui.sounds import SoundManager
 
 
 class AIWorker(QObject):
@@ -91,8 +90,6 @@ class GameController(QObject):
         super().__init__(parent)
         self.board = Board()
         self.settings = GameSettings()
-        self.sounds = SoundManager()
-
         # Game state
         self._current_turn: str = "w"  # who moves next
         self._computer_color: str = "b"  # AI plays black by default
@@ -296,19 +293,11 @@ class GameController(QObject):
         """Try a non-capture move."""
         valid_moves = self.board.get_valid_moves(sx, sy)
         if (tx, ty) not in valid_moves:
-            if self.settings.sound_effect:
-                self.sounds.play_error()
             return  # invalid move
 
         # Execute move
         move_notation = f"{Board.pos_to_notation(sx, sy)}-{Board.pos_to_notation(tx, ty)}"
         self.board.execute_move(sx, sy, tx, ty)
-        if self.settings.sound_effect:
-            # Check for promotion
-            if self.board.piece_at(tx, ty) in (Board.WHITE_KING, Board.BLACK_KING):
-                self.sounds.play_king()
-            else:
-                self.sounds.play_move()
         self._finish_player_move(move_notation)
 
     def _try_capture_move(self, sx: int, sy: int, tx: int, ty: int):
@@ -339,8 +328,6 @@ class GameController(QObject):
         # Execute the best matching capture
         best_path = matching[0]
         captured = self.board.execute_capture_path(best_path)
-        if self.settings.sound_effect:
-            self.sounds.play_capture()
 
         # Update captured counts
         for cx, cy in captured:
@@ -534,8 +521,6 @@ class GameController(QObject):
     def _on_timer_tick(self):
         self._time_remaining -= 1
         self.timer_tick.emit(self._time_remaining)
-        if 0 < self._time_remaining <= 5 and self.settings.sound_effect:
-            self.sounds.play_timer_warning()
         if self._time_remaining <= 0:
             self._stop_timer()
             # Time's up — confiscate or auto-play
@@ -555,8 +540,6 @@ class GameController(QObject):
             msg = "Вы проиграли!" if player_lost else "Вы выиграли!"
             logger.info(f"Game over: {msg} (no white pieces)")
             self.game_over.emit(msg)
-            if self.settings.sound_effect:
-                self.sounds.play_game_lose() if player_lost else self.sounds.play_game_win()
             self._on_game_end(winner="b")
             return True
 
@@ -565,8 +548,6 @@ class GameController(QObject):
             msg = "Вы проиграли!" if player_lost else "Вы выиграли!"
             logger.info(f"Game over: {msg} (no black pieces)")
             self.game_over.emit(msg)
-            if self.settings.sound_effect:
-                self.sounds.play_game_lose() if player_lost else self.sounds.play_game_win()
             self._on_game_end(winner="w")
             return True
 
@@ -599,7 +580,7 @@ class GameController(QObject):
             difficulty=self.settings.difficulty,
             speed=1,
             remind=self.settings.remind,
-            sound_effect=self.settings.sound_effect,
+            sound_effect=False,
             pause=self.settings.pause,
             positions=list(self._positions),
             replay_positions=list(self._replay_history),
@@ -611,7 +592,6 @@ class GameController(QObject):
         gs = load_game(filepath)
         self.settings.difficulty = gs.difficulty
         self.settings.remind = gs.remind
-        self.settings.sound_effect = gs.sound_effect
         self.settings.pause = gs.pause
 
         self._positions = list(gs.positions)
@@ -653,7 +633,7 @@ class GameController(QObject):
                 difficulty=self.settings.difficulty,
                 speed=1,
                 remind=self.settings.remind,
-                sound_effect=self.settings.sound_effect,
+                sound_effect=False,
                 pause=self.settings.pause,
                 positions=list(self._positions),
                 replay_positions=list(self._replay_history),
