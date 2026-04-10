@@ -181,7 +181,7 @@ class BoardWidget(QWidget):
 
         painter.end()
 
-    def _draw_piece(self, painter: QPainter, x: int, y: int, piece: str,
+    def _draw_piece(self, painter: QPainter, x: int, y: int, piece: int,
                     cell_size: float, bx: float, by: float):
         """Draw a single piece (regular or king) at board position (x, y)."""
         rect = self._cell_rect(x, y, cell_size, bx, by)

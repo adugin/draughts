@@ -11,6 +11,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
+
 # ---------------------------------------------------------------------------
 # Board constants
 # ---------------------------------------------------------------------------
@@ -20,12 +22,23 @@ CELL_SIZE = 40  # original pixel size, used as base for scaling
 CELL_BORDER = 2
 PIECE_RADIUS = 17  # (CELL_SIZE - CELL_BORDER * 2 - 2) // 2
 
-# Piece characters (matching the Pascal field encoding)
-EMPTY = "n"
-BLACK = "b"
-BLACK_KING = "B"
-WHITE = "w"
-WHITE_KING = "W"
+# Piece encoding — signed int8 for NumPy vectorization:
+#   positive = black, negative = white, 0 = empty
+#   abs(piece) == 2 → king
+EMPTY = np.int8(0)
+BLACK = np.int8(1)
+BLACK_KING = np.int8(2)
+WHITE = np.int8(-1)
+WHITE_KING = np.int8(-2)
+
+# Conversion tables (for position string serialization)
+CHAR_TO_INT: dict[str, int] = {"n": 0, "b": 1, "B": 2, "w": -1, "W": -2}
+INT_TO_CHAR: dict[int, str] = {0: "n", 1: "b", 2: "B", -1: "w", -2: "W"}
+
+# Precomputed dark-square coordinates (y, x), 1-indexed, row-major order
+DARK_SQUARES: list[tuple[int, int]] = [
+    (y, x) for y in range(1, BOARD_SIZE + 1) for x in range(1, BOARD_SIZE + 1) if x % 2 != y % 2
+]
 
 # Four diagonal directions as (dy, dx)
 DIAGONAL_DIRECTIONS = [(-1, 1), (1, 1), (1, -1), (-1, -1)]
