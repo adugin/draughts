@@ -1,15 +1,16 @@
 """Animated splash screen for the draughts game.
 
 Recreates the original Pascal splash sequence:
-  Dugin -> Andrew -> presents -> Draughts
-with lightning effects and text particle animations.
+  "Andrey Dugin" → scatter → reassemble as "presents"
+  "presents" → scatter → reassemble as "Шашки"
+  Lightning strikes "Шашки" → sparkle shimmer effect
 """
 
 from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
@@ -23,66 +24,61 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QWidget
 
-# ---------------------------------------------------------------------------
-# Particle system for text scatter/assemble effects
-# ---------------------------------------------------------------------------
 
 @dataclass
-class _Particle:
-    """A single particle that flies from a random position to its target."""
-    # Target position (where the particle should end up)
-    tx: float
-    ty: float
-    # Current position
+class _Pixel:
+    """A single pixel-particle used in scatter/reassemble animations."""
     x: float
     y: float
-    # Start position (for direct interpolation)
-    sx: float = 0.0
-    sy: float = 0.0
-    # Velocity for scatter phase
-    vx: float = 0.0
-    vy: float = 0.0
-    # Appearance
+    target_x: float = 0.0
+    target_y: float = 0.0
     char: str = ""
-    color: QColor | None = None
-    alpha: float = 0.0
     font_size: int = 24
-    settled: bool = False
+    color: QColor | None = None
+    alpha: float = 1.0
+    shimmer_color: QColor | None = None
+    dead: bool = False  # extra pixels that should not be drawn
 
 
 @dataclass
 class _LightningBolt:
-    """A single lightning bolt defined as a list of points."""
     points: list[tuple[float, float]]
     alpha: float = 1.0
     width: float = 2.0
     color: QColor | None = None
-    branches: list[list[tuple[float, float]]] | None = None
+    branches: list[list[tuple[float, float]]] = field(default_factory=list)
 
     def __post_init__(self):
         if self.color is None:
-            self.color = QColor(180, 200, 255)
+            self.color = QColor(255, 255, 100)
 
 
 # ---------------------------------------------------------------------------
-# Splash phases
+# Phase timing
 # ---------------------------------------------------------------------------
 
-_PHASE_DARK = 0           # 0.0 - 0.3s: dark screen
-_PHASE_LIGHTNING_1 = 1    # 0.3 - 0.7s: first lightning
-_PHASE_NAME = 2           # 0.7 - 1.7s: "Andrey Dugin" assembles
-_PHASE_TRANSITION = 3     # 1.7 - 2.0s: fade transition
-_PHASE_PRESENTS = 4       # 2.0 - 2.6s: "presents" appears
-_PHASE_LIGHTNING_2 = 5    # 2.6 - 3.0s: second lightning
-_PHASE_TITLE = 6          # 3.0 - 4.0s: big title assembles
-_PHASE_SUBTITLE = 7       # 4.0 - 4.5s: subtitle fades in
-_PHASE_FADEOUT = 8        # 4.5 - 5.0s: fade to black, then done
+# Phase 1: "Andrey Dugin" appears, holds, then scatters → reassembles as "presents"
+# Phase 2: "presents" holds, then scatters → reassembles as "Шашки"
+# Phase 3: "Шашки" holds, lightning strikes, shimmer effect
 
-_TOTAL_DURATION = 5.0  # seconds
+_T_SHOW_NAME = 0.0          # name appears instantly
+_T_NAME_HOLD = 1.5          # hold name for 1.5s
+_T_SCATTER_1_END = 2.5      # scatter takes 1.0s
+_T_ASSEMBLE_1_END = 3.5     # reassemble into "presents" takes 1.0s
+_T_PRESENTS_HOLD = 4.5      # hold "presents" for 1.0s
+_T_SCATTER_2_END = 5.5      # scatter takes 1.0s
+_T_ASSEMBLE_2_END = 6.5     # reassemble into "Шашки" takes 1.0s
+_T_TITLE_HOLD = 7.5         # hold title for 1.0s
+_T_LIGHTNING = 7.5           # lightning strikes at this moment
+_T_LIGHTNING_FLASH = 7.7     # green flash
+_T_SHIMMER_START = 7.8       # shimmer begins
+_T_SUBTITLE_START = 8.0      # subtitle fades in
+_T_FADEOUT_START = 10.0      # fade to black
+_T_END = 10.8                # done
 
 
 class SplashScreen(QWidget):
-    """Full-screen animated splash with lightning and text effects."""
+    """Full-screen animated splash with scatter/reassemble and lightning."""
 
     finished = pyqtSignal()
 
@@ -95,19 +91,26 @@ class SplashScreen(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setStyleSheet("background: black;")
 
-        self._elapsed = 0.0  # seconds
+        self._elapsed = 0.0
         self._fps_interval = 16  # ms (~60fps)
 
-        # Particles for each text phase
-        self._name_particles: list[_Particle] = []
-        self._presents_particles: list[_Particle] = []
-        self._title_particles: list[_Particle] = []
-        self._subtitle_alpha = 0.0
-        self._fade_alpha = 0.0
+        # Pixel-particles for transitions
+        self._pixels: list[_Pixel] = []
+
+        # Title pixels (for shimmer)
+        self._title_pixels: list[_Pixel] = []
+        self._shimmer_active = False
 
         # Lightning
         self._bolts: list[_LightningBolt] = []
-        self._bolt_timer = 0.0
+        self._flash_alpha = 0.0
+
+        # Subtitle
+        self._subtitle_alpha = 0.0
+        self._fade_alpha = 0.0
+
+        # Text metrics cache
+        self._text_positions: dict[str, list[tuple[float, float, str, int]]] = {}
 
         # Timer
         self._timer = QTimer(self)
@@ -115,8 +118,9 @@ class SplashScreen(QWidget):
         self._timer.timeout.connect(self._tick)
 
         self._initialized = False
+        self._phase_done: set[str] = set()
 
-        # Screenshot support: callback(phase_name, widget) called once per phase
+        # Screenshot support
         self._screenshot_callback = None
         self._screenshot_phases_done: set[str] = set()
 
@@ -127,52 +131,41 @@ class SplashScreen(QWidget):
             self._screenshot_callback(phase_name, self)
 
     def show_animated(self):
-        """Start the splash animation."""
         self.showFullScreen()
-        # Small delay to let the window fully show before starting
         QTimer.singleShot(50, self._begin)
 
     def _begin(self):
-        self._init_particles()
+        self._init_text_data()
         self._elapsed = 0.0
+        # Start with "Andrey Dugin" fully assembled
+        self._pixels = self._make_text_pixels("name")
         self._timer.start()
 
-    def _init_particles(self):
-        """Pre-compute particle targets based on current screen size."""
+    def _init_text_data(self):
+        """Pre-compute character positions for all text phases."""
         self._initialized = True
         w = self.width()
         h = self.height()
-        scale = min(w / 800, h / 600)  # reference 800x600
+        scale = min(w / 800, h / 600)
 
-        # "Andrey Dugin"
-        self._name_particles = self._text_to_particles(
-            "Andrey Dugin",
-            font_size=int(42 * scale),
-            center_x=w / 2, center_y=h / 2 - 20 * scale,
-            color=QColor(255, 255, 220),
+        self._text_positions["name"] = self._compute_text_layout(
+            "Andrey Dugin", int(42 * scale), w / 2, h / 2,
+            QColor(255, 255, 220),
+        )
+        self._text_positions["presents"] = self._compute_text_layout(
+            "presents", int(28 * scale), w / 2, h / 2,
+            QColor(200, 200, 200),
+        )
+        self._text_positions["title"] = self._compute_text_layout(
+            "Шашки", int(80 * scale), w / 2, h / 2,
+            QColor(255, 255, 100),
         )
 
-        # "presents"
-        self._presents_particles = self._text_to_particles(
-            "presents",
-            font_size=int(28 * scale),
-            center_x=w / 2, center_y=h / 2 + 30 * scale,
-            color=QColor(200, 200, 200),
-        )
-
-        # Main title
-        self._title_particles = self._text_to_particles(
-            "\u0428\u0430\u0448\u043a\u0438",
-            font_size=int(80 * scale),
-            center_x=w / 2, center_y=h / 2,
-            color=QColor(255, 255, 100),
-        )
-
-    def _text_to_particles(
+    def _compute_text_layout(
         self, text: str, font_size: int, center_x: float, center_y: float,
         color: QColor,
-    ) -> list[_Particle]:
-        """Convert a text string into a list of character particles."""
+    ) -> list[tuple[float, float, str, int, QColor]]:
+        """Return list of (x, y, char, font_size, color) for each character."""
         font = QFont("Georgia", font_size)
         font.setBold(True)
         fm = QFontMetrics(font)
@@ -181,181 +174,280 @@ class SplashScreen(QWidget):
 
         start_x = center_x - text_width / 2
         baseline_y = center_y + text_height / 4
-
-        particles = []
+        result = []
         x_cursor = start_x
-        w = self.width()
-        h = self.height()
 
         for ch in text:
             if ch == ' ':
                 x_cursor += fm.horizontalAdvance(' ')
                 continue
-
             char_w = fm.horizontalAdvance(ch)
-            tx = x_cursor
-            ty = baseline_y
-
-            # Start from random scattered position
-            angle = random.uniform(0, 2 * math.pi)
-            dist = random.uniform(200, max(w, h) * 0.6)
-            sx = tx + math.cos(angle) * dist
-            sy = ty + math.sin(angle) * dist
-
-            particles.append(_Particle(
-                tx=tx, ty=ty,
-                x=sx, y=sy,
-                sx=sx, sy=sy,
-                char=ch,
-                color=QColor(color),
-                alpha=0.0,
-                font_size=font_size,
-            ))
+            result.append((x_cursor, baseline_y, ch, font_size, QColor(color)))
             x_cursor += char_w
 
-        return particles
+        return result
 
-    def _generate_lightning(self, x_start: float | None = None) -> _LightningBolt:
-        """Generate a random jagged lightning bolt."""
+    def _make_text_pixels(self, text_key: str) -> list[_Pixel]:
+        """Create pixel list with all chars at their target positions."""
+        pixels = []
+        for x, y, ch, fs, color in self._text_positions[text_key]:
+            pixels.append(_Pixel(
+                x=x, y=y,
+                target_x=x, target_y=y,
+                char=ch, font_size=fs,
+                color=QColor(color), alpha=1.0,
+            ))
+        return pixels
+
+    def _scatter_pixels(self):
+        """Push all pixels outward from center (like original breaking)."""
+        cx = self.width() / 2
+        cy = self.height() / 2
+        for p in self._pixels:
+            dx = p.x - cx
+            dy = p.y - cy
+            dist = math.sqrt(dx * dx + dy * dy) + 1
+            # Scatter outward with some randomness
+            factor = random.uniform(3.0, 6.0)
+            p.target_x = p.x + dx * factor + random.uniform(-50, 50)
+            p.target_y = p.y + dy * factor + random.uniform(-50, 50)
+
+    def _retarget_pixels_to(self, text_key: str):
+        """Set new target positions from a different text layout.
+
+        Reuses existing scattered pixels — assigns each one a new target
+        from the destination text. Extra pixels fade out, missing ones spawn.
+        """
+        targets = list(self._text_positions[text_key])
+        # Match existing pixels to new targets
+        for i, p in enumerate(self._pixels):
+            if i < len(targets):
+                tx, ty, ch, fs, color = targets[i]
+                p.target_x = tx
+                p.target_y = ty
+                p.char = ch
+                p.font_size = fs
+                p.color = QColor(color)
+                p.dead = False
+            else:
+                # Extra pixel — mark as dead
+                p.dead = True
+                p.alpha = 0.0
+
+        # If we need more pixels than we have, spawn new ones from random positions
+        for i in range(len(self._pixels), len(targets)):
+            tx, ty, ch, fs, color = targets[i]
+            p = _Pixel(
+                x=random.uniform(0, self.width()),
+                y=random.uniform(0, self.height()),
+                target_x=tx, target_y=ty,
+                char=ch, font_size=fs,
+                color=QColor(color), alpha=0.3,
+            )
+            self._pixels.append(p)
+
+    def _animate_pixels(self, progress: float):
+        """Move pixels toward their targets. progress: 0→1."""
+        t = min(progress, 1.0)
+        eased = 1.0 - (1.0 - t) ** 3  # ease-out cubic
+        for p in self._pixels:
+            if p.dead:
+                continue
+            # Store start pos on first call
+            if not hasattr(p, '_anim_sx'):
+                p._anim_sx = p.x
+                p._anim_sy = p.y
+            p.x = p._anim_sx + (p.target_x - p._anim_sx) * eased
+            p.y = p._anim_sy + (p.target_y - p._anim_sy) * eased
+            p.alpha = min(1.0, 0.3 + eased * 0.7)
+
+    def _snap_pixels_to_targets(self):
+        """Ensure all pixels are exactly at their target positions."""
+        for p in self._pixels:
+            p.x = p.target_x
+            p.y = p.target_y
+            p.alpha = 1.0
+            if hasattr(p, '_anim_sx'):
+                del p._anim_sx
+                del p._anim_sy
+
+    def _reset_anim_starts(self):
+        """Reset animation start positions to current positions."""
+        for p in self._pixels:
+            if hasattr(p, '_anim_sx'):
+                del p._anim_sx
+                del p._anim_sy
+
+    def _generate_lightning(self, target_y: float) -> _LightningBolt:
+        """Generate lightning bolt from top of screen to target_y."""
         w = self.width()
-        h = self.height()
-
-        if x_start is None:
-            x_start = random.uniform(w * 0.2, w * 0.8)
-
+        x_start = w / 2 + random.uniform(-50, 50)
         points = [(x_start, 0.0)]
         x, y = x_start, 0.0
-        segments = random.randint(8, 15)
+        segments = random.randint(12, 20)
 
-        for i in range(segments):
-            y += h / segments + random.uniform(-10, 10)
-            x += random.uniform(-60, 60)
-            x = max(20, min(w - 20, x))
-            points.append((x, min(y, h)))
+        for _ in range(segments):
+            y += target_y / segments + random.uniform(-5, 5)
+            x += random.uniform(-40, 40)
+            x = max(50, min(w - 50, x))
+            points.append((x, min(y, target_y)))
+            if y >= target_y:
+                break
 
-        # Generate 1-3 branches
         branches = []
-        for _ in range(random.randint(1, 3)):
+        for _ in range(random.randint(2, 4)):
             if len(points) < 3:
                 break
-            branch_start = random.randint(1, len(points) - 2)
-            bx, by = points[branch_start]
-            branch_pts = [(bx, by)]
-            for _ in range(random.randint(2, 5)):
-                bx += random.uniform(-40, 40)
-                by += random.uniform(20, 50)
-                branch_pts.append((bx, min(by, h)))
-            branches.append(branch_pts)
-
-        bolt_color = random.choice([
-            QColor(180, 200, 255),
-            QColor(200, 220, 255),
-            QColor(160, 180, 255),
-        ])
+            bi = random.randint(1, len(points) - 2)
+            bx, by = points[bi]
+            bpts = [(bx, by)]
+            for _ in range(random.randint(2, 4)):
+                bx += random.uniform(-30, 30)
+                by += random.uniform(10, 40)
+                bpts.append((bx, by))
+            branches.append(bpts)
 
         return _LightningBolt(
-            points=points,
-            alpha=1.0,
-            width=random.uniform(1.5, 3.0),
-            color=bolt_color,
+            points=points, alpha=1.0,
+            width=random.uniform(2.0, 4.0),
+            color=QColor(255, 255, 100),
             branches=branches,
         )
 
     def _tick(self):
         dt = self._fps_interval / 1000.0
         self._elapsed += dt
-        w = self.width()
-        h = self.height()
-
-        # Phase logic
         t = self._elapsed
 
-        # Generate lightning during lightning phases
-        if (_phase_active(t, 0.3, 0.7) or _phase_active(t, 2.6, 3.0)):
-            self._bolt_timer += dt
-            if self._bolt_timer > 0.08:
-                self._bolt_timer = 0.0
-                self._bolts.append(self._generate_lightning())
+        # === Phase 1: Name visible (0 - 1.5s) ===
+        # pixels already set in _begin
 
-        # Decay lightning
-        for bolt in self._bolts:
-            bolt.alpha -= dt * 4.0
-        self._bolts = [b for b in self._bolts if b.alpha > 0]
-
-        # Assemble name particles (0.7 - 1.7)
-        if _phase_active(t, 0.5, 1.7):
-            phase_t = _phase_progress(t, 0.5, 1.5)
-            self._update_particles(self._name_particles, phase_t)
-
-        # Screenshot: name fully assembled (just before fade)
-        if t >= 1.6 and "name" not in self._screenshot_phases_done:
+        # Screenshot: name assembled
+        if t >= 1.4 and "name" not in self._screenshot_phases_done:
             self._screenshot_phases_done.add("name")
             self._fire_screenshot("name")
 
-        # Fade out name (1.7 - 2.0)
-        if _phase_active(t, 1.7, 2.1):
-            fade = _phase_progress(t, 1.7, 2.1)
-            for p in self._name_particles:
-                p.alpha = max(0, 1.0 - fade)
+        # === Scatter name (1.5 - 2.5s) ===
+        if t >= _T_NAME_HOLD and "scatter_1" not in self._phase_done:
+            self._phase_done.add("scatter_1")
+            self._scatter_pixels()
+            self._reset_anim_starts()
 
-        # Assemble presents (2.0 - 2.6)
-        if _phase_active(t, 1.8, 2.6):
-            phase_t = _phase_progress(t, 1.8, 2.5)
-            self._update_particles(self._presents_particles, phase_t)
+        if _T_NAME_HOLD <= t < _T_SCATTER_1_END:
+            progress = (t - _T_NAME_HOLD) / (_T_SCATTER_1_END - _T_NAME_HOLD)
+            self._animate_pixels(progress)
+            # Fade out during scatter
+            for p in self._pixels:
+                p.alpha = max(0.1, 1.0 - progress * 0.7)
 
-        # Screenshot: presents fully assembled
-        if t >= 2.5 and "presents" not in self._screenshot_phases_done:
+        # === Reassemble into "presents" (2.5 - 3.5s) ===
+        if t >= _T_SCATTER_1_END and "retarget_1" not in self._phase_done:
+            self._phase_done.add("retarget_1")
+            self._snap_pixels_to_targets()  # finalize scatter positions
+            self._retarget_pixels_to("presents")
+            self._reset_anim_starts()
+
+        if _T_SCATTER_1_END <= t < _T_ASSEMBLE_1_END:
+            progress = (t - _T_SCATTER_1_END) / (_T_ASSEMBLE_1_END - _T_SCATTER_1_END)
+            self._animate_pixels(progress)
+
+        if t >= _T_ASSEMBLE_1_END and "snap_1" not in self._phase_done:
+            self._phase_done.add("snap_1")
+            self._snap_pixels_to_targets()
+
+        # Screenshot: presents assembled
+        if t >= _T_ASSEMBLE_1_END + 0.1 and "presents" not in self._screenshot_phases_done:
             self._screenshot_phases_done.add("presents")
             self._fire_screenshot("presents")
 
-        # Fade out presents (2.6 - 3.0)
-        if _phase_active(t, 2.6, 3.1):
-            fade = _phase_progress(t, 2.6, 3.1)
-            for p in self._presents_particles:
-                p.alpha = max(0, 1.0 - fade)
+        # === Scatter presents (4.5 - 5.5s) ===
+        if t >= _T_PRESENTS_HOLD and "scatter_2" not in self._phase_done:
+            self._phase_done.add("scatter_2")
+            self._scatter_pixels()
+            self._reset_anim_starts()
 
-        # Assemble title (3.0 - 4.0)
-        if _phase_active(t, 2.9, 4.0):
-            phase_t = _phase_progress(t, 2.9, 3.8)
-            self._update_particles(self._title_particles, phase_t)
+        if _T_PRESENTS_HOLD <= t < _T_SCATTER_2_END:
+            progress = (t - _T_PRESENTS_HOLD) / (_T_SCATTER_2_END - _T_PRESENTS_HOLD)
+            self._animate_pixels(progress)
+            for p in self._pixels:
+                p.alpha = max(0.1, 1.0 - progress * 0.7)
 
-        # Screenshot: title fully assembled
-        if t >= 3.9 and "title" not in self._screenshot_phases_done:
+        # === Reassemble into "Шашки" (5.5 - 6.5s) ===
+        if t >= _T_SCATTER_2_END and "retarget_2" not in self._phase_done:
+            self._phase_done.add("retarget_2")
+            self._snap_pixels_to_targets()
+            self._retarget_pixels_to("title")
+            self._reset_anim_starts()
+
+        if _T_SCATTER_2_END <= t < _T_ASSEMBLE_2_END:
+            progress = (t - _T_SCATTER_2_END) / (_T_ASSEMBLE_2_END - _T_SCATTER_2_END)
+            self._animate_pixels(progress)
+
+        if t >= _T_ASSEMBLE_2_END and "snap_2" not in self._phase_done:
+            self._phase_done.add("snap_2")
+            self._snap_pixels_to_targets()
+            # Copy to title_pixels for shimmer
+            self._title_pixels = list(self._pixels)
+
+        # Screenshot: title assembled
+        if t >= _T_ASSEMBLE_2_END + 0.1 and "title" not in self._screenshot_phases_done:
             self._screenshot_phases_done.add("title")
             self._fire_screenshot("title")
 
-        # Subtitle fade in (4.0 - 4.5)
-        if t >= 4.0:
-            self._subtitle_alpha = min(1.0, _phase_progress(t, 4.0, 4.4))
+        # === Lightning (7.5s) ===
+        if t >= _T_LIGHTNING and "lightning" not in self._phase_done:
+            self._phase_done.add("lightning")
+            target_y = self.height() / 2
+            for _ in range(3):
+                self._bolts.append(self._generate_lightning(target_y))
 
-        # Screenshot: subtitle visible
-        if t >= 4.4 and "subtitle" not in self._screenshot_phases_done:
+        # Flash effect
+        if _T_LIGHTNING <= t < _T_LIGHTNING_FLASH:
+            self._flash_alpha = min(0.6, (t - _T_LIGHTNING) * 3.0)
+        elif _T_LIGHTNING_FLASH <= t < _T_SHIMMER_START:
+            self._flash_alpha = max(0.0, 0.6 - (t - _T_LIGHTNING_FLASH) * 6.0)
+        else:
+            self._flash_alpha = 0.0
+
+        # Decay lightning bolts
+        for bolt in self._bolts:
+            bolt.alpha -= dt * 2.0
+        self._bolts = [b for b in self._bolts if b.alpha > 0]
+
+        # === Shimmer (7.8s+) ===
+        if t >= _T_SHIMMER_START:
+            self._shimmer_active = True
+            for p in self._title_pixels:
+                if random.random() < 0.15:
+                    p.shimmer_color = QColor(
+                        random.randint(50, 255),
+                        random.randint(50, 255),
+                        random.randint(50, 255),
+                    )
+                elif random.random() < 0.05:
+                    p.shimmer_color = None  # return to original
+
+        # === Subtitle (8.0s+) ===
+        if t >= _T_SUBTITLE_START:
+            self._subtitle_alpha = min(1.0, (t - _T_SUBTITLE_START) / 0.5)
+
+        # Screenshot: shimmer + subtitle
+        if t >= _T_SUBTITLE_START + 0.5 and "subtitle" not in self._screenshot_phases_done:
             self._screenshot_phases_done.add("subtitle")
             self._fire_screenshot("subtitle")
 
-        # Final fade out (4.5 - 5.0)
-        if t >= 4.5:
-            self._fade_alpha = min(1.0, _phase_progress(t, 4.5, 5.0))
+        # === Fade out (10.0 - 10.8s) ===
+        if t >= _T_FADEOUT_START:
+            self._fade_alpha = min(1.0, (t - _T_FADEOUT_START) / (_T_END - _T_FADEOUT_START))
 
         # Done
-        if t >= _TOTAL_DURATION:
+        if t >= _T_END:
             self._timer.stop()
             self.finished.emit()
             self.close()
             return
 
         self.update()
-
-    def _update_particles(self, particles: list[_Particle], progress: float):
-        """Move particles toward their targets based on animation progress."""
-        t = min(progress, 1.0)
-        # Ease-out cubic: fast start, smooth landing
-        eased = 1.0 - (1.0 - t) ** 3
-
-        for p in particles:
-            p.x = p.sx + (p.tx - p.sx) * eased
-            p.y = p.sy + (p.ty - p.sy) * eased
-            p.alpha = min(1.0, eased * 1.5)
 
     def paintEvent(self, event):
         if not self._initialized:
@@ -366,27 +458,30 @@ class SplashScreen(QWidget):
         w = self.width()
         h = self.height()
 
-        # Dark background with subtle gradient
+        # Dark background
         grad = QLinearGradient(0, 0, 0, h)
         grad.setColorAt(0, QColor(5, 5, 20))
         grad.setColorAt(0.5, QColor(10, 10, 35))
         grad.setColorAt(1, QColor(5, 5, 15))
         painter.fillRect(self.rect(), grad)
 
-        # Draw lightning bolts
+        # Draw pixels (scatter/assemble animation or static text)
+        if self._shimmer_active:
+            self._draw_pixels(painter, self._title_pixels, shimmer=True)
+        else:
+            self._draw_pixels(painter, self._pixels)
+
+        # Lightning
         for bolt in self._bolts:
             self._draw_bolt(painter, bolt)
 
-        # Draw name particles
-        self._draw_particles(painter, self._name_particles)
+        # Lightning flash overlay
+        if self._flash_alpha > 0:
+            flash = QColor(100, 255, 100)
+            flash.setAlphaF(self._flash_alpha)
+            painter.fillRect(self.rect(), flash)
 
-        # Draw presents particles
-        self._draw_particles(painter, self._presents_particles)
-
-        # Draw title particles
-        self._draw_particles(painter, self._title_particles)
-
-        # Draw subtitle
+        # Subtitle
         if self._subtitle_alpha > 0:
             scale = min(w / 800, h / 600)
             font = QFont("Arial", int(16 * scale))
@@ -398,7 +493,7 @@ class SplashScreen(QWidget):
             painter.drawText(rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
                              "Based on original (1998\u20132000)")
 
-        # Final fade overlay
+        # Fade overlay
         if self._fade_alpha > 0:
             overlay = QColor(0, 0, 0)
             overlay.setAlphaF(self._fade_alpha)
@@ -406,12 +501,38 @@ class SplashScreen(QWidget):
 
         painter.end()
 
+    def _draw_pixels(self, painter: QPainter, pixels: list[_Pixel], shimmer: bool = False):
+        for p in pixels:
+            if p.dead or p.alpha <= 0.01:
+                continue
+
+            font = QFont("Georgia", p.font_size)
+            font.setBold(True)
+            painter.setFont(font)
+
+            draw_color = p.shimmer_color if (shimmer and p.shimmer_color) else p.color
+            if draw_color is None:
+                draw_color = QColor(255, 255, 255)
+
+            # Glow
+            if p.alpha > 0.3:
+                glow = QColor(draw_color)
+                glow.setAlphaF(p.alpha * 0.2)
+                painter.setPen(glow)
+                offset = p.font_size * 0.03
+                for dx, dy in [(-offset, 0), (offset, 0), (0, -offset), (0, offset)]:
+                    painter.drawText(QPointF(p.x + dx, p.y + dy), p.char)
+
+            # Main char
+            color = QColor(draw_color)
+            color.setAlphaF(min(1.0, p.alpha))
+            painter.setPen(color)
+            painter.drawText(QPointF(p.x, p.y), p.char)
+
     def _draw_bolt(self, painter: QPainter, bolt: _LightningBolt):
-        """Draw a lightning bolt with glow effect."""
         if bolt.alpha <= 0 or len(bolt.points) < 2:
             return
 
-        # Glow pass (wider, more transparent)
         for width_mult, alpha_mult in [(4.0, 0.15), (2.0, 0.3), (1.0, 1.0)]:
             color = QColor(bolt.color)
             color.setAlphaF(min(1.0, bolt.alpha * alpha_mult))
@@ -420,13 +541,11 @@ class SplashScreen(QWidget):
             pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(pen)
 
-            # Main bolt
             for i in range(len(bolt.points) - 1):
                 x1, y1 = bolt.points[i]
                 x2, y2 = bolt.points[i + 1]
                 painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
 
-            # Branches
             if bolt.branches:
                 thinner = QPen(color, bolt.width * width_mult * 0.6)
                 thinner.setCapStyle(Qt.PenCapStyle.RoundCap)
@@ -437,66 +556,12 @@ class SplashScreen(QWidget):
                         x2, y2 = branch[i + 1]
                         painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
 
-        # Flash at bolt origin
-        if bolt.alpha > 0.5:
-            ox, oy = bolt.points[0]
-            flash_r = 30 * bolt.alpha
-            flash_grad = QRadialGradient(ox, oy, flash_r)
-            flash_color = QColor(220, 230, 255)
-            flash_color.setAlphaF(bolt.alpha * 0.3)
-            flash_grad.setColorAt(0, flash_color)
-            flash_grad.setColorAt(1, QColor(0, 0, 0, 0))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(flash_grad)
-            painter.drawEllipse(QPointF(ox, oy), flash_r, flash_r)
-
-    def _draw_particles(self, painter: QPainter, particles: list[_Particle]):
-        """Draw text particles with glow."""
-        for p in particles:
-            if p.alpha <= 0.01:
-                continue
-
-            font = QFont("Georgia", p.font_size)
-            font.setBold(True)
-            painter.setFont(font)
-
-            # Glow behind character
-            if p.alpha > 0.3:
-                glow_color = QColor(p.color)
-                glow_color.setAlphaF(p.alpha * 0.2)
-                painter.setPen(glow_color)
-                offset = p.font_size * 0.03
-                for dx, dy in [(-offset, 0), (offset, 0), (0, -offset), (0, offset)]:
-                    painter.drawText(QPointF(p.x + dx, p.y + dy), p.char)
-
-            # Main character
-            color = QColor(p.color)
-            color.setAlphaF(min(1.0, p.alpha))
-            painter.setPen(color)
-            painter.drawText(QPointF(p.x, p.y), p.char)
-
     def keyPressEvent(self, event):
-        """Allow skipping splash with any key."""
         self._timer.stop()
         self.finished.emit()
         self.close()
 
     def mousePressEvent(self, event):
-        """Allow skipping splash with mouse click."""
         self._timer.stop()
         self.finished.emit()
         self.close()
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _phase_active(t: float, start: float, end: float) -> bool:
-    return start <= t < end
-
-
-def _phase_progress(t: float, start: float, end: float) -> float:
-    if end <= start:
-        return 1.0
-    return max(0.0, min(1.0, (t - start) / (end - start)))
