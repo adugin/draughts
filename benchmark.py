@@ -66,12 +66,12 @@ def benchmark_position(name: str, pos_info: dict, max_depth: int = 5, runs: int 
     board = make_board(pos_info["position"])
     color = pos_info["color"]
 
-    print(f"\n{'='*65}")
+    print(f"\n{'=' * 65}")
     print(f"  {name}: {pos_info['desc']}")
     print(f"  black={board.count_pieces('b')}, white={board.count_pieces('w')}, AI={color}")
-    print(f"{'='*65}")
+    print(f"{'=' * 65}")
     print(f"  {'Depth':>5} | {'Avg ms':>10} | {'Min ms':>10} | {'Max ms':>10} | {'Move':<30}")
-    print(f"  {'-'*5}-+-{'-'*10}-+-{'-'*10}-+-{'-'*10}-+-{'-'*30}")
+    print(f"  {'-' * 5}-+-{'-' * 10}-+-{'-' * 10}-+-{'-' * 10}-+-{'-' * 30}")
 
     for depth in range(1, max_depth + 1):
         times = []
@@ -79,8 +79,10 @@ def benchmark_position(name: str, pos_info: dict, max_depth: int = 5, runs: int 
         for _ in range(runs):
             t0 = time.perf_counter()
             move_result = computer_move(
-                board, difficulty=3, use_base=False, learning_db=None,
-                color=color, depth=depth,
+                board,
+                difficulty=3,
+                color=color,
+                depth=depth,
             )
             t1 = time.perf_counter()
             times.append((t1 - t0) * 1000)
@@ -95,14 +97,16 @@ def benchmark_position(name: str, pos_info: dict, max_depth: int = 5, runs: int 
             move_str = f"{move_result.kind}: {path}"
 
         print(f"  {depth:>5} | {avg_ms:>10.1f} | {min_ms:>10.1f} | {max_ms:>10.1f} | {move_str:<30}")
-        results.append({
-            "position": name,
-            "depth": depth,
-            "avg_ms": avg_ms,
-            "min_ms": min_ms,
-            "max_ms": max_ms,
-            "move": move_str,
-        })
+        results.append(
+            {
+                "position": name,
+                "depth": depth,
+                "avg_ms": avg_ms,
+                "min_ms": min_ms,
+                "max_ms": max_ms,
+                "move": move_str,
+            }
+        )
 
         if avg_ms > 60000:
             print(f"  [Stopping: >60s at depth {depth}]")
@@ -114,15 +118,14 @@ def benchmark_position(name: str, pos_info: dict, max_depth: int = 5, runs: int 
 def run_profiling(depth: int = 3):
     """Run cProfile on opening position to find hotspots."""
     board = Board()
-    print(f"\n{'='*65}")
+    print(f"\n{'=' * 65}")
     print(f"  PROFILING: Starting position, depth={depth}, 3 runs")
-    print(f"{'='*65}")
+    print(f"{'=' * 65}")
 
     profiler = cProfile.Profile()
     profiler.enable()
     for _ in range(3):
-        computer_move(board, difficulty=3, use_base=False, learning_db=None,
-                      color="b", depth=depth)
+        computer_move(board, difficulty=3, color="b", depth=depth)
     profiler.disable()
 
     stream = io.StringIO()
@@ -158,14 +161,14 @@ def main():
         all_results.extend(results)
 
     # Summary
-    print(f"\n{'='*65}")
+    print(f"\n{'=' * 65}")
     print("  SUMMARY (avg ms)")
-    print(f"{'='*65}")
+    print(f"{'=' * 65}")
     header = f"  {'Position':<15}"
     for d in range(1, args.depth + 1):
-        header += f" | {'D'+str(d):>8}"
+        header += f" | {'D' + str(d):>8}"
     print(header)
-    print(f"  {'-'*15}" + ("-+-" + "-" * 8) * args.depth)
+    print(f"  {'-' * 15}" + ("-+-" + "-" * 8) * args.depth)
 
     for name in POSITIONS:
         row = f"  {name:<15}"
@@ -176,9 +179,9 @@ def main():
                 if ms < 1000:
                     row += f" | {ms:>7.1f}ms"[:11]
                 else:
-                    row += f" | {ms/1000:>7.1f}s "[:11]
+                    row += f" | {ms / 1000:>7.1f}s "[:11]
                 # Pad to 8+3 chars
-                val = f"{ms:.0f}" if ms < 10000 else f"{ms/1000:.1f}s"
+                val = f"{ms:.0f}" if ms < 10000 else f"{ms / 1000:.1f}s"
                 row += f" | {val:>8}"
             else:
                 row += f" | {'—':>8}"

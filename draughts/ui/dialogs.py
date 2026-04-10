@@ -83,11 +83,6 @@ class OptionsDialog(QDialog):
         self._search_depth.setToolTip("0 = автоматически из сложности, 1-10 = ручная глубина")
         layout.addRow("Глубина поиска:", self._search_depth)
 
-        # Use learning database
-        self._use_base = QCheckBox("База (обучение)")
-        self._use_base.setChecked(settings.use_base)
-        layout.addRow(self._use_base)
-
         # Invert color
         self._invert_color = QCheckBox("Играть чёрными")
         self._invert_color.setChecked(settings.invert_color)
@@ -111,14 +106,8 @@ class OptionsDialog(QDialog):
             remind=self._remind.isChecked(),
             sound_effect=self._sound.isChecked(),
             pause=self._pause.value(),
-            use_base=self._use_base.isChecked(),
             invert_color=self._invert_color.isChecked(),
             search_depth=self._search_depth.value(),
-            # Preserve learning flags from original settings
-            black_win=self._settings.black_win,
-            white_win=self._settings.white_win,
-            black_lose=self._settings.black_lose,
-            white_lose=self._settings.white_lose,
         )
         return s
 

@@ -102,10 +102,6 @@ class MainWindow(QMainWindow):
         self._act_options.triggered.connect(self._on_options)
         settings_menu.addAction(self._act_options)
 
-        self._act_development = QAction("&Развитие (обучение)...", self)
-        self._act_development.triggered.connect(self._on_development)
-        settings_menu.addAction(self._act_development)
-
         # --- Вид ---
         view_menu = menubar.addMenu("&Вид")
 
@@ -227,13 +223,6 @@ class MainWindow(QMainWindow):
         dlg = PlaybackDialog(replay, self)
         dlg.exec()
 
-    def _on_development(self):
-        from draughts.ui.dialogs import DevelopmentDialog
-
-        dlg = DevelopmentDialog(self._controller.settings, self)
-        if dlg.exec():
-            dlg.apply_to(self._controller.settings)
-
     def _on_new_game(self):
         self._controller.new_game()
 
@@ -259,8 +248,4 @@ class MainWindow(QMainWindow):
     # --- Close event ---
 
     def closeEvent(self, event):
-        try:
-            self._controller.learning_db.save()
-        except Exception:
-            pass
         event.accept()

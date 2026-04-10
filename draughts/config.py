@@ -143,15 +143,8 @@ class GameSettings:
     remind: bool = True  # hint for mandatory captures
     sound_effect: bool = False
     pause: float = 0.75  # animation delay multiplier
-    use_base: bool = True  # use learning database
     invert_color: bool = False  # player plays black instead of white
     search_depth: int = 0  # 0=auto (from difficulty), 1-10=manual override
-
-    # Learning flags
-    black_win: bool = True
-    white_win: bool = True
-    black_lose: bool = True
-    white_lose: bool = True
 
     # Class-level lookup tables (not per-instance fields)
     DIFFICULTY_NAMES: dict[int, str] = field(
@@ -179,7 +172,6 @@ class GameSettings:
 
 AUTOSAVE_FILENAME = "autosave.json"
 HISTORY_FILENAME = "history.json"
-LEARNING_DB_FILENAME = "learning.json"
 
 
 def get_data_dir() -> Path:

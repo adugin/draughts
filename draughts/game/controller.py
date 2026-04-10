@@ -20,10 +20,9 @@ from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
 
 logger = logging.getLogger("draughts.controller")
 
-from draughts.config import AUTOSAVE_FILENAME, LEARNING_DB_FILENAME, GameSettings, get_data_dir
-from draughts.game.ai import AIMove, computer_move, record_learning
+from draughts.config import AUTOSAVE_FILENAME, GameSettings, get_data_dir
+from draughts.game.ai import AIMove, computer_move
 from draughts.game.board import Board
-from draughts.game.learning import LearningDB
 from draughts.game.save import GameSave, autosave, load_game, save_game
 from draughts.ui.sounds import SoundManager
 
@@ -37,16 +36,12 @@ class AIWorker(QObject):
         self,
         board: Board,
         difficulty: int,
-        use_base: bool,
-        learning_db: LearningDB | None,
         color: str,
         search_depth: int = 0,
     ):
         super().__init__()
         self._board = board
         self._difficulty = difficulty
-        self._use_base = use_base
-        self._learning_db = learning_db
         self._color = color
         self._search_depth = search_depth
 
@@ -56,8 +51,6 @@ class AIWorker(QObject):
             result = computer_move(
                 self._board.copy(),
                 difficulty=self._difficulty,
-                use_base=self._use_base,
-                learning_db=self._learning_db,
                 color=self._color,
                 depth=depth,
             )
@@ -98,7 +91,6 @@ class GameController(QObject):
         super().__init__(parent)
         self.board = Board()
         self.settings = GameSettings()
-        self.learning_db = self._load_learning_db()
         self.sounds = SoundManager()
 
         # Game state
@@ -135,10 +127,6 @@ class GameController(QObject):
         self._replay_history.append(self.board.to_position_string())
 
     # --- Initialization ---
-
-    def _load_learning_db(self) -> LearningDB:
-        db_path = get_data_dir() / LEARNING_DB_FILENAME
-        return LearningDB(str(db_path))
 
     def _load_messages(self) -> list[str]:
         msg_path = Path(__file__).parent.parent / "resources" / "messages.txt"
@@ -417,8 +405,6 @@ class GameController(QObject):
         self._ai_worker = AIWorker(
             self.board,
             self.settings.difficulty,
-            self.settings.use_base,
-            self.learning_db,
             self._computer_color,
             self.settings.search_depth,
         )
@@ -453,8 +439,6 @@ class GameController(QObject):
             return
 
         # Execute AI move
-        board_before = self.board.copy()
-
         if result.kind == "capture":
             captured = self.board.execute_capture_path(result.path)
             for _ in captured:
@@ -479,10 +463,6 @@ class GameController(QObject):
         pos = self.board.to_position_string()
         self._positions.append(pos)
         self._replay_history.append(pos)
-
-        # Learning
-        if self.settings.use_base:
-            self._do_learning(board_before, self.board)
 
         # Emit signals
         self.notation_added.emit(notation, self._computer_color)
@@ -608,38 +588,8 @@ class GameController(QObject):
         return False
 
     def _on_game_end(self, winner: str):
-        """Handle game end — learning DB updates."""
+        """Handle game end."""
         self._stop_timer()
-        if self.settings.use_base and len(self._positions) >= 3:
-            computer_won = winner == self._computer_color
-            # Record last few positions
-            if computer_won and self.settings.black_win:
-                for pos_str in self._positions[-3:]:
-                    self.learning_db.add_good(pos_str)
-                self.learning_db.save()
-            elif not computer_won and self.settings.black_lose:
-                from draughts.game.learning import invert_position
-
-                for pos_str in self._positions[-3:]:
-                    self.learning_db.add_bad(invert_position(pos_str))
-                self.learning_db.save()
-
-    # --- Learning ---
-
-    def _do_learning(self, board_before: Board, board_after: Board):
-        """Record learning data after AI move."""
-        if not self.settings.use_base or self.learning_db is None:
-            return
-        try:
-            record_learning(
-                self.learning_db,
-                board_before,
-                board_after,
-                self._computer_color,
-                won=False,  # not known yet
-            )
-        except Exception:
-            pass  # learning is non-critical
 
     # --- Save / Load ---
 
