@@ -81,8 +81,8 @@ class BoardWidget(QWidget):
         h = self.height()
         side = min(w, h)
 
-        # Reserve ~8% on each side for labels/frame
-        margin = max(int(side * 0.08), 16)
+        # Reserve space for frame + labels
+        margin = max(int(side * 0.06), 16)
         board_side = side - 2 * margin
         cell_size = board_side / BOARD_SIZE
 
@@ -125,7 +125,7 @@ class BoardWidget(QWidget):
         painter.fillRect(self.rect(), QColor(45, 30, 18))
 
         # Board frame — dark mahogany wood texture
-        frame_margin = cell_size * 0.25
+        frame_margin = cell_size * 0.45
         frame_rect = QRectF(bx - frame_margin, by - frame_margin,
                             board_side + 2 * frame_margin, board_side + 2 * frame_margin)
         frame_tex = self._textures.get_frame_wood(max(1, int(board_side + 2 * frame_margin)))
@@ -194,39 +194,46 @@ class BoardWidget(QWidget):
 
     def _draw_labels(self, painter: QPainter, cell_size: float,
                      bx: float, by: float, board_side: float):
-        """Draw column letters (a-h) and row numbers (8-1) around the board."""
-        font_size = max(8, int(cell_size * 0.28))
-        font = QFont("Arial", font_size)
-        font.setBold(True)
-        painter.setFont(font)
-        painter.setPen(QColor(210, 180, 130))
+        """Draw column letters (a-h) and row numbers (8-1) around the board.
 
-        label_offset = cell_size * 0.35
+        Labels are centered in the frame margin between the board edge and frame edge.
+        """
+        font_size = max(8, int(cell_size * 0.32))
+        font = QFont("Georgia", font_size)
+        painter.setFont(font)
+        painter.setPen(QColor(190, 165, 120))
+
+        # Label strip matches frame margin
+        strip = cell_size * 0.45
 
         for i in range(BOARD_SIZE):
-            # Column letters below
+            # Cell center X for column labels
+            cell_cx = bx + (i + 0.5) * cell_size
             letter = COLUMN_LETTERS[i]
-            lx = bx + (i + 0.5) * cell_size
-            ly = by + board_side + label_offset
-            r = QRectF(lx - cell_size / 2, ly - font_size / 2, cell_size, font_size * 1.5)
-            painter.drawText(r, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, letter)
 
-            # Column letters above
-            ly_top = by - label_offset
-            r_top = QRectF(lx - cell_size / 2, ly_top - font_size, cell_size, font_size * 1.5)
-            painter.drawText(r_top, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom, letter)
+            # Below board — centered in strip between board bottom and frame bottom
+            r_bot = QRectF(cell_cx - cell_size / 2, by + board_side,
+                           cell_size, strip)
+            painter.drawText(r_bot, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, letter)
 
-            # Row numbers left
+            # Above board
+            r_top = QRectF(cell_cx - cell_size / 2, by - strip,
+                           cell_size, strip)
+            painter.drawText(r_top, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, letter)
+
+            # Cell center Y for row labels
+            cell_cy = by + (i + 0.5) * cell_size
             number = ROW_NUMBERS[i]
-            rx = bx - label_offset
-            ry = by + (i + 0.5) * cell_size
-            r_left = QRectF(rx - cell_size, ry - cell_size / 2, cell_size, cell_size)
-            painter.drawText(r_left, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, number)
 
-            # Row numbers right
-            rx_right = bx + board_side + label_offset
-            r_right = QRectF(rx_right, ry - cell_size / 2, cell_size, cell_size)
-            painter.drawText(r_right, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, number)
+            # Left of board
+            r_left = QRectF(bx - strip, cell_cy - cell_size / 2,
+                            strip, cell_size)
+            painter.drawText(r_left, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, number)
+
+            # Right of board
+            r_right = QRectF(bx + board_side, cell_cy - cell_size / 2,
+                             strip, cell_size)
+            painter.drawText(r_right, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, number)
 
     # --- Mouse events ---
 
