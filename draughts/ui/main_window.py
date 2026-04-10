@@ -34,7 +34,7 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self.setWindowTitle("Шашки")
         self.setMinimumSize(640, 480)
-        self.resize(900, 660)
+        self.resize(1024, 720)
 
         self._controller = controller
 
@@ -45,6 +45,7 @@ class MainWindow(QMainWindow):
     def _build_ui(self):
         """Construct the complete UI layout."""
         central = QWidget()
+        central.setStyleSheet("background-color: #2a1a0a;")
         self.setCentralWidget(central)
 
         outer_v = QVBoxLayout(central)
@@ -55,12 +56,11 @@ class MainWindow(QMainWindow):
         self.header_label = QLabel("Автор и разработчик программы: Андрей Дугин")
         self.header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.header_label.setStyleSheet(
-            f"background-color: rgb{COLORS['panel_bg']}; "
-            f"color: rgb{COLORS['window_title']}; "
-            "font-weight: bold; padding: 2px; "
-            "border: 1px solid gray;"
+            "background-color: #2a1a0a; color: #c8a87a; "
+            "font-weight: bold; padding: 4px; "
+            "border: 1px solid #5a3a1a; font-size: 12px;"
         )
-        self.header_label.setFixedHeight(24)
+        self.header_label.setFixedHeight(28)
         self.header_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.header_label.mousePressEvent = lambda e: self._on_about()
         outer_v.addWidget(self.header_label)
@@ -80,7 +80,7 @@ class MainWindow(QMainWindow):
         right_panel.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         right_panel.setLineWidth(1)
         right_panel.setStyleSheet(
-            f"QFrame {{ background-color: rgb{COLORS['panel_bg']}; }}")
+            "QFrame { background-color: #3a2a1a; border: 1px solid #5a3a1a; }")
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(6, 6, 6, 6)
         right_layout.setSpacing(4)
@@ -90,13 +90,13 @@ class MainWindow(QMainWindow):
         self.white_indicator = QLabel("  Белые  ")
         self.white_indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.white_indicator.setStyleSheet(
-            "background-color: white; color: black; "
-            "border: 2px solid gray; font-weight: bold; padding: 4px;")
+            "background-color: #f0e6d0; color: #2a1a0a; "
+            "border: 2px solid #8a7a5a; font-weight: bold; padding: 4px; border-radius: 3px;")
         self.black_indicator = QLabel("  Чёрные  ")
         self.black_indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.black_indicator.setStyleSheet(
-            "background-color: black; color: white; "
-            "border: 2px solid gray; font-weight: bold; padding: 4px;")
+            "background-color: #1a1210; color: #c8a87a; "
+            "border: 2px solid #5a4a3a; font-weight: bold; padding: 4px; border-radius: 3px;")
         turn_row.addWidget(self.white_indicator)
         turn_row.addWidget(self.black_indicator)
         right_layout.addLayout(turn_row)
@@ -105,7 +105,7 @@ class MainWindow(QMainWindow):
         notation_label = QLabel("Нотация ходов")
         notation_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         notation_label.setStyleSheet(
-            "font-weight: bold; background: transparent;")
+            "font-weight: bold; background: transparent; color: #c8a87a;")
         right_layout.addWidget(notation_label)
 
         notation_row = QHBoxLayout()
@@ -113,14 +113,16 @@ class MainWindow(QMainWindow):
         self.notation_white.setReadOnly(True)
         self.notation_white.setPlaceholderText("Белые")
         self.notation_white.setStyleSheet(
-            "background-color: white; font-family: Consolas, monospace;")
+            "background-color: #f5ead0; color: #2a1a0a; "
+            "font-family: Consolas, monospace; border: 1px solid #8a7a5a; border-radius: 2px;")
         self.notation_white.setMaximumWidth(200)
 
         self.notation_black = QTextEdit()
         self.notation_black.setReadOnly(True)
         self.notation_black.setPlaceholderText("Чёрные")
         self.notation_black.setStyleSheet(
-            "background-color: white; font-family: Consolas, monospace;")
+            "background-color: #1a1210; color: #c8a87a; "
+            "font-family: Consolas, monospace; border: 1px solid #5a4a3a; border-radius: 2px;")
         self.notation_black.setMaximumWidth(200)
 
         notation_row.addWidget(self.notation_white)
@@ -135,10 +137,13 @@ class MainWindow(QMainWindow):
             btn = QPushButton(label)
             btn.setMinimumHeight(26)
             btn.setStyleSheet(
-                "QPushButton { background-color: rgb(192,192,192); "
-                "border: 2px outset rgb(220,220,220); padding: 2px 6px; }"
-                "QPushButton:pressed { border-style: inset; }"
-                "QPushButton:disabled { color: gray; }")
+                "QPushButton { background-color: #4a3520; color: #e8d8b8; "
+                "border: 1px solid #6a4a2a; padding: 3px 8px; "
+                "border-radius: 3px; font-weight: bold; }"
+                "QPushButton:hover { background-color: #5a4530; "
+                "border-color: #8a6a4a; }"
+                "QPushButton:pressed { background-color: #3a2510; }"
+                "QPushButton:disabled { color: #6a5a4a; background-color: #3a2a1a; }")
             self.buttons[label] = btn
             if i < 8:
                 btn_grid.addWidget(btn, i // 2, i % 2)
@@ -152,7 +157,8 @@ class MainWindow(QMainWindow):
         self.timer_label.setStyleSheet(
             "font-size: 18px; font-weight: bold; "
             "font-family: Consolas, monospace; "
-            "background-color: white; border: 1px solid gray; padding: 4px;")
+            "background-color: #1a1210; color: #d0b080; "
+            "border: 1px solid #5a4a3a; padding: 4px; border-radius: 3px;")
         right_layout.addWidget(self.timer_label)
 
         # Clock and date
@@ -160,12 +166,14 @@ class MainWindow(QMainWindow):
         self.clock_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.clock_label.setStyleSheet(
             "font-size: 14px; font-family: Consolas, monospace; "
-            "background-color: white; border: 1px solid gray; padding: 2px;")
+            "background-color: #1a1210; color: #a09070; "
+            "border: 1px solid #5a4a3a; padding: 2px; border-radius: 2px;")
         self.date_label = QLabel("")
         self.date_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.date_label.setStyleSheet(
             "font-size: 12px; font-family: Consolas, monospace; "
-            "background-color: white; border: 1px solid gray; padding: 2px;")
+            "background-color: #1a1210; color: #a09070; "
+            "border: 1px solid #5a4a3a; padding: 2px; border-radius: 2px;")
         right_layout.addWidget(self.clock_label)
         right_layout.addWidget(self.date_label)
 
@@ -180,9 +188,8 @@ class MainWindow(QMainWindow):
         bottom_panel = QFrame()
         bottom_panel.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         bottom_panel.setLineWidth(1)
-        bp_bg = COLORS['bottom_panel_bg']
         bottom_panel.setStyleSheet(
-            f"QFrame {{ background-color: rgb({bp_bg[0]},{bp_bg[1]},{bp_bg[2]}); }}")
+            "QFrame { background-color: #0a3010; border: 1px solid #1a4a1a; }")
         bottom_layout = QHBoxLayout(bottom_panel)
         bottom_layout.setContentsMargins(6, 4, 6, 4)
         bottom_layout.setSpacing(8)
@@ -195,7 +202,7 @@ class MainWindow(QMainWindow):
         self.message_label = QLabel("")
         self.message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.message_label.setStyleSheet(
-            "color: rgb(0,255,0); font-size: 13px; "
+            "color: #80d080; font-size: 13px; "
             "font-style: italic; background: transparent;")
         bottom_layout.addWidget(self.message_label, stretch=1)
 
@@ -370,20 +377,22 @@ class MainWindow(QMainWindow):
         self.buttons["Сохранить"].setEnabled(self._controller.can_save)
 
     def highlight_turn(self, color: str):
+        active_border = "border: 3px solid #c8a040;"
+        inactive_border = "border: 2px solid #5a4a3a;"
         if color == 'w':
             self.white_indicator.setStyleSheet(
-                "background-color: white; color: black; "
-                "border: 3px solid rgb(0,200,0); font-weight: bold; padding: 4px;")
+                f"background-color: #f0e6d0; color: #2a1a0a; "
+                f"{active_border} font-weight: bold; padding: 4px; border-radius: 3px;")
             self.black_indicator.setStyleSheet(
-                "background-color: black; color: white; "
-                "border: 2px solid gray; font-weight: bold; padding: 4px;")
+                f"background-color: #1a1210; color: #c8a87a; "
+                f"{inactive_border} font-weight: bold; padding: 4px; border-radius: 3px;")
         else:
             self.white_indicator.setStyleSheet(
-                "background-color: white; color: black; "
-                "border: 2px solid gray; font-weight: bold; padding: 4px;")
+                f"background-color: #f0e6d0; color: #2a1a0a; "
+                f"{inactive_border} font-weight: bold; padding: 4px; border-radius: 3px;")
             self.black_indicator.setStyleSheet(
-                "background-color: black; color: white; "
-                "border: 3px solid rgb(0,200,0); font-weight: bold; padding: 4px;")
+                f"background-color: #1a1210; color: #c8a87a; "
+                f"{active_border} font-weight: bold; padding: 4px; border-radius: 3px;")
         self.board_widget.set_turn_indicator(color)
 
     # --- Clock ---

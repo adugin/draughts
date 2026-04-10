@@ -18,6 +18,7 @@ from draughts.config import (
 )
 from draughts.game.board import Board
 from draughts.ui.piece_painter import draw_piece
+from draughts.ui.textures import TextureCache, draw_realistic_piece
 
 
 class BoardWidget(QWidget):
@@ -33,6 +34,7 @@ class BoardWidget(QWidget):
         self._capture_highlights: list[tuple[int, int]] = []
         self._turn_color: str = 'w'  # whose turn: 'w' or 'b'
         self._anim_hidden_cells: set[tuple[int, int]] = set()  # cells hidden during animation
+        self._textures = TextureCache()
 
         self.setMinimumSize(240, 240)
         self.setMouseTracking(False)
@@ -117,37 +119,33 @@ class BoardWidget(QWidget):
 
         margin, cell_size, bx, by = self._metrics()
         board_side = cell_size * BOARD_SIZE
+        cs = max(1, int(cell_size))
 
-        # Background fill
-        painter.fillRect(self.rect(), QColor(COLORS['panel_bg'][0], COLORS['panel_bg'][1], COLORS['panel_bg'][2]))
+        # Background — dark wood tone
+        painter.fillRect(self.rect(), QColor(45, 30, 18))
 
-        # Board background (dark area behind labels)
-        bg = COLORS['board_bg']
-        frame_margin = cell_size * 0.15
-        painter.fillRect(
-            QRectF(bx - frame_margin, by - frame_margin,
-                   board_side + 2 * frame_margin, board_side + 2 * frame_margin),
-            QColor(bg[0], bg[1], bg[2]),
-        )
+        # Board frame — dark mahogany wood texture
+        frame_margin = cell_size * 0.25
+        frame_rect = QRectF(bx - frame_margin, by - frame_margin,
+                            board_side + 2 * frame_margin, board_side + 2 * frame_margin)
+        frame_tex = self._textures.get_frame_wood(max(1, int(board_side + 2 * frame_margin)))
+        painter.drawPixmap(frame_rect.toRect(), frame_tex)
 
-        # Yellow frame around the board
-        frame_c = COLORS['board_frame']
-        pen = QPen(QColor(frame_c[0], frame_c[1], frame_c[2]), max(2, cell_size * 0.06))
-        painter.setPen(pen)
+        # Subtle frame border
+        painter.setPen(QPen(QColor(30, 20, 10), max(1, cell_size * 0.03)))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRect(QRectF(bx - frame_margin, by - frame_margin,
-                                board_side + 2 * frame_margin, board_side + 2 * frame_margin))
+        painter.drawRect(frame_rect)
 
-        # Draw cells
+        # Draw cells with wood textures
+        light_tex = self._textures.get_light_wood(cs)
+        dark_tex = self._textures.get_dark_wood(cs)
+
         for y in range(1, BOARD_SIZE + 1):
             for x in range(1, BOARD_SIZE + 1):
                 rect = self._cell_rect(x, y, cell_size, bx, by)
                 is_dark = (x % 2 != y % 2)
-                color_key = 'dark_cell' if is_dark else 'light_cell'
-                c = COLORS[color_key]
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(QColor(c[0], c[1], c[2]))
-                painter.drawRect(rect)
+                tex = dark_tex if is_dark else light_tex
+                painter.drawPixmap(rect.toRect(), tex)
 
         # Draw highlights (selection / capture)
         if self._selection:
@@ -192,7 +190,7 @@ class BoardWidget(QWidget):
         radius = cell_size * 0.40
         is_black = piece in (BLACK, BLACK_KING)
         is_king = piece in (BLACK_KING, WHITE_KING)
-        draw_piece(painter, cx, cy, radius, is_black, is_king)
+        draw_realistic_piece(painter, cx, cy, radius, is_black, is_king)
 
     def _draw_labels(self, painter: QPainter, cell_size: float,
                      bx: float, by: float, board_side: float):
@@ -201,7 +199,7 @@ class BoardWidget(QWidget):
         font = QFont("Arial", font_size)
         font.setBold(True)
         painter.setFont(font)
-        painter.setPen(QColor(255, 255, 200))
+        painter.setPen(QColor(210, 180, 130))
 
         label_offset = cell_size * 0.35
 

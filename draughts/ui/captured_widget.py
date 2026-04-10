@@ -13,6 +13,7 @@ from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QWidget
 
 from draughts.ui.piece_painter import draw_piece
+from draughts.ui.textures import TextureCache, draw_realistic_piece
 
 if TYPE_CHECKING:
     from draughts.ui.board_widget import BoardWidget
@@ -28,6 +29,7 @@ class CapturedWidget(QWidget):
         self._white_count = 0
         self._black_count = 0
         self._board_widget: BoardWidget | None = None
+        self._textures = TextureCache()
 
     def set_board_widget(self, bw: BoardWidget):
         """Link to the board widget to match piece size."""
@@ -70,12 +72,17 @@ class CapturedWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+        # Draw felt background
+        w = self.width()
+        h = self.height()
+        felt = self._textures.get_felt(max(1, w), max(1, h))
+        painter.drawPixmap(0, 0, felt)
+
         radius = self._calc_radius()
         if radius < 3:
             painter.end()
             return
 
-        h = self.height()
         step = radius * 2.3
         start_x = radius + 6
 
@@ -86,11 +93,11 @@ class CapturedWidget(QWidget):
         # Draw captured white pieces (top row)
         for i in range(self._white_count):
             cx = start_x + i * step
-            draw_piece(painter, cx, cy_white, radius, is_black=False)
+            draw_realistic_piece(painter, cx, cy_white, radius, is_black=False)
 
         # Draw captured black pieces (bottom row)
         for i in range(self._black_count):
             cx = start_x + i * step
-            draw_piece(painter, cx, cy_black, radius, is_black=True)
+            draw_realistic_piece(painter, cx, cy_black, radius, is_black=True)
 
         painter.end()
