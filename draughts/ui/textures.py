@@ -7,16 +7,14 @@ All textures are cached and scale-aware.
 from __future__ import annotations
 
 import math
-import random
 
 import numpy as np
-from PyQt6.QtCore import QPointF, QRectF, Qt
+from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import (
     QBrush,
     QColor,
     QConicalGradient,
     QImage,
-    QLinearGradient,
     QPainter,
     QPainterPath,
     QPen,
@@ -25,9 +23,9 @@ from PyQt6.QtGui import (
 )
 
 
-def generate_wood_tile(size: int, base_color: tuple[int, int, int],
-                       grain_color: tuple[int, int, int],
-                       seed: int = 0) -> QPixmap:
+def generate_wood_tile(
+    size: int, base_color: tuple[int, int, int], grain_color: tuple[int, int, int], seed: int = 0
+) -> QPixmap:
     """Generate a square wood-grain texture tile.
 
     Uses Perlin-like noise to create realistic wood grain patterns.
@@ -59,14 +57,14 @@ def generate_wood_tile(size: int, base_color: tuple[int, int, int],
             arr[y, x, 2] = int(bb + (gb - bb) * t)
 
     # Convert to QPixmap
-    h, w, ch = arr.shape
+    h, w, _ch = arr.shape
     img = QImage(arr.data, w, h, w * 3, QImage.Format.Format_RGB888)
     return QPixmap.fromImage(img.copy())
 
 
-def generate_felt_texture(width: int, height: int,
-                          base_color: tuple[int, int, int] = (0, 80, 20),
-                          seed: int = 42) -> QPixmap:
+def generate_felt_texture(
+    width: int, height: int, base_color: tuple[int, int, int] = (0, 80, 20), seed: int = 42
+) -> QPixmap:
     """Generate a green felt/velvet texture for the captured pieces panel."""
     rng = np.random.RandomState(seed)
     arr = np.zeros((height, width, 3), dtype=np.uint8)
@@ -89,8 +87,7 @@ def generate_felt_texture(width: int, height: int,
     return QPixmap.fromImage(img.copy())
 
 
-def draw_realistic_piece(painter: QPainter, cx: float, cy: float,
-                         radius: float, is_black: bool, is_king: bool = False):
+def draw_realistic_piece(painter: QPainter, cx: float, cy: float, radius: float, is_black: bool, is_king: bool = False):
     """Draw a photorealistic checker piece with 3D lighting and shadow.
 
     Features: drop shadow, radial gradient for dome shape, specular highlight,
@@ -101,19 +98,18 @@ def draw_realistic_piece(painter: QPainter, cx: float, cy: float,
     shadow_color = QColor(0, 0, 0, 60)
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(shadow_color)
-    painter.drawEllipse(QPointF(cx + shadow_offset, cy + shadow_offset),
-                        radius * 1.02, radius * 1.02)
+    painter.drawEllipse(QPointF(cx + shadow_offset, cy + shadow_offset), radius * 1.02, radius * 1.02)
 
     # --- Main body with radial gradient (3D dome effect) ---
     if is_black:
-        center_color = QColor(60, 50, 45)    # warm dark brown center
-        edge_color = QColor(15, 12, 10)      # almost black edge
-        rim_color = QColor(90, 80, 70)       # subtle rim light
+        center_color = QColor(60, 50, 45)  # warm dark brown center
+        edge_color = QColor(15, 12, 10)  # almost black edge
+        rim_color = QColor(90, 80, 70)  # subtle rim light
         ring_color = QColor(70, 60, 55)
     else:
         center_color = QColor(255, 245, 230)  # warm ivory center
-        edge_color = QColor(200, 185, 165)    # darker ivory edge
-        rim_color = QColor(255, 250, 240)     # bright rim
+        edge_color = QColor(200, 185, 165)  # darker ivory edge
+        rim_color = QColor(255, 250, 240)  # bright rim
         ring_color = QColor(210, 195, 175)
 
     # Radial gradient — light from upper-left
@@ -170,14 +166,13 @@ def draw_realistic_piece(painter: QPainter, cx: float, cy: float,
         _draw_elegant_crown(painter, cx, cy, radius * 0.40, is_black)
 
 
-def _draw_elegant_crown(painter: QPainter, cx: float, cy: float,
-                        size: float, is_black: bool):
+def _draw_elegant_crown(painter: QPainter, cx: float, cy: float, size: float, is_black: bool):
     """Draw an elegant crown symbol on a king piece."""
     if is_black:
-        crown_color = QColor(218, 165, 32)   # gold
+        crown_color = QColor(218, 165, 32)  # gold
         outline_color = QColor(150, 110, 20)
     else:
-        crown_color = QColor(218, 165, 32)   # gold
+        crown_color = QColor(218, 165, 32)  # gold
         outline_color = QColor(180, 140, 40)
 
     half = size * 0.7
@@ -222,8 +217,8 @@ class TextureCache:
         if cell_size not in self._light_wood:
             self._light_wood[cell_size] = generate_wood_tile(
                 cell_size,
-                base_color=(230, 200, 150),    # light maple
-                grain_color=(210, 175, 120),   # maple grain
+                base_color=(230, 200, 150),  # light maple
+                grain_color=(210, 175, 120),  # maple grain
                 seed=101,
             )
         return self._light_wood[cell_size]
@@ -232,8 +227,8 @@ class TextureCache:
         if cell_size not in self._dark_wood:
             self._dark_wood[cell_size] = generate_wood_tile(
                 cell_size,
-                base_color=(120, 70, 35),      # dark walnut
-                grain_color=(90, 50, 25),      # walnut grain
+                base_color=(120, 70, 35),  # dark walnut
+                grain_color=(90, 50, 25),  # walnut grain
                 seed=202,
             )
         return self._dark_wood[cell_size]
@@ -248,7 +243,7 @@ class TextureCache:
         if size not in self._frame_wood:
             self._frame_wood[size] = generate_wood_tile(
                 size,
-                base_color=(80, 45, 20),       # dark mahogany frame
+                base_color=(80, 45, 20),  # dark mahogany frame
                 grain_color=(60, 30, 15),
                 seed=303,
             )
