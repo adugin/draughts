@@ -67,7 +67,7 @@ class _LightningBolt:
 
 _PHASE_DARK = 0           # 0.0 - 0.3s: dark screen
 _PHASE_LIGHTNING_1 = 1    # 0.3 - 0.7s: first lightning
-_PHASE_NAME = 2           # 0.7 - 1.7s: "Dugin Andrew" assembles
+_PHASE_NAME = 2           # 0.7 - 1.7s: "Andrey Dugin" assembles
 _PHASE_TRANSITION = 3     # 1.7 - 2.0s: fade transition
 _PHASE_PRESENTS = 4       # 2.0 - 2.6s: "presents" appears
 _PHASE_LIGHTNING_2 = 5    # 2.6 - 3.0s: second lightning
@@ -131,9 +131,9 @@ class SplashScreen(QWidget):
         h = self.height()
         scale = min(w / 800, h / 600)  # reference 800x600
 
-        # "Dugin Andrew"
+        # "Andrey Dugin"
         self._name_particles = self._text_to_particles(
-            "Dugin Andrew",
+            "Andrey Dugin",
             font_size=int(42 * scale),
             center_x=w / 2, center_y=h / 2 - 20 * scale,
             color=QColor(255, 255, 220),

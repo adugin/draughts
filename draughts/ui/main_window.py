@@ -52,7 +52,7 @@ class MainWindow(QMainWindow):
         outer_v.setSpacing(4)
 
         # Header label
-        self.header_label = QLabel("Автор и разработчик программы: Дугин Андрей")
+        self.header_label = QLabel("Автор и разработчик программы: Андрей Дугин")
         self.header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.header_label.setStyleSheet(
             f"background-color: rgb{COLORS['panel_bg']}; "

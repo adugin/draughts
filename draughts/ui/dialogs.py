@@ -244,7 +244,7 @@ class AboutDialog(QDialog):
 
         info = QLabel(
             "<h3>Шашки</h3>"
-            "<p>Based on original by <b>Dugin Andrew</b> (1998–2000)</p>"
+            "<p>Based on original by <b>Andrey Dugin</b> (1998–2000)</p>"
             "<p>Borland Pascal 7.0 → Python / PyQt6</p>"
             "<p>Русские шашки 8×8 с ИИ-противником</p>"
         )
