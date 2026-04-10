@@ -545,10 +545,8 @@ class GameController(QObject):
     # --- Timer ---
 
     def _start_player_timer(self):
-        """Start the countdown timer for player's turn."""
-        self._time_remaining = self.settings.period
-        self.timer_tick.emit(self._time_remaining)
-        self._timer.start(1000)
+        """Timer disabled — unlimited time per move."""
+        pass
 
     def _stop_timer(self):
         self._timer.stop()

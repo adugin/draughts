@@ -51,25 +51,12 @@ class MainWindow(QMainWindow):
         self.board_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout.addWidget(self.board_widget)
 
-        # Status bar for messages (replaces the green panel message label)
-        self.statusBar().setStyleSheet(
-            "QStatusBar { background-color: #2a1a0a; color: #80d080; "
-            "font-size: 12px; font-style: italic; border-top: 1px solid #5a3a1a; }"
-        )
+        # No status bar
+        self.setStatusBar(None)
 
     def _build_menus(self):
         """Create standard menu bar with all game actions."""
         menubar = self.menuBar()
-        menubar.setStyleSheet(
-            "QMenuBar { background-color: #3a2a1a; color: #e8d8b8; "
-            "border-bottom: 1px solid #5a3a1a; }"
-            "QMenuBar::item:selected { background-color: #5a4530; }"
-            "QMenu { background-color: #3a2a1a; color: #e8d8b8; "
-            "border: 1px solid #5a3a1a; }"
-            "QMenu::item:selected { background-color: #5a4530; }"
-            "QMenu::item:disabled { color: #6a5a4a; }"
-            "QMenu::separator { background-color: #5a3a1a; height: 1px; margin: 4px 8px; }"
-        )
 
         # --- Игра ---
         game_menu = menubar.addMenu("&Игра")
@@ -148,8 +135,6 @@ class MainWindow(QMainWindow):
         c.board_changed.connect(self._on_board_changed)
         c.turn_changed.connect(self._on_turn_changed)
         c.game_over.connect(self._on_game_over)
-        c.message_changed.connect(self._on_message_changed)
-        c.timer_tick.connect(self._on_timer_tick)
         c.ai_thinking.connect(self._on_ai_thinking)
         c.selection_changed.connect(self._on_selection_changed)
         c.capture_highlights_changed.connect(self._on_capture_highlights)
@@ -166,8 +151,6 @@ class MainWindow(QMainWindow):
 
     def _on_turn_changed(self, color: str):
         self.board_widget.set_turn_indicator(color)
-        turn_name = "Белые" if color == "w" else "Чёрные"
-        self.statusBar().showMessage(f"Ход: {turn_name}")
 
     def _on_game_over(self, message: str):
         from draughts.ui.dialogs import GameOverDialog
@@ -178,17 +161,6 @@ class MainWindow(QMainWindow):
             self._on_new_game()
         else:
             self.close()
-
-    def _on_message_changed(self, text: str):
-        self.statusBar().showMessage(text)
-
-    def _on_timer_tick(self, seconds: int):
-        mins = seconds // 60
-        secs = seconds % 60
-        current = self.statusBar().currentMessage()
-        # Append timer to status bar if there's a message
-        base = current.split(" | ")[0] if " | " in current else current
-        self.statusBar().showMessage(f"{base} | {mins:02d}:{secs:02d}")
 
     def _on_ai_thinking(self, thinking: bool):
         self.board_widget.setEnabled(not thinking)
@@ -218,9 +190,8 @@ class MainWindow(QMainWindow):
         if filepath:
             try:
                 self._controller.load_saved_game(filepath)
-                self.statusBar().showMessage("Партия загружена")
-            except Exception as e:
-                self.statusBar().showMessage(f"Ошибка загрузки: {e}")
+            except Exception:
+                pass
 
     def _on_save(self):
         from draughts.ui.dialogs import show_save_dialog
@@ -229,9 +200,8 @@ class MainWindow(QMainWindow):
         if filepath:
             try:
                 self._controller.save_current_game(filepath)
-                self.statusBar().showMessage("Партия сохранена")
-            except Exception as e:
-                self.statusBar().showMessage(f"Ошибка сохранения: {e}")
+            except Exception:
+                pass
 
     def _on_info(self):
         from draughts.ui.dialogs import InfoDialog
@@ -253,7 +223,6 @@ class MainWindow(QMainWindow):
 
         replay = self._controller.replay_history
         if len(replay) < 2:
-            self.statusBar().showMessage("Нет ходов для просмотра")
             return
         dlg = PlaybackDialog(replay, self)
         dlg.exec()
@@ -267,7 +236,6 @@ class MainWindow(QMainWindow):
 
     def _on_new_game(self):
         self._controller.new_game()
-        self.statusBar().showMessage("Новая игра")
 
     def _on_exit(self):
         from draughts.ui.dialogs import ConfirmExitDialog
