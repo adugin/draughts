@@ -48,14 +48,16 @@ for _y in range(1, 9):
         _BLACK_ADVANCE[_y, _x] = (_y - 1) / 7.0  # 0 at row 1, 1 at row 8
         _WHITE_ADVANCE[_y, _x] = (8 - _y) / 7.0  # 1 at row 1, 0 at row 8
 
-# King value relative to pawn for evaluation
-_KING_VALUE = 3.0
-_PAWN_VALUE = 1.0
-_ADVANCE_BONUS = 0.3  # bonus per pawn for advancement toward promotion
-_CENTER_BONUS = 0.1  # bonus for controlling center squares
-_SAFETY_BONUS = 0.2  # bonus for safe positions
-_MOBILITY_WEIGHT = 0.05  # bonus per available move
-_THREAT_PENALTY = 0.3  # penalty for each threatened piece
+# Evaluation weights — material MUST dominate positional bonuses.
+# A pawn is worth 5.0; all positional bonuses combined should never
+# exceed ~2.0 to prevent the AI from trading pieces for position.
+_KING_VALUE = 15.0
+_PAWN_VALUE = 5.0
+_ADVANCE_BONUS = 0.15  # per-pawn advancement bonus (max ~0.15 per pawn)
+_CENTER_BONUS = 0.05  # center control bonus
+_SAFETY_BONUS = 0.1  # bonus for safe positions
+_MOBILITY_WEIGHT = 0.02  # per-move mobility bonus
+_THREAT_PENALTY = 0.5  # penalty per threatened piece
 
 # Precomputed center mask (squares near the center get bonus)
 _CENTER_MASK = np.zeros((9, 9), dtype=np.float32)
@@ -400,7 +402,9 @@ def _evaluate_fast(grid: np.ndarray, color: str) -> float:
     white_pawns = int(np.count_nonzero(board_area == -1))
     white_kings = int(np.count_nonzero(board_area == -2))
 
-    material = (black_pawns + black_kings * _KING_VALUE) - (white_pawns + white_kings * _KING_VALUE)
+    material = (black_pawns * _PAWN_VALUE + black_kings * _KING_VALUE) - (
+        white_pawns * _PAWN_VALUE + white_kings * _KING_VALUE
+    )
     total += material
 
     # Advancement: use np.where to avoid .astype()
@@ -618,6 +622,12 @@ def _search_best_move(
         child = _apply_move(board, kind, path)
         score = _alphabeta(child, depth - 1, alpha, beta, False, opp, color)
 
+        # Penalize moves that allow opponent captures — discourage unnecessary exchanges
+        if kind != "capture":
+            opp_moves = _generate_all_moves(child, opp)
+            if any(k == "capture" for k, _ in opp_moves):
+                score -= _PAWN_VALUE * 0.5  # significant penalty for walking into danger
+
         # Learning DB bonus at root level
         if use_base and learning_db is not None:
             pos_str = child.to_position_string()
@@ -663,14 +673,14 @@ def computer_move(
         learning_db: LearningDB instance or None.
         color: 'b' or 'w' — which side the computer plays.
         depth: Search depth override. If None, derived from difficulty:
-               difficulty 1 → depth 1, difficulty 2 → depth 3, difficulty 3 → depth 5.
+               difficulty 1 → depth 3, difficulty 2 → depth 5, difficulty 3 → depth 7.
 
     Returns:
         An AIMove describing the chosen move, or None if no legal move exists.
     """
-    # Determine search depth
+    # Determine search depth — minimum depth=3 so AI always sees opponent responses
     if depth is None:
-        depth = {1: 1, 2: 3, 3: 5}.get(difficulty, 3)
+        depth = {1: 3, 2: 5, 3: 7}.get(difficulty, 5)
 
     # Adaptive depth: reduce for complex positions to keep response time reasonable
     piece_count = board.count_pieces("b") + board.count_pieces("w")
