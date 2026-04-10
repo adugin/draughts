@@ -1,0 +1,46 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["draughts", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort (import sorting)
+    "N",      # pep8-naming
+    "UP",     # pyupgrade (modern Python syntax)
+    "B",      # flake8-bugbear (common bugs)
+    "S",      # flake8-bandit (security)
+    "A",      # flake8-builtins (shadowing builtins)
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "RUF",    # ruff-specific rules
+]
+ignore = [
+    "S311",   # random — не криптография, а ИИ шашек
+    "S101",   # assert в тестах — это нормально
+    "E501",   # длина строки — контролируется formatter
+    "N802",   # paintEvent, closeEvent и т.д. — имена из PyQt6, нельзя менять
+    "RUF001", # кириллица в строках — русскоязычный проект
+    "S110",   # try-except-pass — осознанный выбор (звук, cleanup)
+    "SIM105", # contextlib.suppress — менее читаемо для этого проекта
+    "E402",   # импорты после кода — необходимо для conditional imports
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]  # assert в тестах разрешён
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false       # постепенное внедрение типов
+check_untyped_defs = true
+ignore_missing_imports = true       # PyQt6 stubs могут отсутствовать
