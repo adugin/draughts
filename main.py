@@ -27,10 +27,16 @@ def main():
         idx = sys.argv.index("--screenshot")
         screenshot_mode = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else "all"
 
+    no_splash = "--no-splash" in sys.argv
+
     controller = GameController()
     window = MainWindow(controller)
 
-    if screenshot_mode in ("splash", "all"):
+    if no_splash and screenshot_mode is None:
+        window.show()
+        controller.new_game()
+
+    elif screenshot_mode in ("splash", "all"):
         splash = SplashScreen()
 
         def on_splash_phase(phase_name, widget):

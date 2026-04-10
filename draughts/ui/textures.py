@@ -38,25 +38,20 @@ def generate_wood_tile(size: int, base_color: tuple[int, int, int],
     br, bg, bb = base_color
     gr, gg, gb = grain_color
 
-    # Create layered noise for wood grain
+    # Create horizontal wood grain pattern (no rings — avoids circle-like artifacts)
     for y in range(size):
         for x in range(size):
-            # Ring pattern from center with noise
-            cx = x - size / 2
-            cy = y - size / 2
-            dist = math.sqrt(cx * cx + cy * cy)
+            # Primary grain: horizontal lines with gentle wave
+            wave = math.sin(x * 0.08 + seed * 0.1) * 4
+            grain = math.sin((y + wave) * 0.6) * 0.5 + 0.5
 
-            # Wood ring frequency
-            ring = math.sin(dist * 0.3 + cy * 0.05) * 0.5 + 0.5
+            # Secondary finer grain
+            fine = math.sin((y + math.sin(x * 0.15) * 2) * 2.0) * 0.5 + 0.5
 
-            # Add some noise for natural look
-            noise = rng.random() * 0.15
+            # Subtle noise
+            noise = rng.random() * 0.1
 
-            # Fine grain lines
-            grain_line = math.sin(y * 1.2 + math.sin(x * 0.1) * 3) * 0.5 + 0.5
-
-            # Blend
-            t = ring * 0.6 + grain_line * 0.3 + noise * 0.1
+            t = grain * 0.55 + fine * 0.35 + noise * 0.1
             t = max(0, min(1, t))
 
             arr[y, x, 0] = int(br + (gr - br) * t)
