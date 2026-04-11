@@ -35,6 +35,19 @@ pip install -r requirements.txt
 python main.py
 ```
 
+### Параметры командной строки
+
+```bash
+python main.py                          # Новая игра
+python main.py game.json                # Загрузить партию из файла
+python main.py --resume                 # Продолжить прерванную партию (автосохранение)
+python main.py --difficulty 3           # Установить сложность (1/2/3)
+python main.py --depth 8               # Глубина поиска AI (1-10)
+python main.py --black                  # Играть чёрными
+python main.py --version               # Показать версию
+python main.py game.json --difficulty 2 # Комбинация параметров
+```
+
 ## Как играть
 
 Вы играете **белыми** (снизу), компьютер — **чёрными** (сверху).

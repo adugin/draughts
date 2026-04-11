@@ -11,7 +11,11 @@
 
 ```bash
 # Запуск игры
-python main.py
+python main.py                          # новая игра
+python main.py game.json                # загрузить партию
+python main.py --resume                 # продолжить из автосохранения
+python main.py --difficulty 3 --black   # сложность + играть чёрными
+python main.py --depth 8               # ручная глубина AI
 
 # Бенчмарк AI (глубина 1-8, профилирование)
 python benchmark.py --depth 8 --profile
