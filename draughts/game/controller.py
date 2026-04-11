@@ -12,8 +12,8 @@ from pathlib import Path
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from draughts.config import AUTOSAVE_FILENAME, BOARD_SIZE, GameSettings, get_data_dir
-from draughts.game.ai import AIMove, computer_move
+from draughts.config import AUTOSAVE_FILENAME, BOARD_SIZE, Color, GameSettings, get_data_dir
+from draughts.game.ai import AIEngine, AIMove
 from draughts.game.board import Board
 from draughts.game.save import GameSave, autosave, load_game, save_game
 
@@ -25,24 +25,16 @@ class AIWorker(QObject):
 
     finished = pyqtSignal(object)  # AIMove | None
 
-    def __init__(self, board: Board, difficulty: int, color: str, search_depth: int = 0):
+    def __init__(self, board: Board, engine: AIEngine):
         super().__init__()
         self._board = board
-        self._difficulty = difficulty
-        self._color = color
-        self._search_depth = search_depth
+        self._engine = engine
 
     def run(self):
         try:
-            depth = self._search_depth if self._search_depth > 0 else None
-            result = computer_move(
-                self._board.copy(),
-                difficulty=self._difficulty,
-                color=self._color,
-                depth=depth,
-            )
+            result = self._engine.find_move(self._board.copy())
         except Exception:
-            logger.exception("AI crashed during computer_move")
+            logger.exception("AI crashed during find_move")
             result = None
         self.finished.emit(result)
 
@@ -66,6 +58,7 @@ class GameController(QObject):
     ai_thinking = pyqtSignal(bool)
     selection_changed = pyqtSignal(object, object)
     capture_highlights_changed = pyqtSignal(list)
+    capture_hint = pyqtSignal(list)  # [(x, y), ...] — pieces that must capture (pulse animation)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -73,9 +66,9 @@ class GameController(QObject):
         self.settings = GameSettings()
 
         # Game state
-        self._current_turn: str = "w"
-        self._computer_color: str = "b"
-        self._player_color: str = "w"
+        self._current_turn: Color = Color.WHITE
+        self._computer_color: Color = Color.BLACK
+        self._player_color: Color = Color.WHITE
         self._selected: tuple[int, int] | None = None
         self._capture_path: list[tuple[int, int]] = []
 
@@ -109,9 +102,9 @@ class GameController(QObject):
     def new_game(self):
         """Reset everything for a new game."""
         self.board = Board()
-        self._current_turn = "w"
-        self._computer_color = "b" if not self.settings.invert_color else "w"
-        self._player_color = "w" if not self.settings.invert_color else "b"
+        self._current_turn = Color.WHITE
+        self._computer_color = Color.BLACK if not self.settings.invert_color else Color.WHITE
+        self._player_color = Color.WHITE if not self.settings.invert_color else Color.BLACK
         self._selected = None
         self._capture_path = []
         self._positions = [self.board.to_position_string()]
@@ -194,7 +187,7 @@ class GameController(QObject):
                 return
 
     def _is_player_piece(self, piece: int) -> bool:
-        return self.board.is_white(piece) if self._player_color == "w" else self.board.is_black(piece)
+        return self.board.is_white(piece) if self._player_color == Color.WHITE else self.board.is_black(piece)
 
     def _select_piece(self, x: int, y: int):
         """Select a piece for moving."""
@@ -211,13 +204,17 @@ class GameController(QObject):
         self.capture_highlights_changed.emit([])
 
     def _find_and_signal_capture(self):
-        """Find a piece that must capture and signal it."""
-        for y in range(1, BOARD_SIZE + 1):
-            for x in range(1, BOARD_SIZE + 1):
+        """Find pieces that must capture and signal them with pulse animation."""
+        must_capture = []
+        for y in range(BOARD_SIZE):
+            for x in range(BOARD_SIZE):
                 piece = self.board.piece_at(x, y)
                 if self._is_player_piece(piece) and self.board.get_captures(x, y):
-                    self.message_changed.emit(f"Шашка {Board.pos_to_notation(x, y)} должна бить!")
-                    return
+                    must_capture.append((x, y))
+        if must_capture:
+            notation = ", ".join(Board.pos_to_notation(x, y) for x, y in must_capture)
+            self.message_changed.emit(f"{'Шашка' if len(must_capture) == 1 else 'Шашки'} {notation} {'должна' if len(must_capture) == 1 else 'должны'} бить!")
+            self.capture_hint.emit(must_capture)
 
     def _try_move(self, sx: int, sy: int, tx: int, ty: int):
         """Try to execute a move from (sx, sy) to (tx, ty)."""
@@ -293,12 +290,12 @@ class GameController(QObject):
         self.ai_thinking.emit(True)
 
         self._ai_thread = QThread()
-        self._ai_worker = AIWorker(
-            self.board,
-            self.settings.difficulty,
-            self._computer_color,
-            self.settings.search_depth,
+        engine = AIEngine(
+            difficulty=self.settings.difficulty,
+            color=self._computer_color,
+            search_depth=self.settings.search_depth,
         )
+        self._ai_worker = AIWorker(self.board, engine)
         self._ai_worker.moveToThread(self._ai_thread)
         self._ai_thread.started.connect(self._ai_worker.run)
         self._ai_worker.finished.connect(self._on_ai_finished)
@@ -385,16 +382,16 @@ class GameController(QObject):
 
     def _check_game_over(self) -> bool:
         """Check if the game is over. Emit game_over signal if so."""
-        w_count = self.board.count_pieces("w")
-        b_count = self.board.count_pieces("b")
+        w_count = self.board.count_pieces(Color.WHITE)
+        b_count = self.board.count_pieces(Color.BLACK)
 
         if w_count == 0:
-            player_lost = self._player_color == "w"
+            player_lost = self._player_color == Color.WHITE
             self.game_over.emit("Вы проиграли!" if player_lost else "Вы выиграли!")
             return True
 
         if b_count == 0:
-            player_lost = self._player_color == "b"
+            player_lost = self._player_color == Color.BLACK
             self.game_over.emit("Вы проиграли!" if player_lost else "Вы выиграли!")
             return True
 
@@ -439,7 +436,7 @@ class GameController(QObject):
         else:
             self.board = Board()
 
-        self._current_turn = "w" if self._ply_count % 2 == 0 else "b"
+        self._current_turn = Color.WHITE if self._ply_count % 2 == 0 else Color.BLACK
         self._selected = None
         self._capture_path = []
 
@@ -471,15 +468,15 @@ class GameController(QObject):
     # --- Properties ---
 
     @property
-    def current_turn(self) -> str:
+    def current_turn(self) -> Color:
         return self._current_turn
 
     @property
-    def player_color(self) -> str:
+    def player_color(self) -> Color:
         return self._player_color
 
     @property
-    def computer_color(self) -> str:
+    def computer_color(self) -> Color:
         return self._computer_color
 
     @property

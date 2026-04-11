@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QRectF, Qt, pyqtSignal
+import math
+
+from PyQt6.QtCore import QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPen
 from PyQt6.QtWidgets import QWidget
 
@@ -15,6 +17,7 @@ from draughts.config import (
     EMPTY,
     ROW_NUMBERS,
     WHITE_KING,
+    Color,
 )
 from draughts.game.board import Board
 from draughts.ui.textures import TextureCache, draw_realistic_piece
@@ -31,9 +34,17 @@ class BoardWidget(QWidget):
         self._board: Board | None = None
         self._selection: tuple[int, int] | None = None
         self._capture_highlights: list[tuple[int, int]] = []
-        self._turn_color: str = "w"  # whose turn: 'w' or 'b'
+        self._turn_color: Color = Color.WHITE
         self._anim_hidden_cells: set[tuple[int, int]] = set()  # cells hidden during animation
         self._textures = TextureCache()
+
+        # Hint pulse animation (mandatory capture indicator)
+        self._hint_cells: list[tuple[int, int]] = []
+        self._hint_progress: float = 0.0  # 0..1 animation progress
+        self._hint_timer = QTimer(self)
+        self._hint_timer.setInterval(25)  # ~40 FPS
+        self._hint_timer.timeout.connect(self._hint_tick)
+        self._HINT_DURATION = 1.0  # seconds for full pulse cycle
 
         self.setMinimumSize(240, 240)
         self.setMouseTracking(False)
@@ -58,9 +69,25 @@ class BoardWidget(QWidget):
         self._capture_highlights = list(positions) if positions else []
         self.update()
 
-    def set_turn_indicator(self, color: str):
-        """Set which side's turn it is ('w' or 'b')."""
+    def set_turn_indicator(self, color: str | Color):
+        """Set which side's turn it is."""
         self._turn_color = color
+        self.update()
+
+    def start_hint_pulse(self, positions: list[tuple[int, int]]):
+        """Start a smooth pulse animation on cells that must capture."""
+        self._hint_cells = list(positions)
+        self._hint_progress = 0.0
+        self._hint_timer.start()
+
+    def _hint_tick(self):
+        """Advance the hint pulse animation."""
+        step = self._hint_timer.interval() / 1000.0 / self._HINT_DURATION
+        self._hint_progress += step
+        if self._hint_progress >= 1.0:
+            self._hint_timer.stop()
+            self._hint_cells = []
+            self._hint_progress = 0.0
         self.update()
 
     def get_cell_size(self) -> float:
@@ -92,21 +119,21 @@ class BoardWidget(QWidget):
         return margin, cell_size, bx, by
 
     def _cell_rect(self, x: int, y: int, cell_size: float, bx: float, by: float) -> QRectF:
-        """Return the rectangle for board cell (x, y) where x,y in 1..8."""
-        px = bx + (x - 1) * cell_size
-        py = by + (y - 1) * cell_size
+        """Return the rectangle for board cell (x, y) where x,y in 0..7."""
+        px = bx + x * cell_size
+        py = by + y * cell_size
         return QRectF(px, py, cell_size, cell_size)
 
     def _cell_from_pos(self, pos) -> tuple[int, int] | None:
-        """Convert a mouse position to board coordinates (1..8), or None."""
+        """Convert a mouse position to board coordinates (0..7), or None."""
         _, cell_size, bx, by = self._metrics()
         mx = pos.x() - bx
         my = pos.y() - by
         if mx < 0 or my < 0:
             return None
-        col = int(mx / cell_size) + 1
-        row = int(my / cell_size) + 1
-        if 1 <= col <= BOARD_SIZE and 1 <= row <= BOARD_SIZE:
+        col = int(mx / cell_size)
+        row = int(my / cell_size)
+        if 0 <= col < BOARD_SIZE and 0 <= row < BOARD_SIZE:
             return col, row
         return None
 
@@ -140,8 +167,8 @@ class BoardWidget(QWidget):
         light_tex = self._textures.get_light_wood(cs)
         dark_tex = self._textures.get_dark_wood(cs)
 
-        for y in range(1, BOARD_SIZE + 1):
-            for x in range(1, BOARD_SIZE + 1):
+        for y in range(BOARD_SIZE):
+            for x in range(BOARD_SIZE):
                 rect = self._cell_rect(x, y, cell_size, bx, by)
                 is_dark = x % 2 != y % 2
                 tex = dark_tex if is_dark else light_tex
@@ -166,10 +193,23 @@ class BoardWidget(QWidget):
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(rect.adjusted(1, 1, -1, -1))
 
+        # Draw hint pulse (mandatory capture indicator)
+        if self._hint_cells and self._hint_progress > 0:
+            # Smooth sine pulse: 0 → 1 → 0
+            opacity = math.sin(self._hint_progress * math.pi)
+            c = COLORS["selection_cursor"]  # green — matches selection color
+            hint_color = QColor(c[0], c[1], c[2], int(opacity * 200))
+            pen = QPen(hint_color, max(2, cell_size * 0.08))
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            for hx, hy in self._hint_cells:
+                rect = self._cell_rect(hx, hy, cell_size, bx, by)
+                painter.drawRect(rect.adjusted(1, 1, -1, -1))
+
         # Draw pieces (skip cells hidden by active animations)
         if self._board:
-            for y in range(1, BOARD_SIZE + 1):
-                for x in range(1, BOARD_SIZE + 1):
+            for y in range(BOARD_SIZE):
+                for x in range(BOARD_SIZE):
                     if (x, y) in self._anim_hidden_cells:
                         continue
                     piece = self._board.piece_at(x, y)

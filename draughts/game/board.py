@@ -2,6 +2,12 @@
 
 Uses NumPy int8 array with signed encoding:
     BLACK=1, BLACK_KING=2, WHITE=-1, WHITE_KING=-2, EMPTY=0
+
+Coordinate system (0-indexed):
+    - grid[y, x], y=row (0=top), x=column (0=left)
+    - Active cells: x%2 != y%2 (dark squares)
+    - Notation: columns a-h (x=0..7), rows 8-1 (y=0..7)
+    - (0,0)=a8, (7,7)=h1
 """
 
 from __future__ import annotations
@@ -19,14 +25,19 @@ from draughts.config import (
     INT_TO_CHAR,
     WHITE,
     WHITE_KING,
+    Color,
 )
+
+# Promotion rows (0-indexed)
+_WHITE_PROMOTE_ROW = 0  # white promotes at top row
+_BLACK_PROMOTE_ROW = BOARD_SIZE - 1  # black promotes at bottom row
 
 
 class Board:
     """Russian draughts board (8x8).
 
-    Coordinate system (matching original Pascal code):
-        - grid[y, x], y=row (1=top), x=column (1=left)
+    Coordinate system (0-indexed):
+        - grid[y, x], y=row (0=top), x=column (0=left)
         - Active cells: x%2 != y%2 (dark squares)
         - Pieces: int8 encoding (see config.py)
         - Notation: columns a-h, rows 8-1 top to bottom
@@ -35,7 +46,6 @@ class Board:
     ROWS = BOARD_SIZE
     COLS = BOARD_SIZE
 
-    # Piece constants (re-exported from config for backward compat)
     EMPTY = EMPTY
     BLACK = BLACK
     BLACK_KING = BLACK_KING
@@ -45,18 +55,18 @@ class Board:
     DIAGONAL_DIRECTIONS = DIAGONAL_DIRECTIONS
 
     def __init__(self, empty: bool = False):
-        self.grid: np.ndarray = np.zeros((self.ROWS + 1, self.COLS + 1), dtype=np.int8)
+        self.grid: np.ndarray = np.zeros((self.ROWS, self.COLS), dtype=np.int8)
         if not empty:
             self._setup_initial_position()
 
     def _setup_initial_position(self) -> None:
         """Set up standard starting position for Russian draughts."""
-        for y in range(1, self.ROWS + 1):
-            for x in range(1, self.COLS + 1):
+        for y in range(BOARD_SIZE):
+            for x in range(BOARD_SIZE):
                 if x % 2 != y % 2:
-                    if y <= 3:
+                    if y <= 2:
                         self.grid[y, x] = BLACK
-                    elif y >= 6:
+                    elif y >= 5:
                         self.grid[y, x] = WHITE
 
     @staticmethod
@@ -79,8 +89,8 @@ class Board:
                 self.grid[y, x] = piece
 
     def _in_bounds(self, x: int, y: int) -> bool:
-        """Check if coordinates are within board bounds (1-8)."""
-        return 1 <= x <= self.COLS and 1 <= y <= self.ROWS
+        """Check if coordinates are within board bounds (0-7)."""
+        return 0 <= x < self.COLS and 0 <= y < self.ROWS
 
     @staticmethod
     def is_black(piece: int) -> bool:
@@ -116,25 +126,24 @@ class Board:
         new_board.grid = self.grid.copy()
         return new_board
 
-    def count_pieces(self, color: str) -> int:
-        """Count pieces of given color ('b' for black side, 'w' for white side)."""
-        board_area = self.grid[1:9, 1:9]
-        return int(np.count_nonzero(board_area > 0)) if color == "b" else int(np.count_nonzero(board_area < 0))
+    def count_pieces(self, color: str | Color) -> int:
+        """Count pieces of given color."""
+        return int(np.count_nonzero(self.grid > 0)) if color == Color.BLACK else int(np.count_nonzero(self.grid < 0))
 
     # --- Notation ---
 
     @staticmethod
     def pos_to_notation(x: int, y: int) -> str:
         """Convert (x, y) to chess notation like 'a8', 'h1'."""
-        col = chr(ord("a") + x - 1)
-        row = str(9 - y)
+        col = chr(ord("a") + x)
+        row = str(BOARD_SIZE - y)
         return f"{col}{row}"
 
     @staticmethod
     def notation_to_pos(notation: str) -> tuple[int, int]:
         """Convert notation like 'a8' to (x, y)."""
-        x = ord(notation[0]) - ord("a") + 1
-        y = 9 - int(notation[1])
+        x = ord(notation[0]) - ord("a")
+        y = BOARD_SIZE - int(notation[1])
         return x, y
 
     # --- Move validation ---
@@ -214,12 +223,14 @@ class Board:
                 new_captured = captured | {(mx, my)}
                 new_path = [*path, (lx, ly)]
 
-                promoted = False
-                if (self.is_white(piece) and ly == 1) or (self.is_black(piece) and ly == self.ROWS):
-                    promoted = True
+                promoted = (self.is_white(piece) and ly == _WHITE_PROMOTE_ROW) or (
+                    self.is_black(piece) and ly == _BLACK_PROMOTE_ROW
+                )
 
                 if promoted:
-                    results.append(new_path)
+                    # Russian draughts: promoted pawn MUST continue capturing as king
+                    king_piece = WHITE_KING if self.is_white(piece) else BLACK_KING
+                    self._find_king_captures(lx, ly, king_piece, new_path, new_captured, results)
                 else:
                     self._find_pawn_captures(lx, ly, piece, new_path, new_captured, results)
 
@@ -263,18 +274,18 @@ class Board:
         if not found and len(path) > 1:
             results.append(path)
 
-    def has_any_capture(self, color: str) -> bool:
+    def has_any_capture(self, color: str | Color) -> bool:
         """Check if given side has any capture available."""
-        positions = np.argwhere(self.grid > 0) if color == "b" else np.argwhere(self.grid < 0)
+        positions = np.argwhere(self.grid > 0) if color == Color.BLACK else np.argwhere(self.grid < 0)
         for pos in positions:
             y, x = int(pos[0]), int(pos[1])
             if self.get_captures(x, y):
                 return True
         return False
 
-    def has_any_move(self, color: str) -> bool:
+    def has_any_move(self, color: str | Color) -> bool:
         """Check if given side has any legal move (capture or regular)."""
-        positions = np.argwhere(self.grid > 0) if color == "b" else np.argwhere(self.grid < 0)
+        positions = np.argwhere(self.grid > 0) if color == Color.BLACK else np.argwhere(self.grid < 0)
         for pos in positions:
             y, x = int(pos[0]), int(pos[1])
             if self.get_captures(x, y) or self.get_valid_moves(x, y):
@@ -286,9 +297,9 @@ class Board:
         piece = self.grid[y1, x1]
         self.grid[y1, x1] = EMPTY
 
-        if piece == WHITE and y2 == 1:
+        if piece == WHITE and y2 == _WHITE_PROMOTE_ROW:
             piece = WHITE_KING
-        elif piece == BLACK and y2 == self.ROWS:
+        elif piece == BLACK and y2 == _BLACK_PROMOTE_ROW:
             piece = BLACK_KING
 
         self.grid[y2, x2] = piece
@@ -315,60 +326,30 @@ class Board:
                 cx += dx
                 cy += dy
 
-        # Move piece
         self.grid[path[0][1], path[0][0]] = EMPTY
 
-        # Remove captured pieces
         for cx, cy in captured_positions:
             self.grid[cy, cx] = EMPTY
 
-        # Check promotion
+        # Promote if pawn passed through promotion row at ANY point in the path
         final_x, final_y = path[-1]
-        if piece == WHITE and final_y == 1:
+        if piece == WHITE and any(y == _WHITE_PROMOTE_ROW for _, y in path[1:]):
             piece = WHITE_KING
-        elif piece == BLACK and final_y == self.ROWS:
+        elif piece == BLACK and any(y == _BLACK_PROMOTE_ROW for _, y in path[1:]):
             piece = BLACK_KING
 
         self.grid[final_y, final_x] = piece
         return captured_positions
 
-    def dangerous_position(self, x: int, y: int, color: str) -> bool:
+    def dangerous_position(self, x: int, y: int, color: str | Color) -> bool:
         """Check if piece at (x, y) is under attack.
 
-        Matches original Pascal DangerousPosition().
+        Delegates to the canonical implementation in ai module to avoid
+        duplicating threat-detection logic.
         """
-        piece = self.grid[y, x]
-        if piece == EMPTY:
-            return False
+        from draughts.game.ai import _dangerous_position
 
-        # Check adjacent pawn attacks
-        for dy, dx in DIAGONAL_DIRECTIONS:
-            ax, ay = x + dx, y + dy
-            bx, by = x - dx, y - dy
-
-            if not self._in_bounds(ax, ay) or not self._in_bounds(bx, by):
-                continue
-
-            attacker = self.grid[ay, ax]
-            landing = self.grid[by, bx]
-
-            if self.is_enemy(piece, attacker) and landing == EMPTY:
-                return True
-
-        # Check king attacks from distance
-        for dy, dx in DIAGONAL_DIRECTIONS:
-            nx, ny = x + dx, y + dy
-            while self._in_bounds(nx, ny) and self.grid[ny, nx] == EMPTY:
-                nx += dx
-                ny += dy
-            if self._in_bounds(nx, ny):
-                attacker = self.grid[ny, nx]
-                if self.is_enemy(piece, attacker) and self.is_king(attacker):
-                    bx, by = x - dx, y - dy
-                    if self._in_bounds(bx, by) and self.grid[by, bx] == EMPTY:
-                        return True
-
-        return False
+        return _dangerous_position(x, y, self.grid, color)
 
     def is_diagonal_clear(self, x1: int, y1: int, x2: int, y2: int) -> bool:
         """Check if diagonal path between two squares is clear."""
@@ -387,9 +368,9 @@ class Board:
     def __repr__(self) -> str:
         lines = []
         lines.append("  a b c d e f g h")
-        for y in range(1, self.ROWS + 1):
-            row = [str(9 - y)]
-            for x in range(1, self.COLS + 1):
+        for y in range(BOARD_SIZE):
+            row = [str(BOARD_SIZE - y)]
+            for x in range(BOARD_SIZE):
                 piece = int(self.grid[y, x])
                 row.append(INT_TO_CHAR.get(piece, "."))
             lines.append(" ".join(row))

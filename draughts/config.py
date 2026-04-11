@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 import numpy as np
@@ -30,10 +31,8 @@ WHITE_KING = np.int8(-2)
 CHAR_TO_INT: dict[str, int] = {"n": 0, "b": 1, "B": 2, "w": -1, "W": -2}
 INT_TO_CHAR: dict[int, str] = {0: "n", 1: "b", 2: "B", -1: "w", -2: "W"}
 
-# Precomputed dark-square coordinates (y, x), 1-indexed, row-major order
-DARK_SQUARES: list[tuple[int, int]] = [
-    (y, x) for y in range(1, BOARD_SIZE + 1) for x in range(1, BOARD_SIZE + 1) if x % 2 != y % 2
-]
+# Precomputed dark-square coordinates (y, x), 0-indexed, row-major order
+DARK_SQUARES: list[tuple[int, int]] = [(y, x) for y in range(BOARD_SIZE) for x in range(BOARD_SIZE) if x % 2 != y % 2]
 
 # Four diagonal directions as (dy, dx)
 DIAGONAL_DIRECTIONS = [(-1, 1), (1, 1), (1, -1), (-1, -1)]
@@ -42,10 +41,28 @@ DIAGONAL_DIRECTIONS = [(-1, 1), (1, 1), (1, -1), (-1, -1)]
 COLUMN_LETTERS = "abcdefgh"
 ROW_NUMBERS = "87654321"
 
+
+# ---------------------------------------------------------------------------
+# Color enum — type-safe replacement for "b"/"w" string tokens
+# ---------------------------------------------------------------------------
+
+
+class Color(StrEnum):
+    """Side color. Inherits from str so Color.BLACK == "b" is True."""
+
+    BLACK = "b"
+    WHITE = "w"
+
+    @property
+    def opponent(self) -> Color:
+        """Return the opposite color."""
+        return Color.WHITE if self is Color.BLACK else Color.BLACK
+
+
 # Colors used by board rendering
 COLORS: dict[str, tuple[int, int, int]] = {
-    "selection_cursor": (255, 0, 255),
-    "multi_capture": (0, 255, 0),
+    "selection_cursor": (0, 255, 0),  # green — start/end position
+    "multi_capture": (255, 0, 255),  # magenta — intermediate capture positions
 }
 
 # ---------------------------------------------------------------------------
