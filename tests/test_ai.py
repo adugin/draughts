@@ -12,6 +12,7 @@ from draughts.game.ai import (
     _is_on_board,
     _scan_diagonal,
     _search_best_move,
+    adaptive_depth,
     computer_move,
     evaluate_position,
 )
@@ -298,6 +299,44 @@ class TestHelpers:
         count, bx, by = _scan_diagonal(0, 0, 4, 4, Color.WHITE, b.grid)
         assert count == 1
         assert (bx, by) == (2, 2)
+
+
+class TestAdaptiveDepth:
+    def test_crowded_position_caps_at_4(self):
+        b = Board()  # 24 pieces
+        assert adaptive_depth(5, b) == 4
+        assert adaptive_depth(8, b) == 4
+
+    def test_midgame_passthrough(self):
+        b = Board(empty=True)
+        # 5 black + 5 white = 10 pieces: not crowded (>16), not endgame (<=6)
+        for i, (x, y) in enumerate([(1, 0), (3, 0), (5, 0), (7, 0), (0, 1)]):
+            b.place_piece(x, y, BLACK)
+        for x, y in [(0, 7), (2, 7), (4, 7), (6, 7), (1, 6)]:
+            b.place_piece(x, y, WHITE)
+        assert adaptive_depth(5, b) == 5
+        assert adaptive_depth(7, b) == 7
+
+    def test_endgame_boost_plus_one(self):
+        b = Board(empty=True)
+        b.place_piece(0, 0, BLACK)
+        b.place_piece(2, 2, BLACK)
+        b.place_piece(4, 4, WHITE)
+        b.place_piece(6, 6, WHITE)
+        # 4 pieces — endgame, boost by +1
+        assert adaptive_depth(5, b) == 6
+        assert adaptive_depth(7, b) == 8
+        # Already at the cap — don't boost past 8
+        assert adaptive_depth(8, b) == 8
+
+    def test_endgame_boost_respects_hard_cap(self):
+        b = Board(empty=True)
+        b.place_piece(0, 0, BLACK_KING)
+        b.place_piece(7, 7, WHITE)
+        # Only 2 pieces — still boost by +1, capped at 8
+        assert adaptive_depth(6, b) == 7
+        assert adaptive_depth(7, b) == 8
+        assert adaptive_depth(9, b) == 9  # >= 8, skip boost entirely
 
 
 class TestEdgeCases:

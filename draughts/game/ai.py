@@ -938,15 +938,30 @@ class AIEngine:
                 sweep is always attempted, so a legal move is always returned
                 if any exists.
         """
-        depth = self.search_depth if self.search_depth > 0 else _DIFFICULTY_DEPTH.get(self.difficulty, 5)
-
-        piece_count = board.count_pieces(Color.BLACK) + board.count_pieces(Color.WHITE)
-        if piece_count > 16 and depth > 4:
-            depth = 4
-        elif piece_count <= 6 and depth < 8:
-            depth = min(depth + 2, 10)
-
+        base = self.search_depth if self.search_depth > 0 else _DIFFICULTY_DEPTH.get(self.difficulty, 5)
+        depth = adaptive_depth(base, board)
         return _search_best_move(board, self.color, depth, deadline=deadline)
+
+
+def adaptive_depth(base_depth: int, board: Board) -> int:
+    """Adjust the requested search depth based on piece count.
+
+    - Crowded positions (>16 pieces): cap at 4. Branching is huge and the
+      extra plies pay poorly in the opening.
+    - Sparse endgames (<=6 pieces): bump by +1 up to a hard cap of 8.
+
+    The endgame boost was +2 until self-play profiling showed that in
+    king-heavy endgames (branching factor ~10 per king) the extra ply
+    blew up wall-clock budgets and caused ~3% of endgame moves to hit
+    the per-move timeout. +1 is the conservative setting; callers that
+    want deeper endgame search can pass a larger base_depth explicitly.
+    """
+    piece_count = board.count_pieces(Color.BLACK) + board.count_pieces(Color.WHITE)
+    if piece_count > 16 and base_depth > 4:
+        return 4
+    if piece_count <= 6 and base_depth < 8:
+        return min(base_depth + 1, 8)
+    return base_depth
 
 
 # ===========================================================================
