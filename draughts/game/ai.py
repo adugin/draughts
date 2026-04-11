@@ -671,7 +671,15 @@ def _quiescence(
     root_color: str | Color,
     qdepth: int = 0,
 ) -> float:
-    """Search only captures to avoid horizon effect."""
+    """Search captures *and* promotion moves to tame horizon effects.
+
+    Captures are the classical quiescence set. Promotion moves are added
+    because promoting a pawn to a king swings eval by ~10 material points
+    (king_value - pawn_value) in a single ply, so leaving them to stand-pat
+    causes the same horizon-blindness quiescence was designed to avoid.
+    Self-play profiling (Phase 3 analysis) found that 100% of the
+    "quiet-move blunders" with eval-swing >3 were uncovered promotions.
+    """
     stand_pat = _evaluate_fast(board.grid, root_color)
 
     if maximizing:
@@ -688,16 +696,28 @@ def _quiescence(
     if qdepth >= _MAX_QDEPTH:
         return stand_pat
 
-    # Generate only captures
     moves = _generate_all_moves(board, color)
-    captures = [(k, p) for k, p in moves if k == "capture"]
-    if not captures:
+    tactical = []
+    promote_row = _BLACK_PROMOTE_ROW if Color(color) == Color.BLACK else _WHITE_PROMOTE_ROW
+    for k, p in moves:
+        if k == "capture":
+            tactical.append((k, p))
+        elif k == "move":
+            # Non-capture promotion: starting piece must be a pawn, and
+            # the destination row must be the promotion row for this side.
+            x1, y1 = p[0]
+            x2, y2 = p[-1]
+            start_piece = int(board.grid[y1, x1])
+            is_pawn = abs(start_piece) == 1
+            if is_pawn and y2 == promote_row:
+                tactical.append((k, p))
+    if not tactical:
         return stand_pat
 
     opp = _opponent(color)
 
     if maximizing:
-        for kind, path in captures:
+        for kind, path in tactical:
             child = _apply_move(board, kind, path)
             score = _quiescence(child, alpha, beta, False, opp, root_color, qdepth + 1)
             if score > alpha:
@@ -706,7 +726,7 @@ def _quiescence(
                 break
         return alpha
     else:
-        for kind, path in captures:
+        for kind, path in tactical:
             child = _apply_move(board, kind, path)
             score = _quiescence(child, alpha, beta, True, opp, root_color, qdepth + 1)
             if score < beta:
