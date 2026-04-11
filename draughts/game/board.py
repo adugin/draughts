@@ -339,37 +339,14 @@ class Board:
         return captured_positions
 
     def dangerous_position(self, x: int, y: int, color: str | Color) -> bool:
-        """Check if piece at (x, y) is under attack."""
-        piece = self.grid[y, x]
-        if piece == EMPTY:
-            return False
+        """Check if piece at (x, y) is under attack.
 
-        for dy, dx in DIAGONAL_DIRECTIONS:
-            ax, ay = x + dx, y + dy
-            bx, by = x - dx, y - dy
+        Delegates to the canonical implementation in ai module to avoid
+        duplicating threat-detection logic.
+        """
+        from draughts.game.ai import _dangerous_position
 
-            if not self._in_bounds(ax, ay) or not self._in_bounds(bx, by):
-                continue
-
-            attacker = self.grid[ay, ax]
-            landing = self.grid[by, bx]
-
-            if self.is_enemy(piece, attacker) and landing == EMPTY:
-                return True
-
-        for dy, dx in DIAGONAL_DIRECTIONS:
-            nx, ny = x + dx, y + dy
-            while self._in_bounds(nx, ny) and self.grid[ny, nx] == EMPTY:
-                nx += dx
-                ny += dy
-            if self._in_bounds(nx, ny):
-                attacker = self.grid[ny, nx]
-                if self.is_enemy(piece, attacker) and self.is_king(attacker):
-                    bx, by = x - dx, y - dy
-                    if self._in_bounds(bx, by) and self.grid[by, bx] == EMPTY:
-                        return True
-
-        return False
+        return _dangerous_position(x, y, self.grid, color)
 
     def is_diagonal_clear(self, x1: int, y1: int, x2: int, y2: int) -> bool:
         """Check if diagonal path between two squares is clear."""
