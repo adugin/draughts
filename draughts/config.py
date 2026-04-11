@@ -61,8 +61,8 @@ class Color(StrEnum):
 
 # Colors used by board rendering
 COLORS: dict[str, tuple[int, int, int]] = {
-    "selection_cursor": (255, 0, 255),
-    "multi_capture": (0, 255, 0),
+    "selection_cursor": (0, 255, 0),  # green — start/end position
+    "multi_capture": (255, 0, 255),  # magenta — intermediate capture positions
 }
 
 # ---------------------------------------------------------------------------
