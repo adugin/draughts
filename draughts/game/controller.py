@@ -58,6 +58,7 @@ class GameController(QObject):
     ai_thinking = pyqtSignal(bool)
     selection_changed = pyqtSignal(object, object)
     capture_highlights_changed = pyqtSignal(list)
+    capture_hint = pyqtSignal(list)  # [(x, y), ...] — pieces that must capture (pulse animation)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -203,13 +204,17 @@ class GameController(QObject):
         self.capture_highlights_changed.emit([])
 
     def _find_and_signal_capture(self):
-        """Find a piece that must capture and signal it."""
+        """Find pieces that must capture and signal them with pulse animation."""
+        must_capture = []
         for y in range(BOARD_SIZE):
             for x in range(BOARD_SIZE):
                 piece = self.board.piece_at(x, y)
                 if self._is_player_piece(piece) and self.board.get_captures(x, y):
-                    self.message_changed.emit(f"Шашка {Board.pos_to_notation(x, y)} должна бить!")
-                    return
+                    must_capture.append((x, y))
+        if must_capture:
+            notation = ", ".join(Board.pos_to_notation(x, y) for x, y in must_capture)
+            self.message_changed.emit(f"{'Шашка' if len(must_capture) == 1 else 'Шашки'} {notation} {'должна' if len(must_capture) == 1 else 'должны'} бить!")
+            self.capture_hint.emit(must_capture)
 
     def _try_move(self, sx: int, sy: int, tx: int, ty: int):
         """Try to execute a move from (sx, sy) to (tx, ty)."""

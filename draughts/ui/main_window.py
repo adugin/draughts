@@ -135,6 +135,7 @@ class MainWindow(QMainWindow):
         c.ai_thinking.connect(self._on_ai_thinking)
         c.selection_changed.connect(self._on_selection_changed)
         c.capture_highlights_changed.connect(self._on_capture_highlights)
+        c.capture_hint.connect(self._on_capture_hint)
 
         # Board clicks → controller
         self.board_widget.cell_left_clicked.connect(c.on_cell_left_click)
@@ -174,6 +175,9 @@ class MainWindow(QMainWindow):
 
     def _on_capture_highlights(self, positions: list):
         self.board_widget.set_capture_highlights(positions)
+
+    def _on_capture_hint(self, positions: list):
+        self.board_widget.start_hint_pulse(positions)
 
     # --- Menu actions ---
 
