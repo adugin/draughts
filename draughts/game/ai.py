@@ -732,16 +732,26 @@ def _quiescence(
     Self-play profiling (Phase 3 analysis) found that 100% of the
     "quiet-move blunders" with eval-swing >3 were uncovered promotions.
     """
+    # Fail-SOFT quiescence. Previously this function returned `alpha` or
+    # `beta` at cutoffs (fail-hard), which silently clamped sub-tree
+    # values to the caller's window. Combined with the fail-soft
+    # _alphabeta above, the clamping caused a real bug: at the root,
+    # moves whose true value was below the running alpha all got
+    # returned as exactly alpha, tying every "worse" move with the
+    # running best and feeding a bag of random blunders to
+    # random.choice at the end of _search_best_move. Fail-soft lets the
+    # actual sub-tree score propagate.
     stand_pat = _evaluate_fast(board.grid, root_color)
+    best = stand_pat
 
     if maximizing:
         if stand_pat >= beta:
-            return beta
+            return stand_pat
         if stand_pat > alpha:
             alpha = stand_pat
     else:
         if stand_pat <= alpha:
-            return alpha
+            return stand_pat
         if stand_pat < beta:
             beta = stand_pat
 
@@ -755,8 +765,6 @@ def _quiescence(
         if k == "capture":
             tactical.append((k, p))
         elif k == "move":
-            # Non-capture promotion: starting piece must be a pawn, and
-            # the destination row must be the promotion row for this side.
             x1, y1 = p[0]
             _x2, y2 = p[-1]
             start_piece = int(board.grid[y1, x1])
@@ -764,7 +772,7 @@ def _quiescence(
             if is_pawn and y2 == promote_row:
                 tactical.append((k, p))
     if not tactical:
-        return stand_pat
+        return best
 
     opp = _opponent(color)
 
@@ -772,20 +780,24 @@ def _quiescence(
         for kind, path in tactical:
             child = _apply_move(board, kind, path)
             score = _quiescence(child, alpha, beta, False, opp, root_color, qdepth + 1)
+            if score > best:
+                best = score
             if score > alpha:
                 alpha = score
             if alpha >= beta:
                 break
-        return alpha
+        return best
     else:
         for kind, path in tactical:
             child = _apply_move(board, kind, path)
             score = _quiescence(child, alpha, beta, True, opp, root_color, qdepth + 1)
+            if score < best:
+                best = score
             if score < beta:
                 beta = score
             if alpha >= beta:
                 break
-        return beta
+        return best
 
 
 # ===========================================================================
