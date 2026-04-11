@@ -205,6 +205,57 @@ class TestEvaluation:
         fast = _evaluate_fast(b.grid, Color.BLACK)
         assert full > 0 and fast > 0
 
+    def test_perspective_symmetry_under_v_flip_color_swap(self):
+        """The eval must be invariant under the natural 'swap sides' symmetry:
+        flip the board vertically AND swap colors. This operation takes a
+        position to the equivalent one viewed from the opposite side, so
+        eval(b, BLACK) + eval(v_flip(-b), BLACK) must equal 0.
+
+        A regression test: the AI vs AI analysis flagged a suspected first-
+        mover bias, and this test protects against anyone accidentally
+        introducing a real asymmetry in _evaluate_fast later.
+        """
+        import numpy as np
+
+        positions = [
+            # Starting position
+            Board().grid.copy(),
+            # Midgame: mixed pawns and kings
+            self._make_grid([(2, 3, BLACK), (4, 5, BLACK), (3, 4, BLACK_KING),
+                             (5, 2, WHITE), (6, 1, WHITE), (4, 7, WHITE)]),
+            # Endgame: kings only
+            self._make_grid([(1, 0, BLACK_KING), (3, 6, WHITE), (5, 4, WHITE)]),
+            # Asymmetric midgame — the position that originally motivated
+            # this test (a black-heavy opening-like position)
+            self._make_grid([
+                (0, 1, BLACK), (0, 3, BLACK), (0, 5, BLACK), (0, 7, BLACK),
+                (1, 0, BLACK), (1, 2, BLACK),
+                (7, 0, WHITE), (7, 2, WHITE), (7, 4, WHITE), (7, 6, WHITE),
+                (6, 1, WHITE), (6, 3, WHITE),
+            ]),
+        ]
+
+        for grid in positions:
+            mirror = -np.flipud(grid)
+            e_orig = _evaluate_fast(grid, Color.BLACK)
+            e_mirror = _evaluate_fast(mirror, Color.BLACK)
+            # mirror is the same position viewed from the opposite side,
+            # so eval-from-BLACK of the mirror should be the negation of
+            # the original's eval-from-BLACK.
+            assert abs(e_orig + e_mirror) < 1e-5, (
+                f"eval asymmetry under v_flip+color_swap: "
+                f"orig={e_orig:+.6f}, mirror={e_mirror:+.6f}, "
+                f"sum={e_orig + e_mirror:+.6f}"
+            )
+
+    @staticmethod
+    def _make_grid(placements):
+        import numpy as np
+        g = np.zeros((8, 8), dtype=np.int8)
+        for y, x, piece in placements:
+            g[y, x] = piece
+        return g
+
 
 class TestHelpers:
     def test_dangerous_position_under_attack(self):
