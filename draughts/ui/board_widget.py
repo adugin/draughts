@@ -197,7 +197,7 @@ class BoardWidget(QWidget):
         if self._hint_cells and self._hint_progress > 0:
             # Smooth sine pulse: 0 → 1 → 0
             opacity = math.sin(self._hint_progress * math.pi)
-            c = COLORS["selection_cursor"]
+            c = COLORS["multi_capture"]  # green — matches capture highlight color
             hint_color = QColor(c[0], c[1], c[2], int(opacity * 200))
             pen = QPen(hint_color, max(2, cell_size * 0.08))
             painter.setPen(pen)
