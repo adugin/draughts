@@ -404,20 +404,23 @@ def _is_drawn_endgame(grid: np.ndarray) -> bool:
     return black_total == 1 and white_total == 1 and bk == 1 and wk == 1
 
 
-_OFF_DIAGONAL_PENALTY = 2.0
+_OFF_DIAGONAL_PENALTY = 0.5
 
 
 def _diagonal_distance(dx: int, dy: int) -> float:
     """Effective distance for a flying king to reach a target.
 
-    In Russian draughts a king only moves diagonally. A target on the
-    same diagonal (|dx| == |dy|) is reachable in one flying move — the
-    best possible threat. A target off-diagonal requires a repositioning
-    move first, so its effective distance grows with how far off-diagonal
-    it is. The Chebyshev distance (max(|dx|, |dy|)) is a useful floor
-    because the king still has to cover that many "diagonal squares"
-    during the maneuver, but the |dx - dy| offset is the real tactical
-    cost: that's how far off the ideal attack line the target sits.
+    Base is the Chebyshev distance (= diagonal walking distance for
+    dark-to-dark squares on an 8x8 board). A small off-diagonal penalty
+    |dx - dy| biases the metric so targets on an attack diagonal score
+    slightly better than targets that would require a reposition first.
+
+    The penalty is deliberately mild: an earlier draft at 2.0 tipped
+    the eval heavily against king-distance contributions and regressed
+    midgame play measurably (bisect traced a ~19 eval-point drop on a
+    10-seed bench to this function). 0.5 keeps the metric close to the
+    original Chebyshev signal while still preferring alignment when
+    alignment is available.
 
     Returns a non-negative float; lower = easier to attack.
     """

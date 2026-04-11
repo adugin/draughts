@@ -351,18 +351,19 @@ class TestDiagonalDistance:
 
     def test_off_diagonal_adds_penalty(self):
         from draughts.game.ai import _diagonal_distance
-        # (dx, dy) = (1, 3): max=3, off-diag=2, dist = 3 + 4 = 7.
-        assert _diagonal_distance(1, 3) == 7
-        # (dx, dy) = (3, 5): max=5, off-diag=2, dist = 5 + 4 = 9.
-        assert _diagonal_distance(3, 5) == 9
+        # With OFF_DIAGONAL_PENALTY = 0.5:
+        # (dx, dy) = (1, 3): max=3, off-diag=2, dist = 3 + 1 = 4.
+        assert _diagonal_distance(1, 3) == 4
+        # (dx, dy) = (3, 5): max=5, off-diag=2, dist = 5 + 1 = 6.
+        assert _diagonal_distance(3, 5) == 6
 
-    def test_h8_vs_b4_is_unreachable_level(self):
-        """The canonical bug: king at h8 facing pawn at b4. h8 is not on
-        any diagonal with b4, so the heuristic should NOT score this
-        pair as 'close' — distance must exceed the 7-square clamp."""
+    def test_off_diagonal_strictly_more_than_aligned(self):
+        """An off-diagonal target must still cost strictly more than the
+        same-Chebyshev aligned target. This is the whole point of the
+        penalty term — even mild."""
         from draughts.game.ai import _diagonal_distance
-        # h8 = (0,7), b4 = (4,1). dx=6, dy=4, off-diag=2, dist = 6+4 = 10.
-        assert _diagonal_distance(6, 4) >= 7
+        assert _diagonal_distance(3, 3) < _diagonal_distance(3, 5)
+        assert _diagonal_distance(4, 4) < _diagonal_distance(4, 6)
 
     def test_king_distance_prefers_aligned_king(self):
         """King on an attack diagonal to a pawn should score strictly
