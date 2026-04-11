@@ -12,9 +12,9 @@ import io
 import pstats
 import time
 
+from draughts.config import Color
 from draughts.game.ai import computer_move
 from draughts.game.board import Board
-
 
 # ---------------------------------------------------------------------------
 # Test positions (various game phases)
@@ -24,32 +24,32 @@ POSITIONS = {
     "opening": {
         "desc": "Starting position (12v12)",
         "position": "bbbbbbbbbbbbnnnnnnnnwwwwwwwwwwww",
-        "color": "b",
+        "color": Color.BLACK,
     },
     "midgame_1": {
         "desc": "Midgame (8v8)",
         "position": "nbnnbnbnbnnnnnnnwnnnnnwnwnnwwwnn",
-        "color": "b",
+        "color": Color.BLACK,
     },
     "midgame_2": {
         "desc": "Midgame with captures (4v4)",
         "position": "nnnnbnnnnnbnnnwnnnnnwnwnnnnnnnnn",  # 32
-        "color": "b",
+        "color": Color.BLACK,
     },
     "endgame_3v3": {
         "desc": "Endgame pawns (3v3)",
         "position": "nnnnnnbnnnwnnbnnwnnnnnnbnwnnnnnn",
-        "color": "b",
+        "color": Color.BLACK,
     },
     "endgame_2v2": {
         "desc": "Endgame kings+pawns (2v2)",
         "position": "BnnnnnnnnnnnnnbnnnnnnnnnnwnnnnnW",
-        "color": "b",
+        "color": Color.BLACK,
     },
     "endgame_1v1": {
         "desc": "King vs pawn",
         "position": "nnnnnnnnnBnnnnnnnnnnnnnwnnnnnnnn",
-        "color": "b",
+        "color": Color.BLACK,
     },
 }
 
@@ -68,7 +68,7 @@ def benchmark_position(name: str, pos_info: dict, max_depth: int = 5, runs: int 
 
     print(f"\n{'=' * 65}")
     print(f"  {name}: {pos_info['desc']}")
-    print(f"  black={board.count_pieces('b')}, white={board.count_pieces('w')}, AI={color}")
+    print(f"  black={board.count_pieces(Color.BLACK)}, white={board.count_pieces(Color.WHITE)}, AI={color}")
     print(f"{'=' * 65}")
     print(f"  {'Depth':>5} | {'Avg ms':>10} | {'Min ms':>10} | {'Max ms':>10} | {'Move':<30}")
     print(f"  {'-' * 5}-+-{'-' * 10}-+-{'-' * 10}-+-{'-' * 10}-+-{'-' * 30}")
@@ -125,7 +125,7 @@ def run_profiling(depth: int = 3):
     profiler = cProfile.Profile()
     profiler.enable()
     for _ in range(3):
-        computer_move(board, difficulty=3, color="b", depth=depth)
+        computer_move(board, difficulty=3, color=Color.BLACK, depth=depth)
     profiler.disable()
 
     stream = io.StringIO()

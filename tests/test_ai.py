@@ -2,6 +2,7 @@
 
 from draughts.config import BLACK, BLACK_KING, EMPTY, WHITE, Color
 from draughts.game.ai import (
+    AIEngine,
     AIMove,
     _any_piece_threatened,
     _count_pieces,
@@ -264,3 +265,57 @@ class TestEdgeCases:
         assert move is not None
         assert len(move.path) >= 2
         assert move.path[0] == (0, 1)
+
+
+class TestAIEngine:
+    """Tests for the AIEngine class."""
+
+    def test_find_move_initial(self):
+        engine = AIEngine(difficulty=2, color=Color.BLACK)
+        b = Board()
+        move = engine.find_move(b)
+        assert move is not None
+        assert isinstance(move, AIMove)
+        assert len(move.path) >= 2
+
+    def test_find_move_white(self):
+        engine = AIEngine(difficulty=2, color=Color.WHITE)
+        b = Board()
+        move = engine.find_move(b)
+        assert move is not None
+        x1, y1 = move.path[0]
+        assert Board.is_white(b.piece_at(x1, y1))
+
+    def test_find_move_capture(self):
+        engine = AIEngine(difficulty=2, color=Color.BLACK)
+        b = Board(empty=True)
+        b.place_piece(1, 4, BLACK)
+        b.place_piece(2, 5, WHITE)
+        move = engine.find_move(b)
+        assert move is not None
+        assert move.kind == "capture"
+
+    def test_explicit_search_depth(self):
+        engine = AIEngine(difficulty=1, color=Color.BLACK, search_depth=2)
+        b = Board()
+        move = engine.find_move(b)
+        assert move is not None
+
+    def test_no_pieces_returns_none(self):
+        engine = AIEngine(difficulty=2, color=Color.BLACK)
+        b = Board(empty=True)
+        b.place_piece(0, 0, WHITE)
+        move = engine.find_move(b)
+        assert move is None
+
+    def test_matches_computer_move(self):
+        """AIEngine.find_move should produce equivalent results to computer_move."""
+        b = Board(empty=True)
+        b.place_piece(2, 3, BLACK_KING)
+        b.place_piece(5, 6, WHITE)
+        engine = AIEngine(difficulty=2, color=Color.BLACK)
+        move = engine.find_move(b)
+        assert move is not None
+        # Both should find a move (specific move may vary due to randomness)
+        legacy_move = computer_move(b, difficulty=2, color=Color.BLACK)
+        assert legacy_move is not None

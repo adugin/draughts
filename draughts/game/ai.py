@@ -517,7 +517,40 @@ def _search_best_move(board: Board, color: str | Color, depth: int) -> AIMove | 
 
 
 # ===========================================================================
-# MAIN ENTRY POINT
+# AI ENGINE
+# ===========================================================================
+
+# Difficulty → base search depth mapping
+_DIFFICULTY_DEPTH = {1: 3, 2: 5, 3: 7}
+
+
+class AIEngine:
+    """Encapsulates AI search parameters.
+
+    Inner search functions remain module-level for performance
+    (no method dispatch overhead in hot paths).
+    """
+
+    def __init__(self, difficulty: int = 2, color: Color = Color.BLACK, search_depth: int = 0):
+        self.difficulty = difficulty
+        self.color = color
+        self.search_depth = search_depth  # 0 = auto (derived from difficulty)
+
+    def find_move(self, board: Board) -> AIMove | None:
+        """Find the best move for the current board state."""
+        depth = self.search_depth if self.search_depth > 0 else _DIFFICULTY_DEPTH.get(self.difficulty, 5)
+
+        piece_count = board.count_pieces(Color.BLACK) + board.count_pieces(Color.WHITE)
+        if piece_count > 16 and depth > 4:
+            depth = 4
+        elif piece_count <= 6 and depth < 8:
+            depth = min(depth + 2, 10)
+
+        return _search_best_move(board, self.color, depth)
+
+
+# ===========================================================================
+# MAIN ENTRY POINT (backward-compatible wrapper)
 # ===========================================================================
 
 
@@ -529,20 +562,9 @@ def computer_move(
 ) -> AIMove | None:
     """Compute the AI's move.
 
-    Args:
-        board: Current board state.
-        difficulty: 1=amateur, 2=normal, 3=professional.
-        color: Which side the computer plays.
-        depth: Search depth override. If None, derived from difficulty:
-               difficulty 1 -> depth 3, difficulty 2 -> depth 5, difficulty 3 -> depth 7.
+    Backward-compatible wrapper around AIEngine. Prefer AIEngine for new code.
     """
-    if depth is None:
-        depth = {1: 3, 2: 5, 3: 7}.get(difficulty, 5)
-
-    piece_count = board.count_pieces(Color.BLACK) + board.count_pieces(Color.WHITE)
-    if piece_count > 16 and depth > 4:
-        depth = 4
-    elif piece_count <= 6 and depth < 8:
-        depth = min(depth + 2, 10)
-
-    return _search_best_move(board, color, depth)
+    engine = AIEngine(difficulty=difficulty, color=Color(color))
+    if depth is not None and depth > 0:
+        engine.search_depth = depth
+    return engine.find_move(board)

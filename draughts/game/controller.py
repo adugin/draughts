@@ -13,7 +13,7 @@ from pathlib import Path
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from draughts.config import AUTOSAVE_FILENAME, BOARD_SIZE, Color, GameSettings, get_data_dir
-from draughts.game.ai import AIMove, computer_move
+from draughts.game.ai import AIEngine, AIMove
 from draughts.game.board import Board
 from draughts.game.save import GameSave, autosave, load_game, save_game
 
@@ -25,24 +25,16 @@ class AIWorker(QObject):
 
     finished = pyqtSignal(object)  # AIMove | None
 
-    def __init__(self, board: Board, difficulty: int, color: str | Color, search_depth: int = 0):
+    def __init__(self, board: Board, engine: AIEngine):
         super().__init__()
         self._board = board
-        self._difficulty = difficulty
-        self._color = color
-        self._search_depth = search_depth
+        self._engine = engine
 
     def run(self):
         try:
-            depth = self._search_depth if self._search_depth > 0 else None
-            result = computer_move(
-                self._board.copy(),
-                difficulty=self._difficulty,
-                color=self._color,
-                depth=depth,
-            )
+            result = self._engine.find_move(self._board.copy())
         except Exception:
-            logger.exception("AI crashed during computer_move")
+            logger.exception("AI crashed during find_move")
             result = None
         self.finished.emit(result)
 
@@ -293,12 +285,12 @@ class GameController(QObject):
         self.ai_thinking.emit(True)
 
         self._ai_thread = QThread()
-        self._ai_worker = AIWorker(
-            self.board,
-            self.settings.difficulty,
-            self._computer_color,
-            self.settings.search_depth,
+        engine = AIEngine(
+            difficulty=self.settings.difficulty,
+            color=self._computer_color,
+            search_depth=self.settings.search_depth,
         )
+        self._ai_worker = AIWorker(self.board, engine)
         self._ai_worker.moveToThread(self._ai_thread)
         self._ai_thread.started.connect(self._ai_worker.run)
         self._ai_worker.finished.connect(self._on_ai_finished)
