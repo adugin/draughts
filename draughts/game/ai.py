@@ -140,6 +140,35 @@ def _record_killer(depth: int, kind: str, path: list) -> None:
         if len(slot) > 2:
             slot.pop()
 
+
+# ---------------------------------------------------------------------------
+# History heuristic — track which quiet moves have historically caused
+# beta cutoffs so that the move orderer can prioritise them at other
+# depths. Increment is depth*depth so cutoffs near the root (deep
+# subtrees eliminated) count more than shallow ones.
+# ---------------------------------------------------------------------------
+
+_history: dict[tuple, int] = {}
+
+
+def _history_clear() -> None:
+    _history.clear()
+
+
+def _history_record(kind: str, path: list, depth: int) -> None:
+    # Only track quiet moves — captures are already ordered first.
+    if kind == "capture":
+        return
+    key = (kind, tuple(path))
+    _history[key] = _history.get(key, 0) + depth * depth
+
+
+def _history_score(kind: str, path: list) -> int:
+    if kind == "capture":
+        return 0
+    return _history.get((kind, tuple(path)), 0)
+
+
 # Precomputed advancement tables (0-indexed, 8x8)
 # Black pawns advance by increasing y; white by decreasing y
 _BLACK_ADVANCE = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=np.float32)
@@ -387,7 +416,12 @@ _KING_DISTANCE_WEIGHT = 0.4  # reward kings for approaching opponent pieces
 # and prefers decisive continuations when material is close. Self-play
 # baseline measured 45% of games as draw-by-king-dance; this incentive
 # nudges the engine toward converting advantages instead of cycling.
-_CONTEMPT = 0.25
+# Initially set to 0.25 (1/20th of a pawn). Trap-battery + conversion
+# analysis showed the AI still accepted draws too readily when ahead;
+# bumped to 0.5 (1/10th of a pawn) which is still well below any real
+# material value but strong enough to prefer any non-drawing move with
+# even a tiny positional plus.
+_CONTEMPT = 0.5
 
 
 def _is_drawn_endgame(grid: np.ndarray) -> bool:
@@ -701,6 +735,11 @@ def _order_moves(
                 priority += float(_CENTER_MASK[y2, x2]) * 5.0  # center bonus
             else:
                 priority = float(_CENTER_MASK[y2, x2]) * 10.0
+        # History bonus: quiet moves that historically caused beta
+        # cutoffs get bumped. Small weight so history doesn't override
+        # the heuristic priority for obviously strong moves like captures
+        # and promotions.
+        priority += _history_score(kind, path) * 0.001
         scored.append((priority, kind, path))
 
     scored.sort(key=lambda x: -x[0])
@@ -888,6 +927,7 @@ def _alphabeta(
             alpha = max(alpha, value)
             if alpha >= beta:
                 _record_killer(depth, kind, path)
+                _history_record(kind, path, depth)
                 break
     else:
         value = float("inf")
@@ -908,6 +948,7 @@ def _alphabeta(
             beta = min(beta, value)
             if alpha >= beta:
                 _record_killer(depth, kind, path)
+                _history_record(kind, path, depth)
                 break
 
     # Store in transposition table
@@ -945,6 +986,7 @@ def _search_best_move(
         return None
 
     _killers_clear()
+    _history_clear()
 
     opp = _opponent(color)
     best_kind, best_path = moves[0]
@@ -994,10 +1036,30 @@ def _search_best_move(
     finally:
         _search_deadline = prev_deadline
 
-    # Final selection: among equally-scored moves from the last completed
-    # depth, pick randomly. last_complete_best always has at least moves[0].
-    kind, path = random.choice(last_complete_best)
+    # Final selection: among moves with the same minimax score from the
+    # last fully completed depth, prefer the one the move orderer ranks
+    # highest. This gives more purposeful tie-breaking than random.choice
+    # (which earlier allowed real blunders to be picked when fail-hard
+    # quiescence tied a blunder with the real best move — that underlying
+    # bug is fixed, but deterministic ordered tie-break is strictly
+    # better even in the clean case). A tiny bit of randomness is kept
+    # by shuffling within each priority bucket so repeated self-play
+    # still produces variety.
     _last_search_score = last_complete_score
+    if len(last_complete_best) == 1:
+        kind, path = last_complete_best[0]
+    else:
+        ordered = _order_moves(last_complete_best, board, color)
+        # Group by priority (we recompute here lightly; _order_moves is
+        # already a stable sort so equal-priority moves preserve their
+        # input order — shuffle within groups via random.choice on the
+        # top priority group only).
+        top_kind, top_path = ordered[0]
+        # Find all moves tied at top of ordered list — identify by
+        # re-computing priority. Simpler: shuffle top-3 at most to keep
+        # variety without risking blunders.
+        top_group = ordered[: min(3, len(ordered))]
+        kind, path = random.choice(top_group)
     return AIMove(kind, path)
 
 
