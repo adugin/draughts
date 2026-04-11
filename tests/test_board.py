@@ -302,6 +302,22 @@ class TestPromotion:
         has_long_capture = any(len(p) == 3 and p[-1] == (0, 2) for p in captures)
         assert has_long_capture, f"Expected promotion+king continue, got: {captures}"
 
+    def test_promotion_through_capture_becomes_king_piece(self, empty_board):
+        """After promotion-during-capture, the piece must be a king on the board."""
+        b = Board(empty=True)
+        b.place_piece(5, 2, WHITE)  # f6
+        b.place_piece(4, 1, BLACK)  # e7 — capture lands on d8 (3,0) = promotion
+        b.place_piece(1, 2, BLACK)  # b6 — king continues to a5 (0,3)
+        captures = b.get_captures(5, 2)
+        # Find the promotion-continuation path
+        path = next(p for p in captures if len(p) == 3)
+        b.execute_capture_path(path)
+        final_x, final_y = path[-1]
+        assert b.piece_at(final_x, final_y) == WHITE_KING, (
+            f"Piece at {Board.pos_to_notation(final_x, final_y)} should be WHITE_KING after "
+            f"promotion-during-capture, got {b.piece_at(final_x, final_y)}"
+        )
+
     def test_promotion_capture_stops_if_no_more(self, empty_board):
         """Promoted pawn stops if no further captures available as king."""
         b = Board(empty=True)

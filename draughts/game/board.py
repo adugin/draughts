@@ -331,10 +331,11 @@ class Board:
         for cx, cy in captured_positions:
             self.grid[cy, cx] = EMPTY
 
+        # Promote if pawn passed through promotion row at ANY point in the path
         final_x, final_y = path[-1]
-        if piece == WHITE and final_y == _WHITE_PROMOTE_ROW:
+        if piece == WHITE and any(y == _WHITE_PROMOTE_ROW for _, y in path[1:]):
             piece = WHITE_KING
-        elif piece == BLACK and final_y == _BLACK_PROMOTE_ROW:
+        elif piece == BLACK and any(y == _BLACK_PROMOTE_ROW for _, y in path[1:]):
             piece = BLACK_KING
 
         self.grid[final_y, final_x] = piece
