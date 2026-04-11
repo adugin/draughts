@@ -132,6 +132,8 @@ _CENTER_BONUS = 0.05
 _SAFETY_BONUS = 0.1
 _MOBILITY_WEIGHT = 0.02
 _THREAT_PENALTY = 0.5
+_CONNECTED_BONUS = 0.08  # pawn supported by another pawn diagonally behind
+_GOLDEN_CORNER = 0.3  # pieces on a1/h8 are nearly invulnerable in Russian draughts
 
 # Precomputed center mask (0-indexed, 8x8)
 _CENTER_MASK = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=np.float32)
@@ -438,9 +440,49 @@ def _evaluate_fast(grid: np.ndarray, color: str | Color) -> float:
     white_mask = (grid_flat < 0)
     total += (np.dot(black_mask, _CENTER_FLAT) - np.dot(white_mask, _CENTER_FLAT)) * _CENTER_BONUS
 
-    # Back rank defense (pieces on home row block opponent promotion)
-    total += int(counts[1] and np.any(grid[_LAST] < 0)) * _SAFETY_BONUS  # white back rank guarded
-    total -= int(counts[255] and np.any(grid[0] > 0)) * _SAFETY_BONUS  # black back rank guarded
+    # Phase-dependent weighting (endgame amplifies positional factors)
+    all_pieces = black_total + white_total
+    phase = min(1.0, max(0.0, (24 - all_pieces) / 16.0))  # 0=opening, 1=endgame
+
+    # Back rank defense — more important in midgame
+    if np.any(grid[_LAST] < 0):
+        total += _SAFETY_BONUS * (1.0 - phase)
+    if np.any(grid[0] > 0):
+        total -= _SAFETY_BONUS * (1.0 - phase)
+
+    # Connected pawns — supported by ally diagonally behind (slicing, no temp alloc)
+    if black_pawns > 1 or white_pawns > 1:
+        conn = 0
+        # Black pawn at (y,x) supported if grid[y-1, x±1] > 0
+        bp = grid[1:, :] == 1  # black pawns from row 1 down
+        conn += int(np.count_nonzero(bp[:, 1:] & (grid[:-1, :-1] > 0)))
+        conn += int(np.count_nonzero(bp[:, :-1] & (grid[:-1, 1:] > 0)))
+        # White pawn at (y,x) supported if grid[y+1, x±1] < 0
+        wp = grid[:-1, :] == -1  # white pawns from row 0 up
+        conn -= int(np.count_nonzero(wp[:, 1:] & (grid[1:, :-1] < 0)))
+        conn -= int(np.count_nonzero(wp[:, :-1] & (grid[1:, 1:] < 0)))
+        total += conn * _CONNECTED_BONUS
+
+    # Golden corners — a1 (0,7) and h8 (7,0) are strong defensive positions
+    if grid[_LAST, 0] > 0:  # a1 = black piece
+        total += _GOLDEN_CORNER
+    if grid[_LAST, 0] < 0:  # a1 = white piece
+        total -= _GOLDEN_CORNER
+    if grid[0, _LAST] > 0:  # h8 = black piece
+        total += _GOLDEN_CORNER
+    if grid[0, _LAST] < 0:  # h8 = white piece
+        total -= _GOLDEN_CORNER
+
+    # King centralization bonus in endgame
+    if phase > 0.3:
+        king_center = 0.0
+        bk_mask = (grid_flat == 2.0)
+        wk_mask = (grid_flat == -2.0)  # 254 as float not needed, use original
+        if np.any(bk_mask):
+            king_center += float(np.dot(bk_mask, _CENTER_FLAT)) * phase
+        if np.any(wk_mask):
+            king_center -= float(np.dot(wk_mask, _CENTER_FLAT)) * phase
+        total += king_center * 0.3
 
     return total if color == Color.BLACK else -total
 
