@@ -2,8 +2,10 @@
 
 from draughts.config import BLACK, BLACK_KING, EMPTY, WHITE, Color
 from draughts.game.ai import (
+    _CONTEMPT,
     AIEngine,
     AIMove,
+    _alphabeta,
     _any_piece_threatened,
     _count_pieces,
     _dangerous_position,
@@ -337,6 +339,39 @@ class TestAdaptiveDepth:
         assert adaptive_depth(6, b) == 7
         assert adaptive_depth(7, b) == 8
         assert adaptive_depth(9, b) == 9  # >= 8, skip boost entirely
+
+
+class TestContempt:
+    def test_drawn_endgame_returns_negative_contempt(self):
+        """King vs King is a drawn endgame pattern. The minimax score
+        should be the contempt bias (slightly negative from root's POV),
+        not exactly 0 — the searching side prefers decisive play."""
+        b = Board(empty=True)
+        b.place_piece(0, 0, BLACK_KING)
+        b.place_piece(7, 7, -2)  # WHITE_KING
+        score = _alphabeta(
+            b, depth=3, alpha=-1000, beta=1000,
+            maximizing=True, color=Color.BLACK, root_color=Color.BLACK,
+        )
+        assert abs(score + _CONTEMPT) < 1e-4
+
+    def test_repetition_returns_negative_contempt(self):
+        """When the path already visited the current hash, the
+        repetition branch returns the contempt-biased draw score."""
+        from draughts.game.ai import _zobrist_hash
+
+        b = Board(empty=True)
+        b.place_piece(0, 0, BLACK)
+        b.place_piece(3, 3, BLACK)
+        b.place_piece(4, 4, WHITE)
+        b.place_piece(7, 7, WHITE)
+        h = _zobrist_hash(b.grid, Color.BLACK)
+        score = _alphabeta(
+            b, depth=3, alpha=-1000, beta=1000,
+            maximizing=True, color=Color.BLACK, root_color=Color.BLACK,
+            path_hashes={h},
+        )
+        assert abs(score + _CONTEMPT) < 1e-4
 
 
 class TestEdgeCases:
