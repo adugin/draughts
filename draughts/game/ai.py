@@ -350,6 +350,55 @@ def _has_single_capture_only(grid: np.ndarray) -> bool:
     return True
 
 
+# ---------------------------------------------------------------------------
+# Endgame pattern detection
+# ---------------------------------------------------------------------------
+
+_KING_DISTANCE_WEIGHT = 0.4  # reward kings for approaching opponent pieces
+
+
+def _is_drawn_endgame(grid: np.ndarray) -> bool:
+    """Detect trivially drawn endgame positions."""
+    flat = grid.ravel().view(np.uint8)
+    counts = np.bincount(flat, minlength=256)
+    bp, bk, wp, wk = int(counts[1]), int(counts[2]), int(counts[255]), int(counts[254])
+    black_total = bp + bk
+    white_total = wp + wk
+    # King vs king (no pawns) — always a draw in Russian draughts
+    if bp == 0 and wp == 0 and bk >= 1 and wk >= 1:
+        return True
+    # Lone piece vs lone piece with no captures — likely draw
+    return black_total == 1 and white_total == 1 and bk == 1 and wk == 1
+
+
+def _king_distance_score(grid: np.ndarray) -> float:
+    """Score kings for proximity to opponent pieces. Closer = better.
+
+    Returns positive value if black kings are closer to white pieces,
+    negative if white kings are closer.
+    """
+    black_kings = np.argwhere(grid == BLACK_KING)  # (y, x) arrays
+    white_kings = np.argwhere(grid == WHITE_KING)
+    white_pieces = np.argwhere(grid < 0)
+    black_pieces = np.argwhere(grid > 0)
+
+    score = 0.0
+
+    # Black kings approaching white pieces
+    if len(black_kings) > 0 and len(white_pieces) > 0:
+        for ky, kx in black_kings:
+            min_dist = min(max(abs(kx - px), abs(ky - py)) for py, px in white_pieces)
+            score += (7.0 - min_dist) * 0.5  # closer = higher score
+
+    # White kings approaching black pieces
+    if len(white_kings) > 0 and len(black_pieces) > 0:
+        for ky, kx in white_kings:
+            min_dist = min(max(abs(kx - px), abs(ky - py)) for py, px in black_pieces)
+            score -= (7.0 - min_dist) * 0.5
+
+    return score
+
+
 # ===========================================================================
 # STATIC EVALUATION — vectorized position scoring
 # ===========================================================================
@@ -477,12 +526,16 @@ def _evaluate_fast(grid: np.ndarray, color: str | Color) -> float:
     if phase > 0.3:
         king_center = 0.0
         bk_mask = (grid_flat == 2.0)
-        wk_mask = (grid_flat == -2.0)  # 254 as float not needed, use original
+        wk_mask = (grid_flat == -2.0)
         if np.any(bk_mask):
             king_center += float(np.dot(bk_mask, _CENTER_FLAT)) * phase
         if np.any(wk_mask):
             king_center -= float(np.dot(wk_mask, _CENTER_FLAT)) * phase
         total += king_center * 0.3
+
+    # King distance to opponent — kings should approach enemy pieces in endgame
+    if phase > 0.3 and (black_kings > 0 or white_kings > 0):
+        total += _king_distance_score(grid) * _KING_DISTANCE_WEIGHT * phase
 
     return total if color == Color.BLACK else -total
 
@@ -562,9 +615,22 @@ def _order_moves(
                     cx += dx
                     cy += dy
         else:
-            (_x1, _y1), (x2, y2) = path
+            (x1, y1), (x2, y2) = path
+            piece = int(board.grid[y1, x1])
             promote_row = _BLACK_PROMOTE_ROW if color == Color.BLACK else _WHITE_PROMOTE_ROW
-            priority = 50.0 if y2 == promote_row else float(_CENTER_MASK[y2, x2]) * 10.0
+            if y2 == promote_row:
+                priority = 50.0
+            elif abs(piece) == 2:
+                # King move: prioritize approaching opponent pieces
+                opp_pieces = np.argwhere(board.grid < 0) if color == Color.BLACK else np.argwhere(board.grid > 0)
+                if len(opp_pieces) > 0:
+                    min_dist = min(max(abs(x2 - int(px)), abs(y2 - int(py))) for py, px in opp_pieces)
+                    priority = 30.0 + (7.0 - min_dist) * 3.0  # closer to enemy = higher priority
+                else:
+                    priority = float(_CENTER_MASK[y2, x2]) * 10.0
+                priority += float(_CENTER_MASK[y2, x2]) * 5.0  # center bonus
+            else:
+                priority = float(_CENTER_MASK[y2, x2]) * 10.0
         scored.append((priority, kind, path))
 
     scored.sort(key=lambda x: -x[0])
@@ -645,14 +711,20 @@ def _alphabeta(
     maximizing: bool,
     color: str | Color,
     root_color: str | Color,
+    path_hashes: set[int] | None = None,
 ) -> float:
-    """Alpha-beta pruning minimax with transposition table and quiescence."""
+    """Alpha-beta pruning minimax with TT, quiescence, LMR, and repetition detection."""
     # Quiescence search at leaf nodes
     if depth <= 0:
         return _quiescence(board, alpha, beta, maximizing, color, root_color)
 
     # Transposition table probe
     h = _zobrist_hash(board.grid, color)
+
+    # Repetition detection — draw score
+    if path_hashes is not None and h in path_hashes:
+        return 0.0
+
     tt_score, tt_best_idx = _tt_probe(h, depth, alpha, beta)
     if tt_score is not None:
         return tt_score
@@ -661,9 +733,12 @@ def _alphabeta(
     if not moves:
         return -1000.0 if maximizing else 1000.0
 
+    # Endgame pattern: king vs king only = draw
+    if _is_drawn_endgame(board.grid):
+        return 0.0
+
     # Move ordering: TT best move first, then killers, then heuristic
-    if depth >= 2:
-        moves = _order_moves(moves, board, color)
+    moves = _order_moves(moves, board, color)
 
     # Put TT best move first if available
     if 0 <= tt_best_idx < len(moves):
@@ -682,11 +757,22 @@ def _alphabeta(
     orig_alpha = alpha
     best_idx = 0
 
+    # Track position for repetition detection
+    child_hashes = path_hashes | {h} if path_hashes is not None else {h}
+
     if maximizing:
         value = -float("inf")
         for i, (kind, path) in enumerate(moves):
             child = _apply_move(board, kind, path)
-            child_val = _alphabeta(child, depth - 1, alpha, beta, False, opp, root_color)
+
+            # Late Move Reduction: after first 3 moves, reduce depth for non-captures
+            if i >= 3 and depth >= 3 and kind != "capture":
+                child_val = _alphabeta(child, depth - 2, alpha, beta, False, opp, root_color, child_hashes)
+                if child_val > alpha:
+                    child_val = _alphabeta(child, depth - 1, alpha, beta, False, opp, root_color, child_hashes)
+            else:
+                child_val = _alphabeta(child, depth - 1, alpha, beta, False, opp, root_color, child_hashes)
+
             if child_val > value:
                 value = child_val
                 best_idx = i
@@ -698,7 +784,15 @@ def _alphabeta(
         value = float("inf")
         for i, (kind, path) in enumerate(moves):
             child = _apply_move(board, kind, path)
-            child_val = _alphabeta(child, depth - 1, alpha, beta, True, opp, root_color)
+
+            # Late Move Reduction
+            if i >= 3 and depth >= 3 and kind != "capture":
+                child_val = _alphabeta(child, depth - 2, alpha, beta, True, opp, root_color, child_hashes)
+                if child_val < beta:
+                    child_val = _alphabeta(child, depth - 1, alpha, beta, True, opp, root_color, child_hashes)
+            else:
+                child_val = _alphabeta(child, depth - 1, alpha, beta, True, opp, root_color, child_hashes)
+
             if child_val < value:
                 value = child_val
                 best_idx = i
