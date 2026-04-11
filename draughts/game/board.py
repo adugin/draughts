@@ -228,7 +228,9 @@ class Board:
                 )
 
                 if promoted:
-                    results.append(new_path)
+                    # Russian draughts: promoted pawn MUST continue capturing as king
+                    king_piece = WHITE_KING if self.is_white(piece) else BLACK_KING
+                    self._find_king_captures(lx, ly, king_piece, new_path, new_captured, results)
                 else:
                     self._find_pawn_captures(lx, ly, piece, new_path, new_captured, results)
 

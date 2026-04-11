@@ -286,6 +286,30 @@ class TestPromotion:
             if final_y == 0:
                 assert b.piece_at(final_x, final_y) == WHITE_KING
 
+    def test_promotion_continues_as_king(self, empty_board):
+        """Russian draughts: pawn promotes during capture and continues as king.
+
+        Setup: White pawn at e6 (4,2), black at d7 (3,1) and b7 (1,1).
+        White captures d7, lands on c8 (2,0) = promotion row → becomes king.
+        King at c8 should continue: capture b7 (1,1), land on a6 (0,2).
+        Expected path: [(4,2), (2,0), (0,2)] — length 3.
+        """
+        b = Board(empty=True)
+        b.place_piece(4, 2, WHITE)  # e6
+        b.place_piece(3, 1, BLACK)  # d7 — first capture, lands on c8 (2,0) = promotion
+        b.place_piece(1, 1, BLACK)  # b7 — king continues capturing from (2,0)
+        captures = b.get_captures(4, 2)
+        has_long_capture = any(len(p) == 3 and p[-1] == (0, 2) for p in captures)
+        assert has_long_capture, f"Expected promotion+king continue, got: {captures}"
+
+    def test_promotion_capture_stops_if_no_more(self, empty_board):
+        """Promoted pawn stops if no further captures available as king."""
+        b = Board(empty=True)
+        b.place_piece(4, 2, WHITE)  # e6
+        b.place_piece(3, 1, BLACK)  # d7 — capture lands on c8 (2,0) = promotion
+        captures = b.get_captures(4, 2)
+        assert any(len(p) == 2 and p[-1] == (2, 0) for p in captures)
+
 
 class TestExecuteMove:
     def test_simple_move(self, empty_board):
