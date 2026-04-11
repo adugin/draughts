@@ -14,11 +14,12 @@ Usage:
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from draughts.config import Color
 from draughts.game.ai import AIEngine
-from draughts.game.headless import HeadlessGame
+from draughts.game.headless import HeadlessGame, MoveRecord
 
 
 @dataclass
@@ -108,12 +109,39 @@ class Tournament:
         config_b: AIConfig,
         games: int = 50,
         max_ply: int = 200,
+        move_timeout: float = 5.0,
+        game_timeout: float = 120.0,
+        quiet_move_limit: int = 40,
+        quiet_move_limit_endgame: int = 15,
+        tournament_timeout: float = 0.0,
+        heartbeat: Callable[[HeadlessGame, MoveRecord], None] | None = None,
         verbose: bool = False,
     ):
+        """Configure a tournament with hard termination guarantees.
+
+        Per-game limits (see HeadlessGame.play_full_game for semantics):
+            max_ply, move_timeout, game_timeout,
+            quiet_move_limit, quiet_move_limit_endgame.
+
+        Tournament-level:
+            tournament_timeout: wall-clock cap for the whole tournament,
+                in seconds. Checked between games. 0 = no cap. When it
+                fires, Tournament.run() stops scheduling new games and
+                returns the partial result; games already started run to
+                completion under their per-game limits.
+            heartbeat: forwarded to each game's play_full_game so an
+                outside watcher can see per-move progress.
+        """
         self.config_a = config_a
         self.config_b = config_b
         self.games = games
         self.max_ply = max_ply
+        self.move_timeout = move_timeout
+        self.game_timeout = game_timeout
+        self.quiet_move_limit = quiet_move_limit
+        self.quiet_move_limit_endgame = quiet_move_limit_endgame
+        self.tournament_timeout = tournament_timeout
+        self.heartbeat = heartbeat
         self.verbose = verbose
 
         if not config_a.label:
@@ -139,6 +167,13 @@ class Tournament:
         t_start = time.perf_counter()
 
         for i in range(self.games):
+            # Tournament-level wall clock: stop scheduling new games.
+            if self.tournament_timeout > 0 and (time.perf_counter() - t_start) >= self.tournament_timeout:
+                if self.verbose:
+                    print(f"  [tournament] wall-clock limit {self.tournament_timeout:.0f}s reached, stopping at game {i}/{self.games}")
+                result.total_games = i  # reflect games actually played
+                break
+
             # Alternate colors each game
             if i % 2 == 0:
                 black_config, white_config = self.config_a, self.config_b
@@ -154,7 +189,14 @@ class Tournament:
             )
 
             g_start = time.perf_counter()
-            game_result = game.play_full_game(max_ply=self.max_ply)
+            game_result = game.play_full_game(
+                max_ply=self.max_ply,
+                move_timeout=self.move_timeout,
+                game_timeout=self.game_timeout,
+                quiet_move_limit=self.quiet_move_limit,
+                quiet_move_limit_endgame=self.quiet_move_limit_endgame,
+                heartbeat=self.heartbeat,
+            )
             g_duration = time.perf_counter() - g_start
 
             record = GameRecord(
@@ -185,7 +227,7 @@ class Tournament:
                 print(
                     f"  Game {i + 1}/{self.games}: "
                     f"{black_config.label}(B) vs {white_config.label}(W) "
-                    f"→ {winner_label} ({game_result.reason}, {game_result.ply_count} plies, {g_duration:.1f}s)"
+                    f"-> {winner_label} ({game_result.reason}, {game_result.ply_count} plies, {g_duration:.1f}s)"
                 )
 
             if progress_callback:

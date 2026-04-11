@@ -12,6 +12,7 @@ Coordinates: 0-indexed (x=0..7, y=0..7)
 from __future__ import annotations
 
 import random
+import time
 
 import numpy as np
 
@@ -28,6 +29,23 @@ from draughts.game.board import Board
 
 # Last valid index (0-indexed board)
 _LAST = BOARD_SIZE - 1
+
+# ---------------------------------------------------------------------------
+# Cooperative search cancellation — deadline-based
+# ---------------------------------------------------------------------------
+# Module-level deadline checked inside _alphabeta. Callers set via
+# AIEngine.find_move(deadline=...) or _search_best_move(deadline=...).
+# When the deadline passes, _alphabeta raises SearchCancelledError, which
+# unwinds recursion; _search_best_move catches it and returns the best
+# move from the last fully completed iterative-deepening iteration.
+
+
+class SearchCancelledError(Exception):
+    """Raised inside alpha-beta when the search deadline passes."""
+    pass
+
+
+_search_deadline: float | None = None
 
 # ---------------------------------------------------------------------------
 # Zobrist hashing — deterministic random table for position hashing
@@ -714,6 +732,11 @@ def _alphabeta(
     path_hashes: set[int] | None = None,
 ) -> float:
     """Alpha-beta pruning minimax with TT, quiescence, LMR, and repetition detection."""
+    # Cooperative cancellation: check deadline at depths >= 2 (cheap enough,
+    # still bounds wall-clock within ~few ms of any sub-tree at depth 2+).
+    if depth >= 2 and _search_deadline is not None and time.perf_counter() >= _search_deadline:
+        raise SearchCancelledError()
+
     # Quiescence search at leaf nodes
     if depth <= 0:
         return _quiescence(board, alpha, beta, maximizing, color, root_color)
@@ -813,8 +836,20 @@ def _alphabeta(
     return value
 
 
-def _search_best_move(board: Board, color: str | Color, max_depth: int) -> AIMove | None:
-    """Iterative deepening search with alpha-beta minimax."""
+def _search_best_move(
+    board: Board,
+    color: str | Color,
+    max_depth: int,
+    deadline: float | None = None,
+) -> AIMove | None:
+    """Iterative deepening search with alpha-beta minimax.
+
+    If deadline (monotonic perf_counter seconds) is set and elapses mid-search,
+    returns the best move from the last fully completed depth iteration.
+    A depth-1 sweep is always attempted first to guarantee a legal move.
+    """
+    global _search_deadline
+
     moves = _generate_all_moves(board, color)
     if not moves:
         return None
@@ -823,41 +858,52 @@ def _search_best_move(board: Board, color: str | Color, max_depth: int) -> AIMov
 
     opp = _opponent(color)
     best_kind, best_path = moves[0]
+    # Snapshot of the last fully completed depth's best-move set.
+    last_complete_best: list[tuple[str, list[tuple[int, int]]]] = [moves[0]]
 
-    # Iterative deepening: search at increasing depths
-    for depth in range(1, max_depth + 1):
-        moves = _order_moves(moves, board, color)
+    prev_deadline = _search_deadline
+    _search_deadline = deadline
+    try:
+        # Iterative deepening: search at increasing depths
+        for depth in range(1, max_depth + 1):
+            moves = _order_moves(moves, board, color)
 
-        # Put previous best move first
-        for i, (k, p) in enumerate(moves):
-            if k == best_kind and p == best_path:
-                if i > 0:
-                    moves.insert(0, moves.pop(i))
+            # Put previous best move first
+            for i, (k, p) in enumerate(moves):
+                if k == best_kind and p == best_path:
+                    if i > 0:
+                        moves.insert(0, moves.pop(i))
+                    break
+
+            best_score = -float("inf")
+            best_moves_at_depth: list[tuple[str, list[tuple[int, int]]]] = []
+            alpha = -float("inf")
+            beta = float("inf")
+
+            try:
+                for kind, path in moves:
+                    child = _apply_move(board, kind, path)
+                    score = _alphabeta(child, depth - 1, alpha, beta, False, opp, color)
+
+                    if score > best_score:
+                        best_score = score
+                        best_moves_at_depth = [(kind, path)]
+                        alpha = max(alpha, score)
+                    elif score == best_score:
+                        best_moves_at_depth.append((kind, path))
+            except SearchCancelledError:
+                # Discard this partial depth; keep last fully completed result.
                 break
 
-        best_score = -float("inf")
-        best_moves_at_depth: list[tuple[str, list[tuple[int, int]]]] = []
-        alpha = -float("inf")
-        beta = float("inf")
+            if best_moves_at_depth:
+                best_kind, best_path = best_moves_at_depth[0]
+                last_complete_best = best_moves_at_depth[:]
+    finally:
+        _search_deadline = prev_deadline
 
-        for kind, path in moves:
-            child = _apply_move(board, kind, path)
-            score = _alphabeta(child, depth - 1, alpha, beta, False, opp, color)
-
-            if score > best_score:
-                best_score = score
-                best_moves_at_depth = [(kind, path)]
-                alpha = max(alpha, score)
-            elif score == best_score:
-                best_moves_at_depth.append((kind, path))
-
-        if best_moves_at_depth:
-            best_kind, best_path = best_moves_at_depth[0]
-
-    # Final selection: among equally-scored moves, pick randomly
-    if not best_moves_at_depth:
-        return None
-    kind, path = random.choice(best_moves_at_depth)
+    # Final selection: among equally-scored moves from the last completed
+    # depth, pick randomly. last_complete_best always has at least moves[0].
+    kind, path = random.choice(last_complete_best)
     return AIMove(kind, path)
 
 
@@ -881,8 +927,17 @@ class AIEngine:
         self.color = color
         self.search_depth = search_depth  # 0 = auto (derived from difficulty)
 
-    def find_move(self, board: Board) -> AIMove | None:
-        """Find the best move for the current board state."""
+    def find_move(self, board: Board, deadline: float | None = None) -> AIMove | None:
+        """Find the best move for the current board state.
+
+        Args:
+            board: Position to search.
+            deadline: Optional absolute monotonic time (time.perf_counter seconds).
+                If set and elapsed during search, returns best move from the
+                last fully completed iterative-deepening depth. A depth-1
+                sweep is always attempted, so a legal move is always returned
+                if any exists.
+        """
         depth = self.search_depth if self.search_depth > 0 else _DIFFICULTY_DEPTH.get(self.difficulty, 5)
 
         piece_count = board.count_pieces(Color.BLACK) + board.count_pieces(Color.WHITE)
@@ -891,7 +946,7 @@ class AIEngine:
         elif piece_count <= 6 and depth < 8:
             depth = min(depth + 2, 10)
 
-        return _search_best_move(board, self.color, depth)
+        return _search_best_move(board, self.color, depth, deadline=deadline)
 
 
 # ===========================================================================

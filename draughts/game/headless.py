@@ -6,6 +6,8 @@ and testing AI behavior without PyQt6 event loop.
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from draughts.config import Color
@@ -37,7 +39,9 @@ class GameResult:
     """Result of a completed game."""
 
     winner: Color | None  # None = draw
-    reason: str  # "no_pieces", "no_moves", "draw_repetition", "draw_max_ply"
+    # Possible values: "no_pieces", "no_moves", "draw_repetition",
+    # "draw_max_ply", "draw_quiet", "timeout_game"
+    reason: str
     ply_count: int
     moves: list[MoveRecord]
     final_position: str
@@ -101,6 +105,12 @@ class HeadlessGame:
         self._moves: list[MoveRecord] = []
         self._position_history: list[str] = [self._board.to_position_string()]
         self._position_counts: dict[str, int] = {self._board.to_position_string(): 1}
+        # Quiet half-moves counter (reset on any capture). Used by
+        # play_full_game to detect sterile endgames (draughts' analogue
+        # of the chess 50-move rule).
+        self._quiet_plies: int = 0
+        # Wall-clock of the most recent AI move. Useful for heartbeat logs.
+        self._last_move_time_s: float = 0.0
 
         # AI engines
         self._engines: dict[Color, AIEngine | None] = {
@@ -140,10 +150,22 @@ class HeadlessGame:
 
     # --- Core game actions ---
 
-    def make_ai_move(self) -> MoveRecord | None:
+    def make_ai_move(self, move_timeout: float = 0.0) -> MoveRecord | None:
         """Let AI make a move for the current side.
 
-        Returns MoveRecord or None if game is over / no engine.
+        Args:
+            move_timeout: Max wall-clock seconds the AI may spend on this
+                move. 0 = no limit. Enforced via cooperative cancellation
+                inside alpha-beta — the search gracefully returns the best
+                move from the last fully completed iterative-deepening
+                depth (never a partial-depth result, never None if a legal
+                move exists). Unlike a thread-based timeout, no search
+                ever keeps running after this call returns.
+
+        Sets self._last_move_time_s to the wall-clock elapsed for the
+        search. Returns MoveRecord, or None if the game is over, the side
+        has no engine, or the side has no legal moves (in which case the
+        game ends with reason "no_moves").
         """
         if self._is_over:
             return None
@@ -153,7 +175,11 @@ class HeadlessGame:
             engine = AIEngine(difficulty=2, color=self._turn)
 
         eval_before = evaluate_position(self._board.grid, self._turn)
-        move = engine.find_move(self._board.copy())
+
+        deadline = time.perf_counter() + move_timeout if move_timeout > 0 else None
+        t0 = time.perf_counter()
+        move = engine.find_move(self._board.copy(), deadline=deadline)
+        self._last_move_time_s = time.perf_counter() - t0
 
         if move is None:
             self._end_game(self._turn.opponent, "no_moves")
@@ -240,15 +266,89 @@ class HeadlessGame:
         """Execute one AI move for current side. Alias for make_ai_move."""
         return self.make_ai_move()
 
-    def play_full_game(self, max_ply: int = 200) -> GameResult:
-        """Play complete AI vs AI game.
+    def play_full_game(
+        self,
+        max_ply: int = 200,
+        move_timeout: float = 0.0,
+        game_timeout: float = 0.0,
+        quiet_move_limit: int = 0,
+        quiet_move_limit_endgame: int = 0,
+        endgame_piece_threshold: int = 6,
+        heartbeat: Callable[[HeadlessGame, MoveRecord], None] | None = None,
+    ) -> GameResult:
+        """Play a complete AI vs AI game with hard termination guarantees.
 
-        Returns GameResult when game ends.
+        Every limit below, when non-zero, is an independent hard cap. The
+        first one hit wins. This is intended for dev-mode automation where
+        the caller must keep control and never hang.
+
+        Args:
+            max_ply: Maximum half-moves before declaring a draw (reason
+                "draw_max_ply"). 0 = no cap (not recommended for dev).
+            move_timeout: Max seconds per AI move. Enforced cooperatively
+                inside the search; the engine returns the best move from
+                the last fully completed depth instead of running over.
+                0 = no per-move cap.
+            game_timeout: Max wall-clock seconds for the whole game.
+                Checked before each move. On hit, ends with reason
+                "timeout_game". 0 = no cap.
+            quiet_move_limit: After this many consecutive half-moves
+                without a capture in the middlegame (more than
+                endgame_piece_threshold pieces on the board), declare a
+                draw with reason "draw_quiet". 0 = disabled. Reasonable
+                default: 40.
+            quiet_move_limit_endgame: Same as above but applied whenever
+                total piece count <= endgame_piece_threshold. Kept shorter
+                so king-vs-king shuffling terminates fast. 0 = disabled.
+                Reasonable default: 15.
+            endgame_piece_threshold: Piece count at or below which the
+                endgame quiet limit kicks in. Default 6.
+            heartbeat: Optional callback invoked after every successful
+                move with (self, record). Used by the dev CLI to append
+                per-move lines to a log file so an outside watcher can
+                tell a stuck process from a slow one.
+
+        Returns GameResult. Possible reasons:
+            - "no_pieces": one side lost all pieces
+            - "no_moves": one side has no legal moves
+            - "draw_repetition": 3-fold position repetition
+            - "draw_max_ply": reached max_ply limit
+            - "draw_quiet": quiet-move (no-capture) limit reached
+            - "timeout_game": game_timeout elapsed
         """
-        while not self._is_over and self._ply < max_ply:
-            result = self.make_ai_move()
-            if result is None and not self._is_over:
-                self._end_game(self._turn.opponent, "no_moves")
+        t_game_start = time.perf_counter()
+        while not self._is_over:
+            if max_ply > 0 and self._ply >= max_ply:
+                break
+            if game_timeout > 0 and (time.perf_counter() - t_game_start) >= game_timeout:
+                self._end_game(None, "timeout_game")
+                break
+
+            record = self.make_ai_move(move_timeout=move_timeout)
+            if record is None:
+                # make_ai_move already called _end_game for no-moves cases;
+                # if it did not, force-end defensively so we cannot spin.
+                if not self._is_over:
+                    self._end_game(self._turn.opponent, "no_moves")
+                break
+
+            if heartbeat is not None:
+                try:
+                    heartbeat(self, record)
+                except Exception:
+                    # A broken heartbeat must never take the game down.
+                    pass
+
+            # Sterile-endgame detection — the draughts analogue of the
+            # chess 50-move rule. Two different thresholds: a loose one
+            # for the middlegame, a tight one for the endgame where kings
+            # cycling through distinct (non-repeating) positions would
+            # otherwise never trigger the 3-fold rule.
+            piece_count = self._board.count_pieces(Color.BLACK) + self._board.count_pieces(Color.WHITE)
+            is_endgame = piece_count <= endgame_piece_threshold
+            limit = quiet_move_limit_endgame if is_endgame else quiet_move_limit
+            if limit > 0 and self._quiet_plies >= limit:
+                self._end_game(None, "draw_quiet")
                 break
 
         if not self._is_over:
@@ -390,6 +490,16 @@ class HeadlessGame:
         )
         self._moves.append(record)
         self._ply += 1
+
+        # Quiet-move counter: reset to zero on any capture, otherwise
+        # increment. A promotion-only move (no capture) still counts as
+        # quiet; that is fine because promotions change material count
+        # and will unblock the 3-fold/repetition check via distinct
+        # positions. The counter exists to catch sterile king-dances.
+        if kind == "capture":
+            self._quiet_plies = 0
+        else:
+            self._quiet_plies += 1
 
         pos = self._board.to_position_string()
         self._position_history.append(pos)

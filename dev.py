@@ -22,27 +22,60 @@ from draughts.config import Color
 from draughts.game.board import Board
 
 
+def _open_heartbeat(path: str | None):
+    """Return (heartbeat_fn, close_fn) for the given optional path."""
+    if not path:
+        return None, lambda: None
+    fh = open(path, "a", buffering=1, encoding="utf-8")  # noqa: SIM115 — long-lived handle returned via close_fn
+    fh.write(f"# heartbeat open {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+    def _hb(game, record):
+        fh.write(
+            f"ply={record.ply} color={record.color.name} "
+            f"{record.kind}:{record.notation} "
+            f"eval={record.eval_after:+.2f} "
+            f"tmove={game._last_move_time_s:.2f}s "
+            f"quiet={game._quiet_plies}\n"
+        )
+
+    return _hb, fh.close
+
+
 def cmd_play_game(args):
     """Play AI vs AI games and report statistics."""
     from draughts.game.headless import HeadlessGame
 
     wins = {Color.BLACK: 0, Color.WHITE: 0, None: 0}
+    reasons: dict[str, int] = {}
     total_ply = 0
     total_time = 0.0
 
-    for i in range(args.games):
-        t0 = time.perf_counter()
-        game = HeadlessGame(difficulty=args.difficulty, depth=args.depth)
-        result = game.play_full_game(max_ply=args.max_ply)
-        dt = time.perf_counter() - t0
+    heartbeat, close_hb = _open_heartbeat(args.heartbeat)
 
-        wins[result.winner] += 1
-        total_ply += result.ply_count
-        total_time += dt
+    try:
+        for i in range(args.games):
+            t0 = time.perf_counter()
+            game = HeadlessGame(difficulty=args.difficulty, depth=args.depth)
+            result = game.play_full_game(
+                max_ply=args.max_ply,
+                move_timeout=args.move_timeout,
+                game_timeout=args.game_timeout,
+                quiet_move_limit=args.quiet_limit,
+                quiet_move_limit_endgame=args.quiet_limit_endgame,
+                heartbeat=heartbeat,
+            )
+            dt = time.perf_counter() - t0
 
-        if args.verbose:
-            winner_str = "draw" if result.winner is None else result.winner.name
-            print(f"  Game {i + 1}/{args.games}: {winner_str} ({result.reason}, {result.ply_count} plies, {dt:.1f}s)")
+            wins[result.winner] += 1
+            reasons[result.reason] = reasons.get(result.reason, 0) + 1
+            total_ply += result.ply_count
+            total_time += dt
+
+            if args.verbose:
+                winner_str = "draw" if result.winner is None else result.winner.name
+                print(f"  Game {i + 1}/{args.games}: {winner_str} ({result.reason}, {result.ply_count} plies, {dt:.1f}s)")
+    finally:
+        close_hb()
 
     print(f"\n{'=' * 50}")
     print(f"  AI vs AI — {args.games} games")
@@ -53,6 +86,9 @@ def cmd_play_game(args):
     print(f"  Draws:      {wins[None]} ({wins[None] / args.games:.0%})")
     print(f"  Avg length: {total_ply / args.games:.1f} plies")
     print(f"  Total time: {total_time:.1f}s ({total_time / args.games:.1f}s/game)")
+    if reasons:
+        breakdown = ", ".join(f"{k}={v}" for k, v in sorted(reasons.items()))
+        print(f"  Reasons:    {breakdown}")
 
 
 def cmd_analyze(args):
@@ -115,18 +151,44 @@ def cmd_tournament(args):
     config_b = AIConfig(difficulty=args.diff_b, depth=args.depth_b, label=args.label_b or f"B(d{args.diff_b})")
 
     print(f"\n  Tournament: {config_a.label} vs {config_b.label}")
-    print(f"  Games: {args.games}, Max ply: {args.max_ply}")
+    print(
+        f"  Games: {args.games}, max_ply: {args.max_ply}, "
+        f"move_timeout: {args.move_timeout}s, game_timeout: {args.game_timeout}s, "
+        f"quiet: {args.quiet_limit}/{args.quiet_limit_endgame}"
+    )
+    if args.tournament_timeout:
+        print(f"  Tournament wall-clock limit: {args.tournament_timeout}s")
     print()
 
-    t = Tournament(
-        config_a=config_a,
-        config_b=config_b,
-        games=args.games,
-        max_ply=args.max_ply,
-        verbose=args.verbose,
-    )
-    result = t.run()
+    heartbeat, close_hb = _open_heartbeat(args.heartbeat)
+
+    try:
+        t = Tournament(
+            config_a=config_a,
+            config_b=config_b,
+            games=args.games,
+            max_ply=args.max_ply,
+            move_timeout=args.move_timeout,
+            game_timeout=args.game_timeout,
+            quiet_move_limit=args.quiet_limit,
+            quiet_move_limit_endgame=args.quiet_limit_endgame,
+            tournament_timeout=args.tournament_timeout,
+            heartbeat=heartbeat,
+            verbose=args.verbose,
+        )
+        result = t.run()
+    finally:
+        close_hb()
+
     print(f"\n{result.summary()}")
+
+    # Termination breakdown
+    reasons: dict[str, int] = {}
+    for g in result.games:
+        reasons[g.reason] = reasons.get(g.reason, 0) + 1
+    if reasons:
+        breakdown = ", ".join(f"{k}={v}" for k, v in sorted(reasons.items()))
+        print(f"  Reasons: {breakdown}")
 
 
 def cmd_replay(args):
@@ -429,6 +491,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--difficulty", "-d", type=int, default=2, help="AI difficulty 1-3 (default: 2)")
     p.add_argument("--depth", type=int, default=0, help="Search depth (0=auto)")
     p.add_argument("--max-ply", type=int, default=200, help="Max plies per game (default: 200)")
+    p.add_argument("--move-timeout", type=float, default=5.0, help="Max seconds per AI move (default: 5, 0=off)")
+    p.add_argument("--game-timeout", type=float, default=120.0, help="Max seconds per game wall-clock (default: 120, 0=off)")
+    p.add_argument("--quiet-limit", type=int, default=40, help="Draw after N half-moves without capture in middlegame (default: 40, 0=off)")
+    p.add_argument("--quiet-limit-endgame", type=int, default=15, help="Same but when <=6 pieces left (default: 15, 0=off)")
+    p.add_argument("--heartbeat", default=None, help="Append per-move heartbeat log to this file")
     p.add_argument("--verbose", "-v", action="store_true")
 
     # --- analyze ---
@@ -453,6 +520,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--label-a", default="", help="Label for A")
     p.add_argument("--label-b", default="", help="Label for B")
     p.add_argument("--max-ply", type=int, default=200, help="Max plies per game")
+    p.add_argument("--move-timeout", type=float, default=5.0, help="Max seconds per AI move (default: 5, 0=off)")
+    p.add_argument("--game-timeout", type=float, default=120.0, help="Max seconds per game wall-clock (default: 120, 0=off)")
+    p.add_argument("--quiet-limit", type=int, default=40, help="Middlegame quiet-move limit (default: 40, 0=off)")
+    p.add_argument("--quiet-limit-endgame", type=int, default=15, help="Endgame quiet-move limit (default: 15, 0=off)")
+    p.add_argument("--tournament-timeout", type=float, default=0.0, help="Overall tournament wall-clock limit in seconds (0=off)")
+    p.add_argument("--heartbeat", default=None, help="Append per-move heartbeat log to this file")
     p.add_argument("--verbose", "-v", action="store_true")
 
     # --- replay ---
