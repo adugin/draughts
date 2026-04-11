@@ -29,6 +29,92 @@ from draughts.game.board import Board
 # Last valid index (0-indexed board)
 _LAST = BOARD_SIZE - 1
 
+# ---------------------------------------------------------------------------
+# Zobrist hashing — deterministic random table for position hashing
+# ---------------------------------------------------------------------------
+
+_RNG = np.random.RandomState(0xDEAD_BEEF)
+# 5 piece types: EMPTY(0), BLACK(1), BLACK_KING(2), WHITE(-1→3), WHITE_KING(-2→4)
+_ZOBRIST = _RNG.randint(1, 2**63, size=(BOARD_SIZE, BOARD_SIZE, 5), dtype=np.int64)
+_ZOBRIST_SIDE = int(_RNG.randint(1, 2**63, dtype=np.int64))  # XOR when black to move
+
+# Piece value → Zobrist index mapping
+_PIECE_TO_ZI = {0: 0, 1: 1, 2: 2, -1: 3, -2: 4}
+
+
+def _zobrist_hash(grid: np.ndarray, color: Color) -> int:
+    """Compute Zobrist hash for a board position."""
+    h = np.int64(0)
+    for y, x in zip(*np.nonzero(grid), strict=True):
+        h ^= _ZOBRIST[y, x, _PIECE_TO_ZI[int(grid[y, x])]]
+    h = int(h)
+    if color == Color.BLACK:
+        h ^= _ZOBRIST_SIDE
+    return h
+
+
+# ---------------------------------------------------------------------------
+# Transposition table
+# ---------------------------------------------------------------------------
+
+_TT_EXACT = 0
+_TT_LOWER = 1  # score >= beta (fail-high)
+_TT_UPPER = 2  # score <= alpha (fail-low)
+
+# Entry: (depth, score, flag, best_move_index)
+_tt: dict[int, tuple[int, float, int, int]] = {}
+_TT_MAX = 500_000
+
+
+def _tt_clear() -> None:
+    _tt.clear()
+
+
+def _tt_probe(h: int, depth: int, alpha: float, beta: float) -> tuple[float | None, int]:
+    """Probe TT. Returns (score_or_None, best_move_index)."""
+    entry = _tt.get(h)
+    if entry is None:
+        return None, -1
+    tt_depth, tt_score, tt_flag, tt_best = entry
+    if tt_depth >= depth:
+        if tt_flag == _TT_EXACT:
+            return tt_score, tt_best
+        if tt_flag == _TT_LOWER and tt_score >= beta:
+            return tt_score, tt_best
+        if tt_flag == _TT_UPPER and tt_score <= alpha:
+            return tt_score, tt_best
+    return None, tt_best  # no score but best move hint
+
+
+def _tt_store(h: int, depth: int, score: float, flag: int, best_idx: int) -> None:
+    old = _tt.get(h)
+    if old is None or old[0] <= depth:
+        _tt[h] = (depth, score, flag, best_idx)
+    if len(_tt) > _TT_MAX:
+        _tt.clear()
+
+
+# ---------------------------------------------------------------------------
+# Killer moves — per-depth move tracking for better ordering
+# ---------------------------------------------------------------------------
+
+_killers: dict[int, list[tuple[str, tuple]]] = {}
+
+
+def _killers_clear() -> None:
+    _killers.clear()
+
+
+def _record_killer(depth: int, kind: str, path: list) -> None:
+    key = (kind, tuple(path))
+    slot = _killers.get(depth)
+    if slot is None:
+        _killers[depth] = [key]
+    elif key not in slot:
+        slot.insert(0, key)
+        if len(slot) > 2:
+            slot.pop()
+
 # Precomputed advancement tables (0-indexed, 8x8)
 # Black pawns advance by increasing y; white by decreasing y
 _BLACK_ADVANCE = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=np.float32)
@@ -53,6 +139,11 @@ for _y in range(BOARD_SIZE):
     for _x in range(BOARD_SIZE):
         dist = max(abs(_x - 3.5), abs(_y - 3.5))
         _CENTER_MASK[_y, _x] = max(0, (3.5 - dist) / 3.5)
+
+# Pre-flattened tables for dot-product evaluation (avoid temp array allocation)
+_BLACK_ADVANCE_FLAT = _BLACK_ADVANCE.ravel().astype(np.float32)
+_WHITE_ADVANCE_FLAT = _WHITE_ADVANCE.ravel().astype(np.float32)
+_CENTER_FLAT = _CENTER_MASK.ravel().astype(np.float32)
 
 # Promotion rows (0-indexed)
 _WHITE_PROMOTE_ROW = 0
@@ -315,32 +406,41 @@ def evaluate_position(grid: np.ndarray, color: str | Color) -> float:
 
 
 def _evaluate_fast(grid: np.ndarray, color: str | Color) -> float:
-    """Ultra-fast evaluation — material + advancement + center."""
-    has_black = bool(np.any(grid > 0))
-    has_white = bool(np.any(grid < 0))
+    """Ultra-fast evaluation — material + advancement + center + structure."""
+    # Piece counts via bincount (one call instead of four)
+    flat = grid.ravel().view(np.uint8)  # int8 → uint8 view (no copy): -2→254,-1→255,0→0,1→1,2→2
+    counts = np.bincount(flat, minlength=256)
+    black_pawns = int(counts[1])
+    black_kings = int(counts[2])
+    white_pawns = int(counts[255])  # -1 as uint8
+    white_kings = int(counts[254])  # -2 as uint8
 
-    if not has_black:
+    black_total = black_pawns + black_kings
+    white_total = white_pawns + white_kings
+    if black_total == 0:
         return -1000.0 if color == Color.BLACK else 1000.0
-    if not has_white:
+    if white_total == 0:
         return 1000.0 if color == Color.BLACK else -1000.0
 
-    total = 0.0
-
-    black_pawns = int(np.count_nonzero(grid == 1))
-    black_kings = int(np.count_nonzero(grid == 2))
-    white_pawns = int(np.count_nonzero(grid == -1))
-    white_kings = int(np.count_nonzero(grid == -2))
-
-    material = (black_pawns * _PAWN_VALUE + black_kings * _KING_VALUE) - (
+    # Material
+    total = (black_pawns * _PAWN_VALUE + black_kings * _KING_VALUE) - (
         white_pawns * _PAWN_VALUE + white_kings * _KING_VALUE
     )
-    total += material
 
-    total += float(np.sum(np.where(grid == 1, _BLACK_ADVANCE, 0.0))) * _ADVANCE_BONUS
-    total -= float(np.sum(np.where(grid == -1, _WHITE_ADVANCE, 0.0))) * _ADVANCE_BONUS
+    # Advancement — dot product (no temp array allocation)
+    grid_flat = grid.ravel().astype(np.float32)
+    bp_mask = (grid_flat == 1.0)
+    wp_mask = (grid_flat == -1.0)
+    total += (np.dot(bp_mask, _BLACK_ADVANCE_FLAT) - np.dot(wp_mask, _WHITE_ADVANCE_FLAT)) * _ADVANCE_BONUS
 
-    total += float(np.sum(np.where(grid > 0, _CENTER_MASK, 0.0))) * _CENTER_BONUS
-    total -= float(np.sum(np.where(grid < 0, _CENTER_MASK, 0.0))) * _CENTER_BONUS
+    # Center control
+    black_mask = (grid_flat > 0)
+    white_mask = (grid_flat < 0)
+    total += (np.dot(black_mask, _CENTER_FLAT) - np.dot(white_mask, _CENTER_FLAT)) * _CENTER_BONUS
+
+    # Back rank defense (pieces on home row block opponent promotion)
+    total += int(counts[1] and np.any(grid[_LAST] < 0)) * _SAFETY_BONUS  # white back rank guarded
+    total -= int(counts[255] and np.any(grid[0] > 0)) * _SAFETY_BONUS  # black back rank guarded
 
     return total if color == Color.BLACK else -total
 
@@ -430,7 +530,68 @@ def _order_moves(
 
 
 # ===========================================================================
-# ALPHA-BETA MINIMAX
+# QUIESCENCE SEARCH — resolve captures beyond depth limit
+# ===========================================================================
+
+_MAX_QDEPTH = 6
+
+
+def _quiescence(
+    board: Board,
+    alpha: float,
+    beta: float,
+    maximizing: bool,
+    color: str | Color,
+    root_color: str | Color,
+    qdepth: int = 0,
+) -> float:
+    """Search only captures to avoid horizon effect."""
+    stand_pat = _evaluate_fast(board.grid, root_color)
+
+    if maximizing:
+        if stand_pat >= beta:
+            return beta
+        if stand_pat > alpha:
+            alpha = stand_pat
+    else:
+        if stand_pat <= alpha:
+            return alpha
+        if stand_pat < beta:
+            beta = stand_pat
+
+    if qdepth >= _MAX_QDEPTH:
+        return stand_pat
+
+    # Generate only captures
+    moves = _generate_all_moves(board, color)
+    captures = [(k, p) for k, p in moves if k == "capture"]
+    if not captures:
+        return stand_pat
+
+    opp = _opponent(color)
+
+    if maximizing:
+        for kind, path in captures:
+            child = _apply_move(board, kind, path)
+            score = _quiescence(child, alpha, beta, False, opp, root_color, qdepth + 1)
+            if score > alpha:
+                alpha = score
+            if alpha >= beta:
+                break
+        return alpha
+    else:
+        for kind, path in captures:
+            child = _apply_move(board, kind, path)
+            score = _quiescence(child, alpha, beta, True, opp, root_color, qdepth + 1)
+            if score < beta:
+                beta = score
+            if alpha >= beta:
+                break
+        return beta
+
+
+# ===========================================================================
+# ALPHA-BETA MINIMAX with TT + killer moves + quiescence
 # ===========================================================================
 
 
@@ -443,76 +604,124 @@ def _alphabeta(
     color: str | Color,
     root_color: str | Color,
 ) -> float:
-    """Alpha-beta pruning minimax search."""
+    """Alpha-beta pruning minimax with transposition table and quiescence."""
+    # Quiescence search at leaf nodes
     if depth <= 0:
-        return _evaluate_fast(board.grid, root_color)
+        return _quiescence(board, alpha, beta, maximizing, color, root_color)
+
+    # Transposition table probe
+    h = _zobrist_hash(board.grid, color)
+    tt_score, tt_best_idx = _tt_probe(h, depth, alpha, beta)
+    if tt_score is not None:
+        return tt_score
 
     moves = _generate_all_moves(board, color)
-
     if not moves:
         return -1000.0 if maximizing else 1000.0
 
+    # Move ordering: TT best move first, then killers, then heuristic
     if depth >= 2:
         moves = _order_moves(moves, board, color)
 
+    # Put TT best move first if available
+    if 0 <= tt_best_idx < len(moves):
+        best = moves.pop(tt_best_idx)
+        moves.insert(0, best)
+
+    # Promote killer moves
+    killers = _killers.get(depth)
+    if killers:
+        for ki in range(len(moves) - 1, 0, -1):
+            k, p = moves[ki]
+            if (k, tuple(p)) in killers:
+                moves.insert(1, moves.pop(ki))
+
     opp = _opponent(color)
+    orig_alpha = alpha
+    best_idx = 0
 
     if maximizing:
         value = -float("inf")
-        for kind, path in moves:
+        for i, (kind, path) in enumerate(moves):
             child = _apply_move(board, kind, path)
             child_val = _alphabeta(child, depth - 1, alpha, beta, False, opp, root_color)
-            value = max(value, child_val)
+            if child_val > value:
+                value = child_val
+                best_idx = i
             alpha = max(alpha, value)
             if alpha >= beta:
+                _record_killer(depth, kind, path)
                 break
-        return value
     else:
         value = float("inf")
-        for kind, path in moves:
+        for i, (kind, path) in enumerate(moves):
             child = _apply_move(board, kind, path)
             child_val = _alphabeta(child, depth - 1, alpha, beta, True, opp, root_color)
-            value = min(value, child_val)
+            if child_val < value:
+                value = child_val
+                best_idx = i
             beta = min(beta, value)
             if alpha >= beta:
+                _record_killer(depth, kind, path)
                 break
-        return value
+
+    # Store in transposition table
+    if value <= orig_alpha:
+        flag = _TT_UPPER
+    elif value >= beta:
+        flag = _TT_LOWER
+    else:
+        flag = _TT_EXACT
+    _tt_store(h, depth, value, flag, best_idx)
+
+    return value
 
 
-def _search_best_move(board: Board, color: str | Color, depth: int) -> AIMove | None:
-    """Search for the best move using alpha-beta minimax."""
+def _search_best_move(board: Board, color: str | Color, max_depth: int) -> AIMove | None:
+    """Iterative deepening search with alpha-beta minimax."""
     moves = _generate_all_moves(board, color)
     if not moves:
         return None
 
-    moves = _order_moves(moves, board, color)
+    _killers_clear()
 
     opp = _opponent(color)
-    best_score = -float("inf")
-    best_moves: list[tuple[str, list[tuple[int, int]]]] = []
+    best_kind, best_path = moves[0]
 
-    alpha = -float("inf")
-    beta = float("inf")
+    # Iterative deepening: search at increasing depths
+    for depth in range(1, max_depth + 1):
+        moves = _order_moves(moves, board, color)
 
-    for kind, path in moves:
-        child = _apply_move(board, kind, path)
-        score = _alphabeta(child, depth - 1, alpha, beta, False, opp, color)
+        # Put previous best move first
+        for i, (k, p) in enumerate(moves):
+            if k == best_kind and p == best_path:
+                if i > 0:
+                    moves.insert(0, moves.pop(i))
+                break
 
-        if kind != "capture":
-            opp_moves = _generate_all_moves(child, opp)
-            if any(k == "capture" for k, _ in opp_moves):
-                score -= _PAWN_VALUE * 0.5
+        best_score = -float("inf")
+        best_moves_at_depth: list[tuple[str, list[tuple[int, int]]]] = []
+        alpha = -float("inf")
+        beta = float("inf")
 
-        if score > best_score:
-            best_score = score
-            best_moves = [(kind, path)]
-            alpha = max(alpha, score)
-        elif score == best_score:
-            best_moves.append((kind, path))
+        for kind, path in moves:
+            child = _apply_move(board, kind, path)
+            score = _alphabeta(child, depth - 1, alpha, beta, False, opp, color)
 
-    if not best_moves:
+            if score > best_score:
+                best_score = score
+                best_moves_at_depth = [(kind, path)]
+                alpha = max(alpha, score)
+            elif score == best_score:
+                best_moves_at_depth.append((kind, path))
+
+        if best_moves_at_depth:
+            best_kind, best_path = best_moves_at_depth[0]
+
+    # Final selection: among equally-scored moves, pick randomly
+    if not best_moves_at_depth:
         return None
-    kind, path = random.choice(best_moves)
+    kind, path = random.choice(best_moves_at_depth)
     return AIMove(kind, path)
 
 

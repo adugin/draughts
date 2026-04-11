@@ -30,7 +30,7 @@ class TestCaptures:
         b = Board(empty=True)
         b.place_piece(1, 4, BLACK)
         b.place_piece(2, 5, WHITE)
-        move = _search_best_move(b, Color.BLACK, depth=1)
+        move = _search_best_move(b, Color.BLACK, 1)
         assert move is not None
         assert move.kind == "capture"
         assert move.path[0] == (1, 4)
@@ -40,7 +40,7 @@ class TestCaptures:
         b = Board(empty=True)
         b.place_piece(0, 1, BLACK)
         b.place_piece(7, 6, WHITE)
-        move = _search_best_move(b, Color.BLACK, depth=1)
+        move = _search_best_move(b, Color.BLACK, 1)
         assert move is not None
         assert move.kind == "move"
 
@@ -48,7 +48,7 @@ class TestCaptures:
         b = Board(empty=True)
         b.place_piece(0, 1, BLACK_KING)
         b.place_piece(2, 3, WHITE)
-        move = _search_best_move(b, Color.BLACK, depth=1)
+        move = _search_best_move(b, Color.BLACK, 1)
         assert move is not None
         assert move.kind == "capture"
         assert move.path[0] == (0, 1)
@@ -58,7 +58,7 @@ class TestCaptures:
         b.place_piece(0, 1, BLACK)
         b.place_piece(1, 2, WHITE)
         b.place_piece(3, 4, WHITE)
-        move = _search_best_move(b, Color.BLACK, depth=1)
+        move = _search_best_move(b, Color.BLACK, 1)
         assert move is not None
         assert move.kind == "capture"
         assert len(move.path) >= 3
@@ -67,7 +67,7 @@ class TestCaptures:
         b = Board(empty=True)
         b.place_piece(4, 3, WHITE)
         b.place_piece(3, 2, BLACK)
-        move = _search_best_move(b, Color.WHITE, depth=1)
+        move = _search_best_move(b, Color.WHITE, 1)
         assert move is not None
         assert move.kind == "capture"
         assert move.path[0] == (4, 3)
@@ -76,7 +76,7 @@ class TestCaptures:
 class TestNormalMoves:
     def test_initial_board_finds_move(self):
         b = Board()
-        move = _search_best_move(b, Color.BLACK, depth=1)
+        move = _search_best_move(b, Color.BLACK, 1)
         assert move is not None
         assert move.kind == "move"
         assert len(move.path) == 2
@@ -87,7 +87,7 @@ class TestNormalMoves:
 
     def test_white_finds_move(self):
         b = Board()
-        move = _search_best_move(b, Color.WHITE, depth=1)
+        move = _search_best_move(b, Color.WHITE, 1)
         assert move is not None
         assert move.kind == "move"
         (x1, y1), (_x2, y2) = move.path
@@ -98,7 +98,7 @@ class TestNormalMoves:
         b = Board(empty=True)
         b.place_piece(2, 3, BLACK_KING)
         b.place_piece(1, 6, WHITE)
-        move = _search_best_move(b, Color.BLACK, depth=1)
+        move = _search_best_move(b, Color.BLACK, 1)
         assert move is not None
         (x1, y1), (_x2, _y2) = move.path
         assert (x1, y1) == (2, 3)
@@ -106,7 +106,7 @@ class TestNormalMoves:
     def test_no_moves(self):
         b = Board(empty=True)
         b.place_piece(0, 0, WHITE)
-        move = _search_best_move(b, Color.BLACK, depth=1)
+        move = _search_best_move(b, Color.BLACK, 1)
         assert move is None
 
 
@@ -261,7 +261,7 @@ class TestEdgeCases:
         b = Board(empty=True)
         b.place_piece(0, 1, BLACK_KING)
         b.place_piece(3, 4, WHITE)
-        move = _search_best_move(b, Color.BLACK, depth=1)
+        move = _search_best_move(b, Color.BLACK, 1)
         assert move is not None
         assert len(move.path) >= 2
         assert move.path[0] == (0, 1)
