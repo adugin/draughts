@@ -1,7 +1,7 @@
 """Tests for Board — Russian draughts rules (0-indexed coordinates)."""
 
 import pytest
-from draughts.config import BLACK, BLACK_KING, BOARD_SIZE, EMPTY, WHITE, WHITE_KING
+from draughts.config import BLACK, BLACK_KING, BOARD_SIZE, EMPTY, WHITE, WHITE_KING, Color
 from draughts.game.board import Board
 
 
@@ -13,15 +13,15 @@ class TestBoardInit:
         assert board.to_position_string() == "bbbbbbbbbbbbnnnnnnnnwwwwwwwwwwww"
 
     def test_initial_black_count(self, board):
-        assert board.count_pieces("b") == 12
+        assert board.count_pieces(Color.BLACK) == 12
 
     def test_initial_white_count(self, board):
-        assert board.count_pieces("w") == 12
+        assert board.count_pieces(Color.WHITE) == 12
 
     def test_empty_board(self, empty_board):
         assert empty_board.to_position_string() == "n" * 32
-        assert empty_board.count_pieces("b") == 0
-        assert empty_board.count_pieces("w") == 0
+        assert empty_board.count_pieces(Color.BLACK) == 0
+        assert empty_board.count_pieces(Color.WHITE) == 0
 
     def test_dark_squares_only(self, board):
         """Only dark squares should have pieces."""
@@ -312,25 +312,25 @@ class TestMandatoryCapture:
     def test_has_capture(self, empty_board):
         empty_board.place_piece(4, 5, WHITE)
         empty_board.place_piece(3, 4, BLACK)
-        assert empty_board.has_any_capture("w")
+        assert empty_board.has_any_capture(Color.WHITE)
 
     def test_no_capture(self, empty_board):
         empty_board.place_piece(4, 5, WHITE)
-        assert not empty_board.has_any_capture("w")
+        assert not empty_board.has_any_capture(Color.WHITE)
 
     def test_initial_position_no_captures(self, board):
-        assert not board.has_any_capture("w")
-        assert not board.has_any_capture("b")
+        assert not board.has_any_capture(Color.WHITE)
+        assert not board.has_any_capture(Color.BLACK)
 
 
 class TestHasAnyMove:
     def test_initial_has_moves(self, board):
-        assert board.has_any_move("w")
-        assert board.has_any_move("b")
+        assert board.has_any_move(Color.WHITE)
+        assert board.has_any_move(Color.BLACK)
 
     def test_no_pieces_no_moves(self, empty_board):
-        assert not empty_board.has_any_move("w")
-        assert not empty_board.has_any_move("b")
+        assert not empty_board.has_any_move(Color.WHITE)
+        assert not empty_board.has_any_move(Color.BLACK)
 
 
 class TestCopy:
@@ -344,16 +344,16 @@ class TestDangerousPosition:
     def test_piece_under_attack(self, empty_board):
         empty_board.place_piece(4, 5, WHITE)
         empty_board.place_piece(3, 4, BLACK)
-        assert empty_board.dangerous_position(4, 5, "w")
+        assert empty_board.dangerous_position(4, 5, Color.WHITE)
 
     def test_piece_safe(self, empty_board):
         empty_board.place_piece(4, 5, WHITE)
-        assert not empty_board.dangerous_position(4, 5, "w")
+        assert not empty_board.dangerous_position(4, 5, Color.WHITE)
 
     def test_king_attack_from_distance(self, empty_board):
         empty_board.place_piece(4, 3, WHITE)
         empty_board.place_piece(1, 0, BLACK_KING)
-        assert empty_board.dangerous_position(4, 3, "w")
+        assert empty_board.dangerous_position(4, 3, Color.WHITE)
 
 
 class TestFreeway:

@@ -1,6 +1,6 @@
 """Tests for the AI module (0-indexed coordinates)."""
 
-from draughts.config import BLACK, BLACK_KING, EMPTY, WHITE
+from draughts.config import BLACK, BLACK_KING, EMPTY, WHITE, Color
 from draughts.game.ai import (
     AIMove,
     _any_piece_threatened,
@@ -29,7 +29,7 @@ class TestCaptures:
         b = Board(empty=True)
         b.place_piece(1, 4, BLACK)
         b.place_piece(2, 5, WHITE)
-        move = _search_best_move(b, "b", depth=1)
+        move = _search_best_move(b, Color.BLACK, depth=1)
         assert move is not None
         assert move.kind == "capture"
         assert move.path[0] == (1, 4)
@@ -39,7 +39,7 @@ class TestCaptures:
         b = Board(empty=True)
         b.place_piece(0, 1, BLACK)
         b.place_piece(7, 6, WHITE)
-        move = _search_best_move(b, "b", depth=1)
+        move = _search_best_move(b, Color.BLACK, depth=1)
         assert move is not None
         assert move.kind == "move"
 
@@ -47,7 +47,7 @@ class TestCaptures:
         b = Board(empty=True)
         b.place_piece(0, 1, BLACK_KING)
         b.place_piece(2, 3, WHITE)
-        move = _search_best_move(b, "b", depth=1)
+        move = _search_best_move(b, Color.BLACK, depth=1)
         assert move is not None
         assert move.kind == "capture"
         assert move.path[0] == (0, 1)
@@ -57,7 +57,7 @@ class TestCaptures:
         b.place_piece(0, 1, BLACK)
         b.place_piece(1, 2, WHITE)
         b.place_piece(3, 4, WHITE)
-        move = _search_best_move(b, "b", depth=1)
+        move = _search_best_move(b, Color.BLACK, depth=1)
         assert move is not None
         assert move.kind == "capture"
         assert len(move.path) >= 3
@@ -66,7 +66,7 @@ class TestCaptures:
         b = Board(empty=True)
         b.place_piece(4, 3, WHITE)
         b.place_piece(3, 2, BLACK)
-        move = _search_best_move(b, "w", depth=1)
+        move = _search_best_move(b, Color.WHITE, depth=1)
         assert move is not None
         assert move.kind == "capture"
         assert move.path[0] == (4, 3)
@@ -75,7 +75,7 @@ class TestCaptures:
 class TestNormalMoves:
     def test_initial_board_finds_move(self):
         b = Board()
-        move = _search_best_move(b, "b", depth=1)
+        move = _search_best_move(b, Color.BLACK, depth=1)
         assert move is not None
         assert move.kind == "move"
         assert len(move.path) == 2
@@ -86,7 +86,7 @@ class TestNormalMoves:
 
     def test_white_finds_move(self):
         b = Board()
-        move = _search_best_move(b, "w", depth=1)
+        move = _search_best_move(b, Color.WHITE, depth=1)
         assert move is not None
         assert move.kind == "move"
         (x1, y1), (_x2, y2) = move.path
@@ -97,7 +97,7 @@ class TestNormalMoves:
         b = Board(empty=True)
         b.place_piece(2, 3, BLACK_KING)
         b.place_piece(1, 6, WHITE)
-        move = _search_best_move(b, "b", depth=1)
+        move = _search_best_move(b, Color.BLACK, depth=1)
         assert move is not None
         (x1, y1), (_x2, _y2) = move.path
         assert (x1, y1) == (2, 3)
@@ -105,7 +105,7 @@ class TestNormalMoves:
     def test_no_moves(self):
         b = Board(empty=True)
         b.place_piece(0, 0, WHITE)
-        move = _search_best_move(b, "b", depth=1)
+        move = _search_best_move(b, Color.BLACK, depth=1)
         assert move is None
 
 
@@ -115,13 +115,13 @@ class TestMoveGeneration:
         b.place_piece(4, 5, WHITE)
         b.place_piece(3, 4, BLACK)
         b.place_piece(1, 2, BLACK)
-        moves = _generate_all_moves(b, "w")
+        moves = _generate_all_moves(b, Color.WHITE)
         assert all(kind == "capture" for kind, _ in moves)
 
     def test_normal_moves_when_no_captures(self):
         b = Board(empty=True)
         b.place_piece(4, 5, WHITE)
-        moves = _generate_all_moves(b, "w")
+        moves = _generate_all_moves(b, Color.WHITE)
         assert len(moves) > 0
         assert all(kind == "move" for kind, _ in moves)
 
@@ -129,7 +129,7 @@ class TestMoveGeneration:
 class TestComputerMove:
     def test_initial_position(self):
         b = Board()
-        move = computer_move(b, difficulty=2, color="b")
+        move = computer_move(b, difficulty=2, color=Color.BLACK)
         assert move is not None
         assert isinstance(move, AIMove)
         assert len(move.path) >= 2
@@ -138,25 +138,25 @@ class TestComputerMove:
         b = Board(empty=True)
         b.place_piece(1, 4, BLACK)
         b.place_piece(2, 5, WHITE)
-        move = computer_move(b, difficulty=2, color="b")
+        move = computer_move(b, difficulty=2, color=Color.BLACK)
         assert move is not None
         assert move.kind == "capture"
 
     def test_no_pieces_returns_none(self):
         b = Board(empty=True)
         b.place_piece(0, 0, WHITE)
-        move = computer_move(b, difficulty=2, color="b")
+        move = computer_move(b, difficulty=2, color=Color.BLACK)
         assert move is None
 
     def test_difficulty_levels(self):
         for diff in (1, 2, 3):
             b = Board()
-            move = computer_move(b, difficulty=diff, color="b")
+            move = computer_move(b, difficulty=diff, color=Color.BLACK)
             assert move is not None, f"Difficulty {diff} returned None"
 
     def test_white_computer(self):
         b = Board()
-        move = computer_move(b, difficulty=2, color="w")
+        move = computer_move(b, difficulty=2, color=Color.WHITE)
         assert move is not None
         (x1, y1), (_x2, _y2) = move.path[:2]
         piece = b.piece_at(x1, y1)
@@ -164,21 +164,21 @@ class TestComputerMove:
 
     def test_explicit_depth(self):
         b = Board()
-        move = computer_move(b, difficulty=1, color="b", depth=2)
+        move = computer_move(b, difficulty=1, color=Color.BLACK, depth=2)
         assert move is not None
 
     def test_deep_search(self):
         b = Board(empty=True)
         b.place_piece(2, 3, BLACK_KING)
         b.place_piece(5, 6, WHITE)
-        move = computer_move(b, difficulty=3, color="b", depth=6)
+        move = computer_move(b, difficulty=3, color=Color.BLACK, depth=6)
         assert move is not None
 
 
 class TestEvaluation:
     def test_starting_position_balanced(self):
         b = Board()
-        score = evaluate_position(b.grid, "b")
+        score = evaluate_position(b.grid, Color.BLACK)
         assert abs(score) < 2.0
 
     def test_material_advantage(self):
@@ -186,13 +186,13 @@ class TestEvaluation:
         b.place_piece(2, 3, BLACK)
         b.place_piece(4, 5, BLACK)
         b.place_piece(6, 7, WHITE)
-        score = evaluate_position(b.grid, "b")
+        score = evaluate_position(b.grid, Color.BLACK)
         assert score > 0
 
     def test_no_pieces_terminal(self):
         b = Board(empty=True)
         b.place_piece(2, 3, BLACK)
-        score = evaluate_position(b.grid, "b")
+        score = evaluate_position(b.grid, Color.BLACK)
         assert score > 500
 
     def test_fast_eval_consistent(self):
@@ -200,8 +200,8 @@ class TestEvaluation:
         b.place_piece(2, 3, BLACK)
         b.place_piece(4, 5, BLACK)
         b.place_piece(6, 7, WHITE)
-        full = evaluate_position(b.grid, "b")
-        fast = _evaluate_fast(b.grid, "b")
+        full = evaluate_position(b.grid, Color.BLACK)
+        fast = _evaluate_fast(b.grid, Color.BLACK)
         assert full > 0 and fast > 0
 
 
@@ -210,24 +210,24 @@ class TestHelpers:
         b = Board(empty=True)
         b.place_piece(2, 3, BLACK)
         b.place_piece(3, 4, WHITE)
-        assert _dangerous_position(2, 3, b.grid, "b") is True
+        assert _dangerous_position(2, 3, b.grid, Color.BLACK) is True
 
     def test_dangerous_position_safe(self):
         b = Board(empty=True)
         b.place_piece(2, 3, BLACK)
-        assert _dangerous_position(2, 3, b.grid, "b") is False
+        assert _dangerous_position(2, 3, b.grid, Color.BLACK) is False
 
     def test_danger_any_piece(self):
         b = Board(empty=True)
         b.place_piece(2, 3, BLACK)
         b.place_piece(3, 4, WHITE)
-        assert _any_piece_threatened("b", b.grid) is True
-        assert _any_piece_threatened("w", b.grid) is True
+        assert _any_piece_threatened(Color.BLACK, b.grid) is True
+        assert _any_piece_threatened(Color.WHITE, b.grid) is True
 
     def test_number_count(self):
         b = Board()
-        assert _count_pieces("b", b.grid) == 12
-        assert _count_pieces("w", b.grid) == 12
+        assert _count_pieces(Color.BLACK, b.grid) == 12
+        assert _count_pieces(Color.WHITE, b.grid) == 12
 
     def test_is_on_board(self):
         assert _is_on_board(0, 0) is True
@@ -237,13 +237,13 @@ class TestHelpers:
 
     def test_scan_diagonal_empty(self):
         b = Board(empty=True)
-        count, _bx, _by = _scan_diagonal(0, 0, 3, 3, "w", b.grid)
+        count, _bx, _by = _scan_diagonal(0, 0, 3, 3, Color.WHITE, b.grid)
         assert count == 0
 
     def test_scan_diagonal_one_piece(self):
         b = Board(empty=True)
         b.place_piece(2, 2, WHITE)
-        count, bx, by = _scan_diagonal(0, 0, 4, 4, "w", b.grid)
+        count, bx, by = _scan_diagonal(0, 0, 4, 4, Color.WHITE, b.grid)
         assert count == 1
         assert (bx, by) == (2, 2)
 
@@ -253,14 +253,14 @@ class TestEdgeCases:
         b = Board(empty=True)
         b.place_piece(2, 3, BLACK_KING)
         b.place_piece(5, 6, WHITE)
-        move = computer_move(b, difficulty=2, color="b")
+        move = computer_move(b, difficulty=2, color=Color.BLACK)
         assert move is not None
 
     def test_king_capture_finds_path(self):
         b = Board(empty=True)
         b.place_piece(0, 1, BLACK_KING)
         b.place_piece(3, 4, WHITE)
-        move = _search_best_move(b, "b", depth=1)
+        move = _search_best_move(b, Color.BLACK, depth=1)
         assert move is not None
         assert len(move.path) >= 2
         assert move.path[0] == (0, 1)

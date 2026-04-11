@@ -22,6 +22,7 @@ from draughts.config import (
     DIAGONAL_DIRECTIONS,
     WHITE,
     WHITE_KING,
+    Color,
 )
 from draughts.game.board import Board
 
@@ -87,18 +88,18 @@ def _max_diagonal_reach(x: int, y: int) -> int:
     return max(_LAST - y, y, _LAST - x, x)
 
 
-def _find_pieces(grid: np.ndarray, color: str) -> list[tuple[int, int]]:
+def _find_pieces(grid: np.ndarray, color: str | Color) -> list[tuple[int, int]]:
     """Find all piece positions for a color. Returns list of (x, y)."""
-    positions = np.argwhere(grid > 0) if color == "b" else np.argwhere(grid < 0)
+    positions = np.argwhere(grid > 0) if color == Color.BLACK else np.argwhere(grid < 0)
     return [(int(p[1]), int(p[0])) for p in positions]
 
 
-def _count_pieces(color: str, grid: np.ndarray) -> int:
-    return int(np.count_nonzero(grid > 0)) if color == "b" else int(np.count_nonzero(grid < 0))
+def _count_pieces(color: str | Color, grid: np.ndarray) -> int:
+    return int(np.count_nonzero(grid > 0)) if color == Color.BLACK else int(np.count_nonzero(grid < 0))
 
 
-def _opponent(color: str) -> str:
-    return "w" if color == "b" else "b"
+def _opponent(color: str | Color) -> Color:
+    return Color.WHITE if color == Color.BLACK else Color.BLACK
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +107,7 @@ def _opponent(color: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _scan_diagonal(x1: int, y1: int, x2: int, y2: int, color: str, grid: np.ndarray) -> tuple[int, int, int]:
+def _scan_diagonal(x1: int, y1: int, x2: int, y2: int, color: str | Color, grid: np.ndarray) -> tuple[int, int, int]:
     """Check how many pieces lie on diagonal (x1,y1)->(x2,y2) exclusive."""
     if x2 == x1 or y2 == y1:
         return (0, 0, 0)
@@ -124,7 +125,7 @@ def _scan_diagonal(x1: int, y1: int, x2: int, y2: int, color: str, grid: np.ndar
         cell = int(grid[cy, cx])
         if cell != 0:
             n += 1
-        if (color == "b" and cell > 0) or (color == "w" and cell < 0):
+        if (color == Color.BLACK and cell > 0) or (color == Color.WHITE and cell < 0):
             ok = True
             bx, by = cx, cy
         cx += dx
@@ -155,7 +156,7 @@ def _is_path_clear(x1: int, y1: int, x2: int, y2: int, grid: np.ndarray) -> bool
 # ---------------------------------------------------------------------------
 
 
-def _dangerous_position(x: int, y: int, grid: np.ndarray, color: str) -> bool:
+def _dangerous_position(x: int, y: int, grid: np.ndarray, color: str | Color) -> bool:
     """Check if piece at (x,y) is under attack."""
     piece = int(grid[y, x])
     if piece == 0:
@@ -183,8 +184,8 @@ def _dangerous_position(x: int, y: int, grid: np.ndarray, color: str) -> bool:
                     close[di] = True
             else:
                 cell = int(grid[ay, ax])
-                enemy_king = WHITE_KING if color == "b" else BLACK_KING
-                if color == "b":
+                enemy_king = WHITE_KING if color == Color.BLACK else BLACK_KING
+                if color == Color.BLACK:
                     if cell in (1, 2, -1):
                         close[di] = True
                     elif not close[di] and cell == enemy_king:
@@ -197,11 +198,11 @@ def _dangerous_position(x: int, y: int, grid: np.ndarray, color: str) -> bool:
     return False
 
 
-def _any_piece_threatened(color: str, grid: np.ndarray) -> bool:
+def _any_piece_threatened(color: str | Color, grid: np.ndarray) -> bool:
     return any(_dangerous_position(x, y, grid, color) for x, y in _find_pieces(grid, color))
 
 
-def _count_threatened(color: str, grid: np.ndarray) -> int:
+def _count_threatened(color: str | Color, grid: np.ndarray) -> int:
     return sum(1 for x, y in _find_pieces(grid, color) if _dangerous_position(x, y, grid, color))
 
 
@@ -261,7 +262,7 @@ def _has_single_capture_only(grid: np.ndarray) -> bool:
 # ===========================================================================
 
 
-def evaluate_position(grid: np.ndarray, color: str) -> float:
+def evaluate_position(grid: np.ndarray, color: str | Color) -> float:
     """Evaluate board position from perspective of `color`."""
     black_pawns = int(np.count_nonzero(grid == BLACK))
     black_kings = int(np.count_nonzero(grid == BLACK_KING))
@@ -271,9 +272,9 @@ def evaluate_position(grid: np.ndarray, color: str) -> float:
     black_total = black_pawns + black_kings
     white_total = white_pawns + white_kings
     if black_total == 0:
-        return -1000.0 if color == "b" else 1000.0
+        return -1000.0 if color == Color.BLACK else 1000.0
     if white_total == 0:
-        return 1000.0 if color == "b" else -1000.0
+        return 1000.0 if color == Color.BLACK else -1000.0
 
     material = (black_pawns * _PAWN_VALUE + black_kings * _KING_VALUE) - (
         white_pawns * _PAWN_VALUE + white_kings * _KING_VALUE
@@ -293,35 +294,35 @@ def evaluate_position(grid: np.ndarray, color: str) -> float:
     temp_board.grid = grid
     black_mobility = 0
     white_mobility = 0
-    for x, y in _find_pieces(grid, "b"):
+    for x, y in _find_pieces(grid, Color.BLACK):
         black_mobility += len(temp_board.get_valid_moves(x, y)) + len(temp_board.get_captures(x, y))
-    for x, y in _find_pieces(grid, "w"):
+    for x, y in _find_pieces(grid, Color.WHITE):
         white_mobility += len(temp_board.get_valid_moves(x, y)) + len(temp_board.get_captures(x, y))
 
-    if color == "b" and black_mobility == 0:
+    if color == Color.BLACK and black_mobility == 0:
         return -1000.0
-    if color == "w" and white_mobility == 0:
+    if color == Color.WHITE and white_mobility == 0:
         return -1000.0
 
     mobility = (black_mobility - white_mobility) * _MOBILITY_WEIGHT
 
-    black_threatened = _count_threatened("b", grid)
-    white_threatened = _count_threatened("w", grid)
+    black_threatened = _count_threatened(Color.BLACK, grid)
+    white_threatened = _count_threatened(Color.WHITE, grid)
     threats = (white_threatened - black_threatened) * _THREAT_PENALTY
 
     total = material + advancement + center + mobility + threats
-    return total if color == "b" else -total
+    return total if color == Color.BLACK else -total
 
 
-def _evaluate_fast(grid: np.ndarray, color: str) -> float:
+def _evaluate_fast(grid: np.ndarray, color: str | Color) -> float:
     """Ultra-fast evaluation — material + advancement + center."""
     has_black = bool(np.any(grid > 0))
     has_white = bool(np.any(grid < 0))
 
     if not has_black:
-        return -1000.0 if color == "b" else 1000.0
+        return -1000.0 if color == Color.BLACK else 1000.0
     if not has_white:
-        return 1000.0 if color == "b" else -1000.0
+        return 1000.0 if color == Color.BLACK else -1000.0
 
     total = 0.0
 
@@ -341,7 +342,7 @@ def _evaluate_fast(grid: np.ndarray, color: str) -> float:
     total += float(np.sum(np.where(grid > 0, _CENTER_MASK, 0.0))) * _CENTER_BONUS
     total -= float(np.sum(np.where(grid < 0, _CENTER_MASK, 0.0))) * _CENTER_BONUS
 
-    return total if color == "b" else -total
+    return total if color == Color.BLACK else -total
 
 
 # ===========================================================================
@@ -349,7 +350,7 @@ def _evaluate_fast(grid: np.ndarray, color: str) -> float:
 # ===========================================================================
 
 
-def _generate_all_moves(board: Board, color: str) -> list[tuple[str, list[tuple[int, int]]]]:
+def _generate_all_moves(board: Board, color: str | Color) -> list[tuple[str, list[tuple[int, int]]]]:
     """Generate all legal moves for a color.
 
     Captures are mandatory — if any exist, only captures are returned.
@@ -393,7 +394,7 @@ def _apply_move(board: Board, kind: str, path: list[tuple[int, int]]) -> Board:
 def _order_moves(
     moves: list[tuple[str, list[tuple[int, int]]]],
     board: Board,
-    color: str,
+    color: str | Color,
 ) -> list[tuple[str, list[tuple[int, int]]]]:
     """Order moves to improve alpha-beta pruning."""
     if len(moves) <= 1:
@@ -420,7 +421,7 @@ def _order_moves(
                     cy += dy
         else:
             (_x1, _y1), (x2, y2) = path
-            promote_row = _BLACK_PROMOTE_ROW if color == "b" else _WHITE_PROMOTE_ROW
+            promote_row = _BLACK_PROMOTE_ROW if color == Color.BLACK else _WHITE_PROMOTE_ROW
             priority = 50.0 if y2 == promote_row else float(_CENTER_MASK[y2, x2]) * 10.0
         scored.append((priority, kind, path))
 
@@ -439,8 +440,8 @@ def _alphabeta(
     alpha: float,
     beta: float,
     maximizing: bool,
-    color: str,
-    root_color: str,
+    color: str | Color,
+    root_color: str | Color,
 ) -> float:
     """Alpha-beta pruning minimax search."""
     if depth <= 0:
@@ -478,7 +479,7 @@ def _alphabeta(
         return value
 
 
-def _search_best_move(board: Board, color: str, depth: int) -> AIMove | None:
+def _search_best_move(board: Board, color: str | Color, depth: int) -> AIMove | None:
     """Search for the best move using alpha-beta minimax."""
     moves = _generate_all_moves(board, color)
     if not moves:
@@ -523,7 +524,7 @@ def _search_best_move(board: Board, color: str, depth: int) -> AIMove | None:
 def computer_move(
     board: Board,
     difficulty: int = 2,
-    color: str = "b",
+    color: str | Color = Color.BLACK,
     depth: int | None = None,
 ) -> AIMove | None:
     """Compute the AI's move.
@@ -531,14 +532,14 @@ def computer_move(
     Args:
         board: Current board state.
         difficulty: 1=amateur, 2=normal, 3=professional.
-        color: 'b' or 'w' — which side the computer plays.
+        color: Which side the computer plays.
         depth: Search depth override. If None, derived from difficulty:
                difficulty 1 -> depth 3, difficulty 2 -> depth 5, difficulty 3 -> depth 7.
     """
     if depth is None:
         depth = {1: 3, 2: 5, 3: 7}.get(difficulty, 5)
 
-    piece_count = board.count_pieces("b") + board.count_pieces("w")
+    piece_count = board.count_pieces(Color.BLACK) + board.count_pieces(Color.WHITE)
     if piece_count > 16 and depth > 4:
         depth = 4
     elif piece_count <= 6 and depth < 8:

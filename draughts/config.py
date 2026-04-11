@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 import numpy as np
@@ -39,6 +40,24 @@ DIAGONAL_DIRECTIONS = [(-1, 1), (1, 1), (1, -1), (-1, -1)]
 # Notation helpers (for board labels)
 COLUMN_LETTERS = "abcdefgh"
 ROW_NUMBERS = "87654321"
+
+
+# ---------------------------------------------------------------------------
+# Color enum — type-safe replacement for "b"/"w" string tokens
+# ---------------------------------------------------------------------------
+
+
+class Color(StrEnum):
+    """Side color. Inherits from str so Color.BLACK == "b" is True."""
+
+    BLACK = "b"
+    WHITE = "w"
+
+    @property
+    def opponent(self) -> Color:
+        """Return the opposite color."""
+        return Color.WHITE if self is Color.BLACK else Color.BLACK
+
 
 # Colors used by board rendering
 COLORS: dict[str, tuple[int, int, int]] = {

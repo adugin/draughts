@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from draughts.config import AUTOSAVE_FILENAME, BOARD_SIZE, GameSettings, get_data_dir
+from draughts.config import AUTOSAVE_FILENAME, BOARD_SIZE, Color, GameSettings, get_data_dir
 from draughts.game.ai import AIMove, computer_move
 from draughts.game.board import Board
 from draughts.game.save import GameSave, autosave, load_game, save_game
@@ -25,7 +25,7 @@ class AIWorker(QObject):
 
     finished = pyqtSignal(object)  # AIMove | None
 
-    def __init__(self, board: Board, difficulty: int, color: str, search_depth: int = 0):
+    def __init__(self, board: Board, difficulty: int, color: str | Color, search_depth: int = 0):
         super().__init__()
         self._board = board
         self._difficulty = difficulty
@@ -73,9 +73,9 @@ class GameController(QObject):
         self.settings = GameSettings()
 
         # Game state
-        self._current_turn: str = "w"
-        self._computer_color: str = "b"
-        self._player_color: str = "w"
+        self._current_turn: Color = Color.WHITE
+        self._computer_color: Color = Color.BLACK
+        self._player_color: Color = Color.WHITE
         self._selected: tuple[int, int] | None = None
         self._capture_path: list[tuple[int, int]] = []
 
@@ -109,9 +109,9 @@ class GameController(QObject):
     def new_game(self):
         """Reset everything for a new game."""
         self.board = Board()
-        self._current_turn = "w"
-        self._computer_color = "b" if not self.settings.invert_color else "w"
-        self._player_color = "w" if not self.settings.invert_color else "b"
+        self._current_turn = Color.WHITE
+        self._computer_color = Color.BLACK if not self.settings.invert_color else Color.WHITE
+        self._player_color = Color.WHITE if not self.settings.invert_color else Color.BLACK
         self._selected = None
         self._capture_path = []
         self._positions = [self.board.to_position_string()]
@@ -194,7 +194,7 @@ class GameController(QObject):
                 return
 
     def _is_player_piece(self, piece: int) -> bool:
-        return self.board.is_white(piece) if self._player_color == "w" else self.board.is_black(piece)
+        return self.board.is_white(piece) if self._player_color == Color.WHITE else self.board.is_black(piece)
 
     def _select_piece(self, x: int, y: int):
         """Select a piece for moving."""
@@ -385,16 +385,16 @@ class GameController(QObject):
 
     def _check_game_over(self) -> bool:
         """Check if the game is over. Emit game_over signal if so."""
-        w_count = self.board.count_pieces("w")
-        b_count = self.board.count_pieces("b")
+        w_count = self.board.count_pieces(Color.WHITE)
+        b_count = self.board.count_pieces(Color.BLACK)
 
         if w_count == 0:
-            player_lost = self._player_color == "w"
+            player_lost = self._player_color == Color.WHITE
             self.game_over.emit("Вы проиграли!" if player_lost else "Вы выиграли!")
             return True
 
         if b_count == 0:
-            player_lost = self._player_color == "b"
+            player_lost = self._player_color == Color.BLACK
             self.game_over.emit("Вы проиграли!" if player_lost else "Вы выиграли!")
             return True
 
@@ -439,7 +439,7 @@ class GameController(QObject):
         else:
             self.board = Board()
 
-        self._current_turn = "w" if self._ply_count % 2 == 0 else "b"
+        self._current_turn = Color.WHITE if self._ply_count % 2 == 0 else Color.BLACK
         self._selected = None
         self._capture_path = []
 
@@ -471,15 +471,15 @@ class GameController(QObject):
     # --- Properties ---
 
     @property
-    def current_turn(self) -> str:
+    def current_turn(self) -> Color:
         return self._current_turn
 
     @property
-    def player_color(self) -> str:
+    def player_color(self) -> Color:
         return self._player_color
 
     @property
-    def computer_color(self) -> str:
+    def computer_color(self) -> Color:
         return self._computer_color
 
     @property

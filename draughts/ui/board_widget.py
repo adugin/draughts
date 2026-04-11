@@ -15,6 +15,7 @@ from draughts.config import (
     EMPTY,
     ROW_NUMBERS,
     WHITE_KING,
+    Color,
 )
 from draughts.game.board import Board
 from draughts.ui.textures import TextureCache, draw_realistic_piece
@@ -31,7 +32,7 @@ class BoardWidget(QWidget):
         self._board: Board | None = None
         self._selection: tuple[int, int] | None = None
         self._capture_highlights: list[tuple[int, int]] = []
-        self._turn_color: str = "w"  # whose turn: 'w' or 'b'
+        self._turn_color: Color = Color.WHITE
         self._anim_hidden_cells: set[tuple[int, int]] = set()  # cells hidden during animation
         self._textures = TextureCache()
 
@@ -58,8 +59,8 @@ class BoardWidget(QWidget):
         self._capture_highlights = list(positions) if positions else []
         self.update()
 
-    def set_turn_indicator(self, color: str):
-        """Set which side's turn it is ('w' or 'b')."""
+    def set_turn_indicator(self, color: str | Color):
+        """Set which side's turn it is."""
         self._turn_color = color
         self.update()
 

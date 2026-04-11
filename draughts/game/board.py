@@ -25,6 +25,7 @@ from draughts.config import (
     INT_TO_CHAR,
     WHITE,
     WHITE_KING,
+    Color,
 )
 
 # Promotion rows (0-indexed)
@@ -125,9 +126,9 @@ class Board:
         new_board.grid = self.grid.copy()
         return new_board
 
-    def count_pieces(self, color: str) -> int:
-        """Count pieces of given color ('b' for black side, 'w' for white side)."""
-        return int(np.count_nonzero(self.grid > 0)) if color == "b" else int(np.count_nonzero(self.grid < 0))
+    def count_pieces(self, color: str | Color) -> int:
+        """Count pieces of given color."""
+        return int(np.count_nonzero(self.grid > 0)) if color == Color.BLACK else int(np.count_nonzero(self.grid < 0))
 
     # --- Notation ---
 
@@ -271,18 +272,18 @@ class Board:
         if not found and len(path) > 1:
             results.append(path)
 
-    def has_any_capture(self, color: str) -> bool:
+    def has_any_capture(self, color: str | Color) -> bool:
         """Check if given side has any capture available."""
-        positions = np.argwhere(self.grid > 0) if color == "b" else np.argwhere(self.grid < 0)
+        positions = np.argwhere(self.grid > 0) if color == Color.BLACK else np.argwhere(self.grid < 0)
         for pos in positions:
             y, x = int(pos[0]), int(pos[1])
             if self.get_captures(x, y):
                 return True
         return False
 
-    def has_any_move(self, color: str) -> bool:
+    def has_any_move(self, color: str | Color) -> bool:
         """Check if given side has any legal move (capture or regular)."""
-        positions = np.argwhere(self.grid > 0) if color == "b" else np.argwhere(self.grid < 0)
+        positions = np.argwhere(self.grid > 0) if color == Color.BLACK else np.argwhere(self.grid < 0)
         for pos in positions:
             y, x = int(pos[0]), int(pos[1])
             if self.get_captures(x, y) or self.get_valid_moves(x, y):
@@ -337,7 +338,7 @@ class Board:
         self.grid[final_y, final_x] = piece
         return captured_positions
 
-    def dangerous_position(self, x: int, y: int, color: str) -> bool:
+    def dangerous_position(self, x: int, y: int, color: str | Color) -> bool:
         """Check if piece at (x, y) is under attack."""
         piece = self.grid[y, x]
         if piece == EMPTY:

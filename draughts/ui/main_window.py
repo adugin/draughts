@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from draughts.config import Color
 from draughts.ui.board_widget import BoardWidget
 
 if TYPE_CHECKING:
@@ -211,8 +212,8 @@ class MainWindow(QMainWindow):
         dlg = OptionsDialog(self._controller.settings, self)
         if dlg.exec():
             self._controller.settings = dlg.get_settings()
-            self._controller._computer_color = "b" if not self._controller.settings.invert_color else "w"
-            self._controller._player_color = "w" if not self._controller.settings.invert_color else "b"
+            self._controller._computer_color = Color.BLACK if not self._controller.settings.invert_color else Color.WHITE
+            self._controller._player_color = Color.WHITE if not self._controller.settings.invert_color else Color.BLACK
 
     def _on_playback(self):
         from draughts.ui.playback import PlaybackDialog
