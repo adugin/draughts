@@ -400,19 +400,21 @@ class TestContempt:
         """King vs King is a drawn endgame pattern. The minimax score
         should be the contempt bias (slightly negative from root's POV),
         not exactly 0 — the searching side prefers decisive play."""
+        from draughts.game.ai import SearchContext
         b = Board(empty=True)
         b.place_piece(0, 0, BLACK_KING)
         b.place_piece(7, 7, -2)  # WHITE_KING
         score = _alphabeta(
             b, depth=3, alpha=-1000, beta=1000,
             maximizing=True, color=Color.BLACK, root_color=Color.BLACK,
+            ctx=SearchContext(),
         )
         assert abs(score + _CONTEMPT) < 1e-4
 
     def test_repetition_returns_negative_contempt(self):
         """When the path already visited the current hash, the
         repetition branch returns the contempt-biased draw score."""
-        from draughts.game.ai import _zobrist_hash
+        from draughts.game.ai import SearchContext, _zobrist_hash
 
         b = Board(empty=True)
         b.place_piece(0, 0, BLACK)
@@ -423,6 +425,7 @@ class TestContempt:
         score = _alphabeta(
             b, depth=3, alpha=-1000, beta=1000,
             maximizing=True, color=Color.BLACK, root_color=Color.BLACK,
+            ctx=SearchContext(),
             path_hashes={h},
         )
         assert abs(score + _CONTEMPT) < 1e-4
