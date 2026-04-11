@@ -341,6 +341,59 @@ class TestAdaptiveDepth:
         assert adaptive_depth(9, b) == 9  # >= 8, skip boost entirely
 
 
+class TestDiagonalDistance:
+    def test_same_diagonal_distance_is_chebyshev(self):
+        from draughts.game.ai import _diagonal_distance
+        # On same diagonal: just max(dx, dy).
+        assert _diagonal_distance(0, 0) == 0
+        assert _diagonal_distance(1, 1) == 1
+        assert _diagonal_distance(7, 7) == 7
+
+    def test_off_diagonal_adds_penalty(self):
+        from draughts.game.ai import _diagonal_distance
+        # (dx, dy) = (1, 3): max=3, off-diag=2, dist = 3 + 4 = 7.
+        assert _diagonal_distance(1, 3) == 7
+        # (dx, dy) = (3, 5): max=5, off-diag=2, dist = 5 + 4 = 9.
+        assert _diagonal_distance(3, 5) == 9
+
+    def test_h8_vs_b4_is_unreachable_level(self):
+        """The canonical bug: king at h8 facing pawn at b4. h8 is not on
+        any diagonal with b4, so the heuristic should NOT score this
+        pair as 'close' — distance must exceed the 7-square clamp."""
+        from draughts.game.ai import _diagonal_distance
+        # h8 = (0,7), b4 = (4,1). dx=6, dy=4, off-diag=2, dist = 6+4 = 10.
+        assert _diagonal_distance(6, 4) >= 7
+
+    def test_king_distance_prefers_aligned_king(self):
+        """King on an attack diagonal to a pawn should score strictly
+        better than a king the same Chebyshev distance away but off
+        the diagonal."""
+        import numpy as np
+        from draughts.game.ai import _king_distance_score
+        # Pawn at d4 (y=4, x=3)
+        base = np.zeros((8, 8), dtype=np.int8)
+        base[4, 3] = 1  # BLACK pawn
+
+        aligned = base.copy()
+        aligned[7, 0] = -2  # WHITE king at a1 — on the a1-h8 diagonal
+
+        off_diag = base.copy()
+        off_diag[7, 6] = -2  # WHITE king at g1 — NOT on any diag with d4
+        # a1 vs d4: dx=3 dy=3 -> dist 3 -> bonus 2.0 -> score -2.0
+        # g1 vs d4: dx=3 dy=3? Let's check: (7,6) vs (4,3): dx=3, dy=3.
+        # Oh, g1 IS on a diagonal with d4 too. Pick a truly off-diagonal
+        # square: h2 = (6, 7).
+        off_diag[7, 6] = 0
+        off_diag[6, 7] = -2  # WHITE king at h2
+        # h2 vs d4: dx=4, dy=2 -> off-diag=2 -> dist = 4+4 = 8 -> bonus 0
+
+        s_aligned = _king_distance_score(aligned)
+        s_off = _king_distance_score(off_diag)
+        # Both are negative (white king approaching black pawn = white's
+        # advantage). Aligned should be strictly more negative.
+        assert s_aligned < s_off, f"aligned={s_aligned}, off={s_off}"
+
+
 class TestContempt:
     def test_drawn_endgame_returns_negative_contempt(self):
         """King vs King is a drawn endgame pattern. The minimax score

@@ -397,11 +397,38 @@ def _is_drawn_endgame(grid: np.ndarray) -> bool:
     return black_total == 1 and white_total == 1 and bk == 1 and wk == 1
 
 
-def _king_distance_score(grid: np.ndarray) -> float:
-    """Score kings for proximity to opponent pieces. Closer = better.
+_OFF_DIAGONAL_PENALTY = 2.0
 
-    Returns positive value if black kings are closer to white pieces,
-    negative if white kings are closer.
+
+def _diagonal_distance(dx: int, dy: int) -> float:
+    """Effective distance for a flying king to reach a target.
+
+    In Russian draughts a king only moves diagonally. A target on the
+    same diagonal (|dx| == |dy|) is reachable in one flying move — the
+    best possible threat. A target off-diagonal requires a repositioning
+    move first, so its effective distance grows with how far off-diagonal
+    it is. The Chebyshev distance (max(|dx|, |dy|)) is a useful floor
+    because the king still has to cover that many "diagonal squares"
+    during the maneuver, but the |dx - dy| offset is the real tactical
+    cost: that's how far off the ideal attack line the target sits.
+
+    Returns a non-negative float; lower = easier to attack.
+    """
+    return max(dx, dy) + _OFF_DIAGONAL_PENALTY * abs(dx - dy)
+
+
+def _king_distance_score(grid: np.ndarray) -> float:
+    """Score kings for diagonal-aware proximity to opponent pieces.
+
+    Rewards kings for being on (or close to) an attack diagonal against
+    an enemy piece. Returns positive if black kings are better placed,
+    negative if white kings are. The heuristic is symmetric — mirroring
+    the board + swapping colors negates the score exactly.
+
+    Replaces the older Chebyshev-based metric, which over-valued kings
+    parked near an enemy but not on any attack diagonal (e.g. a king at
+    h8 was scored "close" to a pawn at b4 even though h8 cannot reach
+    b4 on any line).
     """
     black_kings = np.argwhere(grid == BLACK_KING)  # (y, x) arrays
     white_kings = np.argwhere(grid == WHITE_KING)
@@ -410,17 +437,24 @@ def _king_distance_score(grid: np.ndarray) -> float:
 
     score = 0.0
 
-    # Black kings approaching white pieces
     if len(black_kings) > 0 and len(white_pieces) > 0:
         for ky, kx in black_kings:
-            min_dist = min(max(abs(kx - px), abs(ky - py)) for py, px in white_pieces)
-            score += (7.0 - min_dist) * 0.5  # closer = higher score
+            min_dist = min(
+                _diagonal_distance(abs(int(kx - px)), abs(int(ky - py)))
+                for py, px in white_pieces
+            )
+            # Normalized into [0, 7]: on-diagonal adjacent = 1 -> bonus 6;
+            # diagonal across the board = 7 -> bonus 0; far off-diagonal
+            # saturates at 0 via the clamp.
+            score += max(0.0, 7.0 - min_dist) * 0.5
 
-    # White kings approaching black pieces
     if len(white_kings) > 0 and len(black_pieces) > 0:
         for ky, kx in white_kings:
-            min_dist = min(max(abs(kx - px), abs(ky - py)) for py, px in black_pieces)
-            score -= (7.0 - min_dist) * 0.5
+            min_dist = min(
+                _diagonal_distance(abs(int(kx - px)), abs(int(ky - py)))
+                for py, px in black_pieces
+            )
+            score -= max(0.0, 7.0 - min_dist) * 0.5
 
     return score
 
