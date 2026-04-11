@@ -212,8 +212,8 @@ class GameController(QObject):
 
     def _find_and_signal_capture(self):
         """Find a piece that must capture and signal it."""
-        for y in range(1, BOARD_SIZE + 1):
-            for x in range(1, BOARD_SIZE + 1):
+        for y in range(BOARD_SIZE):
+            for x in range(BOARD_SIZE):
                 piece = self.board.piece_at(x, y)
                 if self._is_player_piece(piece) and self.board.get_captures(x, y):
                     self.message_changed.emit(f"Шашка {Board.pos_to_notation(x, y)} должна бить!")

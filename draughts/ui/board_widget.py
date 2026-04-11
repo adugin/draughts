@@ -92,21 +92,21 @@ class BoardWidget(QWidget):
         return margin, cell_size, bx, by
 
     def _cell_rect(self, x: int, y: int, cell_size: float, bx: float, by: float) -> QRectF:
-        """Return the rectangle for board cell (x, y) where x,y in 1..8."""
-        px = bx + (x - 1) * cell_size
-        py = by + (y - 1) * cell_size
+        """Return the rectangle for board cell (x, y) where x,y in 0..7."""
+        px = bx + x * cell_size
+        py = by + y * cell_size
         return QRectF(px, py, cell_size, cell_size)
 
     def _cell_from_pos(self, pos) -> tuple[int, int] | None:
-        """Convert a mouse position to board coordinates (1..8), or None."""
+        """Convert a mouse position to board coordinates (0..7), or None."""
         _, cell_size, bx, by = self._metrics()
         mx = pos.x() - bx
         my = pos.y() - by
         if mx < 0 or my < 0:
             return None
-        col = int(mx / cell_size) + 1
-        row = int(my / cell_size) + 1
-        if 1 <= col <= BOARD_SIZE and 1 <= row <= BOARD_SIZE:
+        col = int(mx / cell_size)
+        row = int(my / cell_size)
+        if 0 <= col < BOARD_SIZE and 0 <= row < BOARD_SIZE:
             return col, row
         return None
 
@@ -140,8 +140,8 @@ class BoardWidget(QWidget):
         light_tex = self._textures.get_light_wood(cs)
         dark_tex = self._textures.get_dark_wood(cs)
 
-        for y in range(1, BOARD_SIZE + 1):
-            for x in range(1, BOARD_SIZE + 1):
+        for y in range(BOARD_SIZE):
+            for x in range(BOARD_SIZE):
                 rect = self._cell_rect(x, y, cell_size, bx, by)
                 is_dark = x % 2 != y % 2
                 tex = dark_tex if is_dark else light_tex
@@ -168,8 +168,8 @@ class BoardWidget(QWidget):
 
         # Draw pieces (skip cells hidden by active animations)
         if self._board:
-            for y in range(1, BOARD_SIZE + 1):
-                for x in range(1, BOARD_SIZE + 1):
+            for y in range(BOARD_SIZE):
+                for x in range(BOARD_SIZE):
                     if (x, y) in self._anim_hidden_cells:
                         continue
                     piece = self._board.piece_at(x, y)

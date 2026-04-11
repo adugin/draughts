@@ -30,10 +30,8 @@ WHITE_KING = np.int8(-2)
 CHAR_TO_INT: dict[str, int] = {"n": 0, "b": 1, "B": 2, "w": -1, "W": -2}
 INT_TO_CHAR: dict[int, str] = {0: "n", 1: "b", 2: "B", -1: "w", -2: "W"}
 
-# Precomputed dark-square coordinates (y, x), 1-indexed, row-major order
-DARK_SQUARES: list[tuple[int, int]] = [
-    (y, x) for y in range(1, BOARD_SIZE + 1) for x in range(1, BOARD_SIZE + 1) if x % 2 != y % 2
-]
+# Precomputed dark-square coordinates (y, x), 0-indexed, row-major order
+DARK_SQUARES: list[tuple[int, int]] = [(y, x) for y in range(BOARD_SIZE) for x in range(BOARD_SIZE) if x % 2 != y % 2]
 
 # Four diagonal directions as (dy, dx)
 DIAGONAL_DIRECTIONS = [(-1, 1), (1, 1), (1, -1), (-1, -1)]
