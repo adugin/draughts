@@ -47,6 +47,13 @@ class SearchCancelledError(Exception):
 
 _search_deadline: float | None = None
 
+# Minimax score of the last _search_best_move call, from the searched
+# color's perspective. Populated as a side effect so callers (notably
+# get_ai_analysis / the dev-mode analyze command) can report the real
+# search score instead of a misleading static eval. NaN means "no
+# search has run yet".
+_last_search_score: float = float("nan")
+
 # ---------------------------------------------------------------------------
 # Zobrist hashing — deterministic random table for position hashing
 # ---------------------------------------------------------------------------
@@ -748,7 +755,7 @@ def _quiescence(
             # Non-capture promotion: starting piece must be a pawn, and
             # the destination row must be the promotion row for this side.
             x1, y1 = p[0]
-            x2, y2 = p[-1]
+            _x2, y2 = p[-1]
             start_piece = int(board.grid[y1, x1])
             is_pawn = abs(start_piece) == 1
             if is_pawn and y2 == promote_row:
@@ -911,8 +918,12 @@ def _search_best_move(
     If deadline (monotonic perf_counter seconds) is set and elapses mid-search,
     returns the best move from the last fully completed depth iteration.
     A depth-1 sweep is always attempted first to guarantee a legal move.
+
+    Also updates module-level _last_search_score with the minimax value
+    of the returned move from `color`'s perspective.
     """
-    global _search_deadline
+    global _search_deadline, _last_search_score
+    _last_search_score = float("nan")
 
     moves = _generate_all_moves(board, color)
     if not moves:
@@ -922,8 +933,10 @@ def _search_best_move(
 
     opp = _opponent(color)
     best_kind, best_path = moves[0]
-    # Snapshot of the last fully completed depth's best-move set.
+    # Snapshot of the last fully completed depth's best-move set and its
+    # backed-up score. Score is from `color`'s (root's) perspective.
     last_complete_best: list[tuple[str, list[tuple[int, int]]]] = [moves[0]]
+    last_complete_score: float = float("nan")
 
     prev_deadline = _search_deadline
     _search_deadline = deadline
@@ -962,12 +975,14 @@ def _search_best_move(
             if best_moves_at_depth:
                 best_kind, best_path = best_moves_at_depth[0]
                 last_complete_best = best_moves_at_depth[:]
+                last_complete_score = best_score
     finally:
         _search_deadline = prev_deadline
 
     # Final selection: among equally-scored moves from the last completed
     # depth, pick randomly. last_complete_best always has at least moves[0].
     kind, path = random.choice(last_complete_best)
+    _last_search_score = last_complete_score
     return AIMove(kind, path)
 
 

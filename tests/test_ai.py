@@ -312,7 +312,7 @@ class TestAdaptiveDepth:
     def test_midgame_passthrough(self):
         b = Board(empty=True)
         # 5 black + 5 white = 10 pieces: not crowded (>16), not endgame (<=6)
-        for i, (x, y) in enumerate([(1, 0), (3, 0), (5, 0), (7, 0), (0, 1)]):
+        for x, y in [(1, 0), (3, 0), (5, 0), (7, 0), (0, 1)]:
             b.place_piece(x, y, BLACK)
         for x, y in [(0, 7), (2, 7), (4, 7), (6, 7), (1, 6)]:
             b.place_piece(x, y, WHITE)

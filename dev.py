@@ -106,15 +106,17 @@ def cmd_analyze(args):
     analysis = game.get_ai_analysis(depth=args.depth)
     dt = time.perf_counter() - t0
 
-    print(f"  Analysis (depth {args.depth}):")
-    print(f"  Score: {analysis.score:+.2f}")
-    print(f"  Legal moves: {analysis.legal_move_count}")
+    boost_note = "" if analysis.depth == args.depth else f" (adjusted from {args.depth})"
+    print(f"  Analysis (depth {analysis.depth}{boost_note}):")
+    print(f"  Search score: {analysis.score:+.2f}")
+    print(f"  Static eval:  {analysis.static_score:+.2f}")
+    print(f"  Legal moves:  {analysis.legal_move_count}")
     if analysis.best_move:
         path_str = "->".join(Board.pos_to_notation(x, y) for x, y in analysis.best_move.path)
-        print(f"  Best move: {analysis.best_move.kind} {path_str}")
+        print(f"  Best move:    {analysis.best_move.kind} {path_str}")
     else:
-        print("  Best move: None (no legal moves)")
-    print(f"  Time: {dt * 1000:.1f}ms")
+        print("  Best move:    None (no legal moves)")
+    print(f"  Time:         {dt * 1000:.1f}ms")
 
 
 def cmd_test_move(args):
