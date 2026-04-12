@@ -11,18 +11,12 @@ Covers:
 
 from __future__ import annotations
 
-import json
 import random
-import tempfile
-from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 from draughts.config import Color
 from draughts.game.board import Board
-from draughts.game.puzzles import Puzzle, PuzzleSet, load_bundled_puzzles
-
+from draughts.game.puzzles import Puzzle, load_bundled_puzzles
 
 # ---------------------------------------------------------------------------
 # Helpers

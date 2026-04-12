@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import random
-
 import pytest
-
-from draughts.config import BLACK, WHITE, Color
-from draughts.game.ai import AIEngine, _generate_all_moves, _search_best_move
+from draughts.config import Color
+from draughts.game.ai import AIEngine, _generate_all_moves
 from draughts.game.board import Board
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -24,10 +20,7 @@ def _starting_board() -> Board:
 def _is_legal(board: Board, color: Color, move) -> bool:
     """Return True if *move* is in the legal move list for *color*."""
     legal = _generate_all_moves(board, color)
-    for kind, path in legal:
-        if kind == move.kind and path == move.path:
-            return True
-    return False
+    return any(kind == move.kind and path == move.path for kind, path in legal)
 
 
 # ---------------------------------------------------------------------------

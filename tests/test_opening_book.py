@@ -12,19 +12,16 @@ Covers:
 
 from __future__ import annotations
 
-import json
 import random
 import tempfile
 from pathlib import Path
 
 import pytest
-
 from draughts.config import Color
-from draughts.game.ai.book import OpeningBook, BookEntry
-from draughts.game.ai.search import AIMove, AIEngine
+from draughts.game.ai.book import OpeningBook
+from draughts.game.ai.search import AIEngine, AIMove
 from draughts.game.ai.tt import _zobrist_hash
 from draughts.game.board import Board
-
 
 # ---------------------------------------------------------------------------
 # Helpers

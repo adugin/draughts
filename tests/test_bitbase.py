@@ -169,7 +169,6 @@ def test_pawn_plus_king_vs_lone_king_is_win():
     configurations (Black to move) and that the overall win count is
     substantial (> 1000), confirming the retrograde found real forced wins.
     """
-    import itertools
 
     import draughts.game.ai as ai_pkg
 

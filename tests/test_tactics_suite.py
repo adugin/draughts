@@ -21,7 +21,6 @@ import random
 from pathlib import Path
 
 import pytest
-
 from draughts.config import Color
 from draughts.game import ai as _ai_mod
 from draughts.game.ai import _search_best_move
@@ -223,10 +222,7 @@ class TestOpeningTraps:
 
         # winning_reply_ply is the 0-based index of the winning reply move
         winning_reply_idx = trap["winning_reply_ply"]
-        if winning_reply_idx < len(trap["moves"]):
-            expected_reply = trap["moves"][winning_reply_idx]
-        else:
-            expected_reply = None
+        expected_reply = trap["moves"][winning_reply_idx] if winning_reply_idx < len(trap["moves"]) else None
 
         move = _ai_move_at_depth(game.board.copy(), winning_side, depth=_SEARCH_DEPTH)
         assert move is not None, f"{trap['id']}: AI returned no move after blunder"
@@ -421,7 +417,7 @@ def test_tactics_summary(capsys) -> None:
     easy_ids = {p["id"] for p in _PUZZLE_DATA if p["difficulty"] < 4}
     solved_easy = sum(
         solved
-        for solved, pid in zip(_puzzle_solved, _puzzle_solved_ids)
+        for solved, pid in zip(_puzzle_solved, _puzzle_solved_ids, strict=False)
         if pid in easy_ids
     )
     n_easy = len(easy_ids)
@@ -431,7 +427,7 @@ def test_tactics_summary(capsys) -> None:
     total_master = len(_master_score)
     master_hits = sum(_master_score)
     pct_master = master_hits / total_master * 100 if total_master else 0
-    max_master = _N_MASTER_GAMES * _MASTER_PLIES
+    _N_MASTER_GAMES * _MASTER_PLIES
 
     summary = (
         "\n"

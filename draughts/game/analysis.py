@@ -62,7 +62,7 @@ class Analysis:
     legal_move_count: int
 
 
-def get_ai_analysis(game: "HeadlessGame", depth: int = 6) -> Analysis:
+def get_ai_analysis(game: HeadlessGame, depth: int = 6) -> Analysis:
     """Analyze the current position of a HeadlessGame.
 
     Mirrors AIEngine.find_move's adaptive-depth behaviour so that the

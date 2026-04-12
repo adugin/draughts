@@ -6,7 +6,6 @@ import sys
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Skip the whole module if PyQt6 is not available (e.g. headless CI without
 # a display).  The texture code requires a QApplication to be running before

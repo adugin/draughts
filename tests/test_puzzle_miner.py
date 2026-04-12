@@ -10,11 +10,8 @@ Covers:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-
-import pytest
 
 from draughts.game.puzzle_miner import (
     _delta_to_difficulty,
@@ -23,7 +20,6 @@ from draughts.game.puzzle_miner import (
     mine_puzzles_from_game,
     save_mined_puzzles,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -288,7 +284,7 @@ class TestMinedPuzzlesMergeWithBundled:
 
         # Load the real bundled set to find an existing position.
         bundled = load_bundled_puzzles()
-        existing_pos = list(bundled)[0].position
+        existing_pos = next(iter(bundled)).position
 
         mined_file = tmp_path / "mined_puzzles.json"
         mined_file.write_text(

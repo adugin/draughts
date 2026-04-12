@@ -19,9 +19,8 @@ from draughts.config import (
     WHITE,
     WHITE_KING,
     Color,
+    GameSettings,
 )
-from draughts.config import GameSettings
-
 from draughts.game.board import Board
 from draughts.ui.textures import TextureCache, draw_realistic_piece
 

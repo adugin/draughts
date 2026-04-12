@@ -7,13 +7,8 @@ no Qt painting is invoked.
 
 from __future__ import annotations
 
-import time
-
-import pytest
-
 from draughts.config import GameSettings
 from draughts.game.board import Board
-
 
 # ---------------------------------------------------------------------------
 # Helper: minimal BoardWidget substitute that only exposes the data properties

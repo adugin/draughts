@@ -9,15 +9,12 @@ Tests are logic-only (no running Qt app). They cover:
 
 from __future__ import annotations
 
-import pytest
-
 from draughts.ui.game_analyzer import (
     GameAnalysisResult,
     MoveAnnotation,
-    annotate_move,
     analyze_game_positions,
+    annotate_move,
 )
-
 
 # ---------------------------------------------------------------------------
 # 1. annotate_move threshold logic

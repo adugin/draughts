@@ -225,8 +225,8 @@ class TestOrientationSettings:
 
     def test_board_widget_inverted_follows_invert_color(self, qt_app):
         """BoardWidget.inverted should match invert_color from GameSettings."""
-        from draughts.ui.board_widget import BoardWidget
         from draughts.config import GameSettings
+        from draughts.ui.board_widget import BoardWidget
 
         bw = BoardWidget()
         # Simulate what MainWindow._connect_controller does

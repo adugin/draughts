@@ -15,13 +15,10 @@ import random
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import numpy as np
-
 from draughts.config import Color
 from draughts.game.ai.search import AIMove
 from draughts.game.ai.tt import _zobrist_hash
 from draughts.game.board import Board
-
 
 # ---------------------------------------------------------------------------
 # BookEntry  ─ per-position data
@@ -135,7 +132,7 @@ class OpeningBook:
         Path(path).write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
 
     @classmethod
-    def load(cls, path: str | Path) -> "OpeningBook":
+    def load(cls, path: str | Path) -> OpeningBook:
         """Load book from JSON produced by :py:meth:`save`."""
         text = Path(path).read_text(encoding="utf-8")
         raw: dict[str, list] = json.loads(text)
@@ -178,8 +175,8 @@ def _path_is_capture(path: tuple) -> bool:  # type: ignore[type-arg]
     if len(path) >= 3:
         return True
     if len(path) == 2:
-        x1, y1 = path[0]
-        x2, y2 = path[1]
+        x1, _y1 = path[0]
+        x2, _y2 = path[1]
         # Captures land 2+ squares away; normal moves land 1 square away
         return abs(x2 - x1) > 1
     return False

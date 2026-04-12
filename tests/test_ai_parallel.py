@@ -15,8 +15,6 @@ from __future__ import annotations
 import threading
 from typing import Any
 
-import pytest
-
 from draughts.config import Color
 from draughts.game.ai import AIEngine
 from draughts.game.board import Board

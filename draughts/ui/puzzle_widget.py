@@ -12,8 +12,7 @@ import logging
 from pathlib import Path
 
 import numpy as np
-from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtGui import QColor, QFont, QKeySequence, QPalette
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -23,10 +22,9 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QVBoxLayout,
-    QWidget,
 )
 
-from draughts.config import Color, EMPTY
+from draughts.config import EMPTY, Color
 from draughts.game.board import Board
 from draughts.game.puzzles import Puzzle, PuzzleSet, load_bundled_puzzles
 from draughts.ui.board_widget import BoardWidget
@@ -451,7 +449,7 @@ class PuzzleTrainer(QDialog):
         # (all get_captures paths start from the original piece position,
         #  but we need continuations from cur position)
         # We'll check if clicked square is a valid next step
-        for cap_path in captures:
+        for _cap_path in captures:
             # cap_path includes the starting square as first element
             # Since we're mid-capture, we need the full-path approach differently.
             # We track the partial path ourselves.
@@ -479,7 +477,7 @@ class PuzzleTrainer(QDialog):
             return
 
         # Extend partial path
-        extended = partial + [(x, y)]
+        extended = [*partial, (x, y)]
 
         # Check if any full legal path matches exactly
         exact = [fp for fp in full_paths if fp == extended]
@@ -489,7 +487,7 @@ class PuzzleTrainer(QDialog):
             # Completed capture — intermediates stay magenta, final
             # landing square gets green selection (same as start).
             self._board_widget.set_capture_highlights(
-                [pos for pos in extended[1:-1]]
+                list(extended[1:-1])
             )
             self._board_widget.set_destination(*extended[-1])
             self._capture_in_progress = []
@@ -497,7 +495,7 @@ class PuzzleTrainer(QDialog):
         elif still_going:
             # Continue capture
             self._capture_in_progress = extended
-            self._board_widget.set_capture_highlights([pos for pos in extended[1:]])
+            self._board_widget.set_capture_highlights(list(extended[1:]))
         else:
             # No valid continuation
             self._capture_in_progress = []
@@ -586,10 +584,9 @@ class PuzzleTrainer(QDialog):
         #    a1:d4 — both jump over b2.  We verify they lie on the
         #    same diagonal and the captured piece (the opponent piece
         #    between start and landing) is the same.
-        if len(path) >= 3 and len(best_path) >= 3:
-            if path[:-1] == best_path[:-1]:
-                self._on_correct()
-                return
+        if len(path) >= 3 and len(best_path) >= 3 and path[:-1] == best_path[:-1]:
+            self._on_correct()
+            return
 
         if len(path) == 2 and len(best_path) == 2 and path[0] == best_path[0]:
             # Both are 2-square moves from the same origin.  Check if

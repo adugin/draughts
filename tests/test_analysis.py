@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import math
 
-import pytest
-
 from draughts.game.analysis import Analysis, get_ai_analysis
 from draughts.game.headless import HeadlessGame
 
@@ -86,7 +84,6 @@ class TestAnalysisModule:
         # Use a position where white has been completely captured — board
         # starts empty; place only black pieces.  Black moves next, but we
         # switch to white so white has no pieces and therefore no moves.
-        from draughts.config import Color
 
         game = HeadlessGame(auto_ai=False)
         # Manually force white to have no pieces by creating an almost-empty

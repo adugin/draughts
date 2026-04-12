@@ -96,7 +96,7 @@ def _follow_line(
         return
 
     ordered = _order_moves(moves, child, opp, {})
-    for i, (k, p) in enumerate(ordered[:branches]):
+    for _i, (k, p) in enumerate(ordered[:branches]):
         _follow_line(book, child, opp, (k, p), max_ply, branches, depth + 1)
 
 
@@ -181,7 +181,7 @@ def main(argv: list[str] | None = None) -> None:
     max_ply: int = args.max_ply
     branches: int = args.branches
 
-    print(f"Building opening book (self-play exploration)")
+    print("Building opening book (self-play exploration)")
     print(f"Max ply  : {max_ply}")
     print(f"Branches : {branches}")
 
