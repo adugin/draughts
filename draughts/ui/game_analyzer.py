@@ -421,3 +421,47 @@ def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, 
     outer.addLayout(btn_row)
 
     dlg.exec()
+
+    # --- Puzzle mining ---
+    _offer_puzzle_mining(result, positions, parent)
+
+
+def _offer_puzzle_mining(result: GameAnalysisResult, positions: list[str], parent) -> None:
+    """If the game contains blunders, offer to mine them as puzzles."""
+    from PyQt6.QtWidgets import QMessageBox
+
+    from draughts.game.puzzle_miner import append_mined_puzzles, mine_puzzles_from_game
+
+    if result.blunder_count == 0:
+        return
+
+    candidates = mine_puzzles_from_game(positions, result.annotations)
+    if not candidates:
+        return
+
+    n = len(candidates)
+    reply = QMessageBox.question(
+        parent,
+        "Задачи из партии",
+        f"Найдено {n} {'позиция' if n == 1 else 'позиции' if n < 5 else 'позиций'} для тренировки.\n"
+        "Добавить в коллекцию задач?",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.Yes,
+    )
+    if reply != QMessageBox.StandardButton.Yes:
+        return
+
+    added = append_mined_puzzles(candidates)
+    if added > 0:
+        QMessageBox.information(
+            parent,
+            "Задачи добавлены",
+            f"Добавлено {added} {'задача' if added == 1 else 'задачи' if added < 5 else 'задач'} "
+            "в личную коллекцию.",
+        )
+    else:
+        QMessageBox.information(
+            parent,
+            "Задачи добавлены",
+            "Все найденные позиции уже есть в коллекции.",
+        )
