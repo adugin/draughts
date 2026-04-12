@@ -378,6 +378,8 @@ class GameController(QObject):
             difficulty=self.settings.difficulty,
             color=self._computer_color,
             search_depth=self.settings.search_depth,
+            use_book=self.settings.use_opening_book,
+            use_bitbase=self.settings.use_endgame_bitbase,
         )
         self._ai_worker = AIWorker(self.board, engine)
         self._ai_worker.moveToThread(self._ai_thread)

@@ -483,11 +483,15 @@ class AIEngine:
         search_depth: int = 0,
         book: OpeningBook | None | object = _USE_DEFAULT_BOOK,
         bitbase: EndgameBitbase | None | object = _USE_DEFAULT_BITBASE,
+        use_book: bool = True,
+        use_bitbase: bool = True,
     ):
         self.difficulty = difficulty
         self.color = color
         self.search_depth = search_depth  # 0 = auto (derived from difficulty)
         self._ctx = SearchContext()
+        self._use_book: bool = use_book
+        self._use_bitbase: bool = use_bitbase
 
         if book is AIEngine._USE_DEFAULT_BOOK:
             # Lazy import to avoid circular dependency (ai.__init__ imports search)
@@ -524,13 +528,13 @@ class AIEngine:
                 if any exists.
         """
         # Opening book probe — O(1), no eval/search
-        if self._book is not None:
+        if self._use_book and self._book is not None:
             book_move = self._book.probe(board, self.color)
             if book_move is not None:
                 return book_move
 
         # Endgame bitbase probe (D9) — O(1) per child, exact WLD result
-        if self._bitbase is not None:
+        if self._use_bitbase and self._bitbase is not None:
             piece_count = board.count_pieces(Color.BLACK) + board.count_pieces(Color.WHITE)
             if piece_count <= 3:
                 bb_move = _bitbase_best_move(board, self.color, self._bitbase)

@@ -348,6 +348,9 @@ class MainWindow(QMainWindow):
             self.board_widget.inverted = self._controller.settings.invert_color
             # Show/hide clock toolbar (D19)
             self._clock_toolbar.setVisible(self._controller.settings.show_clock)
+            # Apply tuned eval toggle immediately (BUG-004)
+            from draughts.game.ai.eval import set_use_tuned_eval
+            set_use_tuned_eval(self._controller.settings.use_tuned_eval)
 
     def _on_playback(self):
         from draughts.ui.playback import PlaybackDialog

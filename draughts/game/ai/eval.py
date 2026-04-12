@@ -229,6 +229,45 @@ def load_tuned_weights(path: Path | str | None = None) -> bool:
         return False
 
 
+# Hand-tuned defaults — stored so they can be restored by set_use_tuned_eval.
+_DEFAULT_PAWN_VALUE = 5.0
+_DEFAULT_KING_VALUE = 15.0
+_DEFAULT_ADVANCE_BONUS = 0.15
+_DEFAULT_CENTER_BONUS = 0.05
+_DEFAULT_SAFETY_BONUS = 0.1
+_DEFAULT_CONNECTED_BONUS = 0.08
+_DEFAULT_GOLDEN_CORNER = 0.3
+_DEFAULT_KING_CENTER_WEIGHT = 0.3
+_DEFAULT_KING_DISTANCE_WEIGHT = 0.4
+
+
+def set_use_tuned_eval(enabled: bool) -> None:
+    """Enable or disable Texel-tuned evaluation weights at runtime.
+
+    When *enabled* is True the weights file is (re-)loaded from disk.
+    When False the module reverts to the hand-tuned defaults so that
+    toggling the setting in GameSettings takes immediate effect without
+    restarting the application.
+    """
+    global _KING_VALUE, _PAWN_VALUE, _ADVANCE_BONUS, _CENTER_BONUS  # noqa: PLW0603
+    global _SAFETY_BONUS, _CONNECTED_BONUS, _GOLDEN_CORNER           # noqa: PLW0603
+    global _KING_CENTER_WEIGHT, _KING_DISTANCE_WEIGHT                # noqa: PLW0603
+
+    if enabled:
+        load_tuned_weights()
+    else:
+        _PAWN_VALUE = _DEFAULT_PAWN_VALUE
+        _KING_VALUE = _DEFAULT_KING_VALUE
+        _ADVANCE_BONUS = _DEFAULT_ADVANCE_BONUS
+        _CENTER_BONUS = _DEFAULT_CENTER_BONUS
+        _SAFETY_BONUS = _DEFAULT_SAFETY_BONUS
+        _CONNECTED_BONUS = _DEFAULT_CONNECTED_BONUS
+        _GOLDEN_CORNER = _DEFAULT_GOLDEN_CORNER
+        _KING_CENTER_WEIGHT = _DEFAULT_KING_CENTER_WEIGHT
+        _KING_DISTANCE_WEIGHT = _DEFAULT_KING_DISTANCE_WEIGHT
+        _log.debug("Tuned eval disabled — using hand-tuned defaults (PV=%.2f)", _PAWN_VALUE)
+
+
 # Auto-load tuned weights at import time if the file exists.
 # Failures are silent (logged at DEBUG) so the module is always importable.
 load_tuned_weights()
