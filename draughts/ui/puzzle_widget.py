@@ -331,6 +331,7 @@ class PuzzleTrainer(QDialog):
         # Update widget
         self._board_widget.set_board(board)
         self._board_widget.set_selection()
+        self._board_widget.set_destination()
         self._board_widget.set_capture_highlights([])
 
         # Determine turn label
@@ -389,6 +390,7 @@ class PuzzleTrainer(QDialog):
             # Clicked opponent's piece — deselect
             self._selected_sq = None
             self._board_widget.set_selection()
+            self._board_widget.set_destination()
             return
 
         # Select the piece
@@ -431,6 +433,7 @@ class PuzzleTrainer(QDialog):
             self._capture_in_progress = []
             self._selected_sq = None
             self._board_widget.set_selection()
+            self._board_widget.set_destination()
             self._board_widget.set_capture_highlights([])
             return
 
@@ -447,7 +450,7 @@ class PuzzleTrainer(QDialog):
             self._board_widget.set_capture_highlights(
                 [pos for pos in extended[1:-1]]
             )
-            self._board_widget.set_selection(*extended[-1])
+            self._board_widget.set_destination(*extended[-1])
             self._capture_in_progress = []
             self._validate_move_path(extended)
         elif still_going:
@@ -459,6 +462,7 @@ class PuzzleTrainer(QDialog):
             self._capture_in_progress = []
             self._selected_sq = None
             self._board_widget.set_selection()
+            self._board_widget.set_destination()
             self._board_widget.set_capture_highlights([])
 
     def _attempt_move(self, from_sq: tuple[int, int], to_sq: tuple[int, int]) -> None:
@@ -489,6 +493,7 @@ class PuzzleTrainer(QDialog):
             self._flash_wrong("Взятие обязательно!")
             self._selected_sq = None
             self._board_widget.set_selection()
+            self._board_widget.set_destination()
             return
 
         # Check if the simple move is legal
@@ -496,10 +501,11 @@ class PuzzleTrainer(QDialog):
         if to_sq not in legal_moves:
             self._selected_sq = None
             self._board_widget.set_selection()
+            self._board_widget.set_destination()
             return
 
         # It's a legal simple move — highlight destination green, then validate
-        self._board_widget.set_selection(*to_sq)
+        self._board_widget.set_destination(*to_sq)
         path = [from_sq, to_sq]
         self._validate_move_path(path)
 
@@ -544,6 +550,7 @@ class PuzzleTrainer(QDialog):
             # Illegal — just deselect silently
             self._selected_sq = None
             self._board_widget.set_selection()
+            self._board_widget.set_destination()
             self._capture_in_progress = []
             self._board_widget.set_capture_highlights([])
 
@@ -590,6 +597,7 @@ class PuzzleTrainer(QDialog):
         self._selected_sq = None
         self._capture_in_progress = []
         self._board_widget.set_selection()
+        self._board_widget.set_destination()
         self._board_widget.set_capture_highlights([])
 
         if self._attempts >= self.MAX_ATTEMPTS:

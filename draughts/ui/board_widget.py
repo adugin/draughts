@@ -43,6 +43,7 @@ class BoardWidget(QWidget):
         super().__init__(parent)
         self._board: Board | None = None
         self._selection: tuple[int, int] | None = None
+        self._destination: tuple[int, int] | None = None
         self._capture_highlights: list[tuple[int, int]] = []
         self._turn_color: Color = Color.WHITE
         self._anim_hidden_cells: set[tuple[int, int]] = set()  # cells hidden during animation
@@ -168,6 +169,18 @@ class BoardWidget(QWidget):
             self._selection = None
         else:
             self._selection = (x, y)
+        self.update()
+
+    def set_destination(self, x: int | None = None, y: int | None = None):
+        """Highlight move destination square (green, same style as selection).
+
+        Used by the puzzle trainer to show both start (selection) and
+        end (destination) in the same green color simultaneously.
+        """
+        if x is None or y is None:
+            self._destination = None
+        else:
+            self._destination = (x, y)
         self.update()
 
     def set_capture_highlights(self, positions: list[tuple[int, int]]):
@@ -310,6 +323,15 @@ class BoardWidget(QWidget):
         if self._selection:
             sx, sy = self._selection
             rect = self._cell_rect(sx, sy, cell_size, bx, by)
+            c = COLORS["selection_cursor"]
+            pen = QPen(QColor(c[0], c[1], c[2]), max(2, cell_size * 0.08))
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(rect.adjusted(1, 1, -1, -1))
+
+        if self._destination:
+            dx, dy = self._destination
+            rect = self._cell_rect(dx, dy, cell_size, bx, by)
             c = COLORS["selection_cursor"]
             pen = QPen(QColor(c[0], c[1], c[2]), max(2, cell_size * 0.08))
             painter.setPen(pen)
