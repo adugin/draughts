@@ -148,6 +148,11 @@ class OptionsDialog(QDialog):
 
     def _apply_dialog_theme(self, theme_name: str) -> None:
         t = self._DIALOG_THEMES.get(theme_name, self._DIALOG_THEMES["dark_wood"])
+        # SVG icons for styled checkmarks and radio dots
+        res = Path(__file__).parent.parent / "resources"
+        suffix = "dark" if theme_name == "dark_wood" else "light"
+        check_svg = (res / f"check_{suffix}.svg").as_posix()
+        radio_svg = (res / f"radio_{suffix}.svg").as_posix()
         self.setStyleSheet(
             f"QDialog {{ background: {t['bg']}; color: {t['fg']}; }}"
             f"QTabWidget::pane {{ background: {t['bg']};"
@@ -168,7 +173,17 @@ class OptionsDialog(QDialog):
             f"  border: 1px solid {t['input_border']}; padding: 3px;"
             f"  border-radius: 3px; }}"
             f"QCheckBox {{ color: {t['fg']}; spacing: 6px; }}"
+            f"QCheckBox::indicator {{ width: 18px; height: 18px;"
+            f"  background: {t['input_bg']}; border: 2px solid {t['input_border']};"
+            f"  border-radius: 3px; }}"
+            f"QCheckBox::indicator:checked {{ border-color: {t['check_accent']};"
+            f"  image: url({check_svg}); }}"
             f"QRadioButton {{ color: {t['fg']}; spacing: 6px; }}"
+            f"QRadioButton::indicator {{ width: 16px; height: 16px;"
+            f"  background: {t['input_bg']}; border: 2px solid {t['input_border']};"
+            f"  border-radius: 9px; }}"
+            f"QRadioButton::indicator:checked {{ border-color: {t['check_accent']};"
+            f"  image: url({radio_svg}); }}"
             f"QLabel {{ color: {t['fg']}; }}"
             f"QGroupBox {{ color: {t['fg']}; border: 1px solid {t['tab_border']};"
             f"  border-radius: 4px; margin-top: 8px; padding-top: 12px; }}"
