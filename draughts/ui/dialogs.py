@@ -168,8 +168,6 @@ class OptionsDialog(QDialog):
             f"  border-radius: 3px; }}"
             f"QComboBox QAbstractItemView {{ background: {t['input_bg']};"
             f"  color: {t['fg']}; selection-background-color: {t['tab_sel']}; }}"
-            f"QComboBox::drop-down {{ subcontrol-origin: padding;"
-            f"  subcontrol-position: center right; width: 22px; }}"
             f"QSpinBox {{ background: {t['input_bg']}; color: {t['fg']};"
             f"  border: 1px solid {t['input_border']}; padding: 3px;"
             f"  border-radius: 3px; }}"
