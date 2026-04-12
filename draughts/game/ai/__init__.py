@@ -47,6 +47,35 @@ def load_default_book() -> OpeningBook | None:
 # Attempt to load at import time; failures are silent (no book = normal search)
 load_default_book()
 
+# --- Endgame bitbase (D9) ---
+# Loaded once at import time from the bundled resource file.
+# Stays None if the resource is absent (run draughts/tools/build_bitbase.py to generate).
+from draughts.game.ai.bitbase import EndgameBitbase as EndgameBitbase
+
+DEFAULT_BITBASE: EndgameBitbase | None = None
+
+def load_default_bitbase() -> EndgameBitbase | None:
+    """Load the bundled 3-piece bitbase from draughts/resources/bitbase_3.json.
+
+    Returns the loaded bitbase, or None if the file does not exist.
+    Sets the module-level DEFAULT_BITBASE.
+    """
+    global DEFAULT_BITBASE
+    try:
+        ref = importlib.resources.files("draughts.resources").joinpath("bitbase_3.json")
+        with importlib.resources.as_file(ref) as bb_path:
+            if bb_path.exists():
+                DEFAULT_BITBASE = EndgameBitbase.load(bb_path)
+                return DEFAULT_BITBASE
+    except Exception as exc:
+        logging.getLogger(__name__).debug("Could not load default bitbase: %s", exc)
+    DEFAULT_BITBASE = None
+    return None
+
+
+# Attempt to load at import time; failures are silent (no bitbase = normal search)
+load_default_bitbase()
+
 # --- eval ---
 from draughts.game.ai.eval import (
     _ADVANCE_BONUS as _ADVANCE_BONUS,
@@ -192,6 +221,9 @@ from draughts.game.ai.search import (
 )
 from draughts.game.ai.search import (
     _alphabeta as _alphabeta,
+)
+from draughts.game.ai.search import (
+    _bitbase_best_move as _bitbase_best_move,
 )
 from draughts.game.ai.search import (
     _quiescence as _quiescence,

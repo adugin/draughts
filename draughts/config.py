@@ -87,6 +87,8 @@ class GameSettings:
     hash_size_mb: int = 32
     # Opening book (D8)
     use_opening_book: bool = True
+    # Endgame bitbase (D9)
+    use_endgame_bitbase: bool = True
     # NOTE: DIFFICULTY_NAMES is kept for backward compat; new code uses
     # draughts.game.ai.elo.ELO_LEVELS directly.
     DIFFICULTY_NAMES: dict[int, str] = field(
