@@ -643,3 +643,34 @@ class GameController(QObject):
     @property
     def can_save(self) -> bool:
         return self._ply_count >= 1
+
+    @property
+    def is_thinking(self) -> bool:
+        """True while the AI background thread is running."""
+        return self._ai_thread is not None
+
+    def request_analysis(self, depth: int = 6) -> object:  # returns Analysis | None
+        """Analyze the current position synchronously and return an Analysis.
+
+        Delegates to draughts.game.analysis.get_ai_analysis() via a temporary
+        HeadlessGame wrapper so the analysis uses an isolated SearchContext.
+        This method is intended for use by the AnalysisPane which calls it
+        in its own background QThread, so it must NOT be called from the
+        main thread when a long-running analysis is acceptable.
+
+        Returns None if the position cannot be analyzed (no board available).
+        """
+        try:
+            from draughts.game.analysis import get_ai_analysis
+            from draughts.game.headless import HeadlessGame
+
+            hg = HeadlessGame(
+                position=self.board.to_position_string(),
+                auto_ai=False,
+            )
+            # Override the turn to match the current game state
+            hg._turn = self._current_turn
+            return get_ai_analysis(hg, depth=depth)
+        except Exception:
+            logger.exception("request_analysis failed")
+            return None

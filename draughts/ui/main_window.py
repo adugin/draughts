@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
 )
 
 from draughts.config import Color
+from draughts.ui.analysis_pane import AnalysisPane
 from draughts.ui.board_widget import BoardWidget
 
 if TYPE_CHECKING:
@@ -47,6 +48,7 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._build_menus()
+        self._build_analysis_pane()
         self._connect_controller()
 
     def _build_ui(self):
@@ -130,6 +132,23 @@ class MainWindow(QMainWindow):
         self._act_editor.triggered.connect(self.enter_editor_mode)
         position_menu.addAction(self._act_editor)
 
+        # --- Анализ ---
+        analysis_menu = menubar.addMenu("&Анализ")
+
+        self._act_toggle_pane = QAction("&Панель анализа", self)
+        self._act_toggle_pane.setShortcut(QKeySequence("F3"))
+        self._act_toggle_pane.setCheckable(True)
+        self._act_toggle_pane.setChecked(False)
+        self._act_toggle_pane.triggered.connect(self._on_toggle_analysis_pane)
+        analysis_menu.addAction(self._act_toggle_pane)
+
+        analysis_menu.addSeparator()
+
+        self._act_analyze_game = QAction("&Проанализировать партию...", self)
+        self._act_analyze_game.setEnabled(False)
+        self._act_analyze_game.triggered.connect(self._on_analyze_game)
+        analysis_menu.addAction(self._act_analyze_game)
+
         # --- Справка ---
         help_menu = menubar.addMenu("&Справка")
 
@@ -141,6 +160,14 @@ class MainWindow(QMainWindow):
         self._act_about = QAction("&Об авторе...", self)
         self._act_about.triggered.connect(self._on_about)
         help_menu.addAction(self._act_about)
+
+    def _build_analysis_pane(self) -> None:
+        """Create the analysis dock pane (initially hidden)."""
+        self._analysis_pane = AnalysisPane(self)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._analysis_pane)
+        self._analysis_pane.hide()
+        # Keep the menu checkbox in sync when user closes the dock with the X button
+        self._analysis_pane.visibilityChanged.connect(self._on_pane_visibility_changed)
 
     # --- Connect controller signals ---
 
@@ -165,6 +192,12 @@ class MainWindow(QMainWindow):
     def _on_board_changed(self):
         self.board_widget.set_board(self._controller.board)
         self._update_action_states()
+        # Auto-feed new position to analysis pane (only when pane is visible
+        # and engine is not already thinking for the game).
+        if self._analysis_pane.isVisible() and not self._controller.is_thinking:
+            self._analysis_pane.set_position(
+                self._controller.board, self._controller.current_turn
+            )
 
     def _on_turn_changed(self, color: str):
         self.board_widget.set_turn_indicator(color)
@@ -268,6 +301,29 @@ class MainWindow(QMainWindow):
 
         dlg = AboutDialog(self)
         dlg.exec()
+
+    def _on_toggle_analysis_pane(self, checked: bool) -> None:
+        """Show or hide the analysis pane."""
+        if checked:
+            self._analysis_pane.show()
+            # Prime the pane with the current position
+            if not self._controller.is_thinking:
+                self._analysis_pane.set_position(
+                    self._controller.board, self._controller.current_turn
+                )
+        else:
+            self._analysis_pane.stop_analysis()
+            self._analysis_pane.hide()
+
+    def _on_pane_visibility_changed(self, visible: bool) -> None:
+        """Keep the menu checkbox synced with the dock widget's actual visibility."""
+        self._act_toggle_pane.setChecked(visible)
+
+    def _on_analyze_game(self) -> None:
+        """Run full-game analysis and show annotations + summary."""
+        from draughts.ui.game_analyzer import run_game_analysis
+
+        run_game_analysis(self._controller, self)
 
     # --- Board editor ---
 
@@ -451,10 +507,15 @@ class MainWindow(QMainWindow):
         self._start_game_from_position(board, side)
 
     def _editor_analyze_from_here(self):
-        """Exit editor and start a game from the position (analysis stub for M3 #15)."""
-        # Analysis pane (D12 / ROADMAP #15) is deferred; for now we start a
-        # normal game from the position so the user can play/explore it.
-        self._editor_play_from_here()
+        """Exit editor, start game from position, and open the analysis pane."""
+        side = self._editor_side()
+        board = self._editor_board.copy()
+        self.exit_editor_mode()
+        self._start_game_from_position(board, side)
+        # Open the analysis pane and prime it with the new position
+        self._analysis_pane.show()
+        self._act_toggle_pane.setChecked(True)
+        self._analysis_pane.set_position(board, side)
 
     def _editor_cancel(self):
         """Cancel editing and restore the previous game state."""
@@ -498,12 +559,17 @@ class MainWindow(QMainWindow):
     def _update_action_states(self):
         self._act_undo.setEnabled(self._controller.can_undo)
         self._act_save.setEnabled(self._controller.can_save)
+        self._act_analyze_game.setEnabled(self._controller.can_save)
 
     # --- Keyboard events ---
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape and self.board_widget.editor_mode:
             self._editor_play_from_here()
+            return
+        if event.key() == Qt.Key.Key_F3:
+            self._act_toggle_pane.setChecked(not self._act_toggle_pane.isChecked())
+            self._on_toggle_analysis_pane(self._act_toggle_pane.isChecked())
             return
         super().keyPressEvent(event)
 
