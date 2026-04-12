@@ -175,8 +175,7 @@ class PuzzleTrainer(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Тренировка — Решать задачи")
-        self.setMinimumSize(560, 660)
-        self.resize(660, 740)
+        self.setFixedSize(720, 860)
 
         # Resolve theme from parent window or default
         current_theme = "dark_wood"

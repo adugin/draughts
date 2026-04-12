@@ -43,8 +43,7 @@ class MainWindow(QMainWindow):
     def __init__(self, controller: GameController, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Шашки")
-        self.setMinimumSize(480, 520)
-        self.resize(720, 760)
+        self.setFixedSize(720, 760)
 
         self._controller = controller
         self._current_theme = controller.settings.board_theme

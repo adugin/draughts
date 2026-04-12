@@ -28,7 +28,7 @@ class PlaybackDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Просмотр партии")
         self.setModal(True)
-        self.resize(600, 520)
+        self.setFixedSize(720, 820)
 
         # Apply theme from parent window
         current_theme = "dark_wood"
@@ -55,7 +55,7 @@ class PlaybackDialog(QDialog):
 
         # Board widget
         self._board_widget = BoardWidget()
-        self._board_widget.setMinimumSize(400, 400)
+        self._board_widget.setMinimumSize(600, 600)
         layout.addWidget(self._board_widget, stretch=1)
 
         # Position indicator
