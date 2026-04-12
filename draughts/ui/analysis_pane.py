@@ -211,25 +211,11 @@ class AnalysisPane(QDockWidget):
         # --- Buttons ---
         btn_row = QHBoxLayout()
         self._btn_run = QPushButton("Анализ")
-        self._btn_run.setStyleSheet(
-            f"QPushButton {{ background: {tc['analysis_run_bg']}; color: {tc['fg']}; "
-            f"border: 1px solid {tc['analysis_run_border']}; "
-            f"border-radius: 3px; padding: 4px 10px; }}"
-            f"QPushButton:hover {{ background: {tc['analysis_run_hover']}; }}"
-            f"QPushButton:disabled {{ background: {tc['disabled_bg']}; color: {tc['disabled_fg']}; }}"
-        )
         self._btn_run.clicked.connect(self._on_run_clicked)
         btn_row.addWidget(self._btn_run)
 
         self._btn_stop = QPushButton("Стоп")
         self._btn_stop.setEnabled(False)
-        self._btn_stop.setStyleSheet(
-            f"QPushButton {{ background: {tc['analysis_stop_bg']}; color: {tc['fg']}; "
-            f"border: 1px solid {tc['analysis_stop_border']}; "
-            f"border-radius: 3px; padding: 4px 10px; }}"
-            f"QPushButton:hover {{ background: {tc['analysis_stop_hover']}; }}"
-            f"QPushButton:disabled {{ background: {tc['disabled_bg']}; color: {tc['disabled_fg']}; }}"
-        )
         self._btn_stop.clicked.connect(self._on_stop_clicked)
         btn_row.addWidget(self._btn_stop)
         outer.addLayout(btn_row)
