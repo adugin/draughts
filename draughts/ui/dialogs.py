@@ -56,27 +56,8 @@ def _get_current_theme() -> str:
         return "dark_wood"
 
 
-def combobox_qss(theme_name: str = "dark_wood") -> str:
-    """Return QSS for a themed combobox — shared across all dialogs.
-
-    Flat drop-down with SVG chevron arrow. Call this from any widget
-    that needs a styled combobox (OptionsDialog, PuzzleTrainer, etc.).
-    """
-    t = _DIALOG_PALETTES.get(theme_name, _DIALOG_PALETTES["dark_wood"])
-    res = Path(__file__).parent.parent / "resources"
-    suffix = "dark" if theme_name == "dark_wood" else "light"
-    arrow = (res / f"arrow_{suffix}.svg").as_posix()
-    return (
-        f"QComboBox {{ background: {t['input_bg']}; color: {t['fg']};"
-        f"  border: 1px solid {t['border']}; padding: 4px 8px;"
-        f"  border-radius: 3px; font-size: 13px; }}"
-        f"QComboBox::drop-down {{ background: transparent; border: none;"
-        f"  width: 20px; }}"
-        f"QComboBox::down-arrow {{ image: url({arrow});"
-        f"  width: 10px; height: 10px; }}"
-        f"QComboBox QAbstractItemView {{ background: {t['input_bg']};"
-        f"  color: {t['fg']}; }}"
-    )
+# Re-export from theme.py for backward compat
+from draughts.ui.theme import combobox_qss as combobox_qss  # noqa: F401
 
 
 def apply_dialog_theme(dialog: QDialog, theme_name: str | None = None) -> None:
@@ -171,11 +152,10 @@ class OptionsDialog(QDialog):
 
     def _apply_dialog_theme(self, theme_name: str) -> None:
         t = self._DIALOG_THEMES.get(theme_name, self._DIALOG_THEMES["dark_wood"])
-        # SVG icons for styled checkmarks and radio dots
-        res = Path(__file__).parent.parent / "resources"
-        suffix = "dark" if theme_name == "dark_wood" else "light"
-        check_svg = (res / f"check_{suffix}.svg").as_posix()
-        radio_svg = (res / f"radio_{suffix}.svg").as_posix()
+        from draughts.ui.theme import (
+            button_qss, checkbox_qss, combobox_qss as _cq,
+            radio_qss, spinbox_qss,
+        )
         self.setStyleSheet(
             f"QDialog {{ background: {t['bg']}; color: {t['fg']}; }}"
             f"QTabWidget::pane {{ background: {t['bg']};"
@@ -186,30 +166,15 @@ class OptionsDialog(QDialog):
             f"  border-top-right-radius: 4px; margin-right: 2px; }}"
             f"QTabBar::tab:selected {{ background: {t['tab_sel']};"
             f"  font-weight: bold; }}"
-            + combobox_qss(theme_name) +
-            f"QSpinBox {{ background: {t['input_bg']}; color: {t['fg']};"
-            f"  border: 1px solid {t['input_border']}; padding: 3px;"
-            f"  border-radius: 3px; }}"
-            f"QCheckBox {{ color: {t['fg']}; spacing: 6px; }}"
-            f"QCheckBox::indicator {{ width: 18px; height: 18px;"
-            f"  background: {t['input_bg']}; border: 2px solid {t['input_border']};"
-            f"  border-radius: 3px; }}"
-            f"QCheckBox::indicator:checked {{ border-color: {t['check_accent']};"
-            f"  image: url({check_svg}); }}"
-            f"QRadioButton {{ color: {t['fg']}; spacing: 6px; }}"
-            f"QRadioButton::indicator {{ width: 16px; height: 16px;"
-            f"  background: {t['input_bg']}; border: 2px solid {t['input_border']};"
-            f"  border-radius: 9px; }}"
-            f"QRadioButton::indicator:checked {{ border-color: {t['check_accent']};"
-            f"  image: url({radio_svg}); }}"
+            + _cq(theme_name)
+            + spinbox_qss(theme_name)
+            + checkbox_qss(theme_name)
+            + radio_qss(theme_name)
+            + button_qss(theme_name) +
             f"QLabel {{ color: {t['fg']}; }}"
             f"QGroupBox {{ color: {t['fg']}; border: 1px solid {t['tab_border']};"
             f"  border-radius: 4px; margin-top: 8px; padding-top: 12px; }}"
             f"QGroupBox::title {{ color: {t['fg']}; }}"
-            f"QPushButton {{ background: {t['btn_bg']}; color: {t['fg']};"
-            f"  border: 1px solid {t['btn_border']}; border-radius: 3px;"
-            f"  padding: 5px 16px; }}"
-            f"QPushButton:hover {{ background: {t['btn_hover']}; }}"
             f"QDialogButtonBox QPushButton {{ min-width: 70px; }}"
         )
 

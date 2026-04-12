@@ -516,23 +516,8 @@ class MainWindow(QMainWindow):
         lbl.setStyleSheet("color: #d4b483; font-weight: bold; padding: 0 4px;")
         self._editor_toolbar.addWidget(lbl)
 
-        # Radio buttons styled to match the current theme
-        from pathlib import Path as _Path
-        _res = _Path(__file__).parent.parent / "resources"
-        _sfx = "dark" if self._current_theme == "dark_wood" else "light"
-        _radio_svg = (_res / f"radio_{_sfx}.svg").as_posix()
-        _fg = "#d4b483" if self._current_theme == "dark_wood" else "#3a2a1a"
-        _inp_bg = "#3a2a1a" if self._current_theme == "dark_wood" else "#ffffff"
-        _inp_brd = "#5a4a3a" if self._current_theme == "dark_wood" else "#c8b898"
-        _accent = "#d4b483" if self._current_theme == "dark_wood" else "#6a4a2a"
-        _radio_qss = (
-            f"QRadioButton {{ color: {_fg}; spacing: 6px; }}"
-            f"QRadioButton::indicator {{ width: 16px; height: 16px;"
-            f"  background: {_inp_bg}; border: 2px solid {_inp_brd};"
-            f"  border-radius: 9px; }}"
-            f"QRadioButton::indicator:checked {{ border-color: {_accent};"
-            f"  image: url({_radio_svg}); }}"
-        )
+        from draughts.ui.theme import radio_qss
+        _radio_qss = radio_qss(self._current_theme)
         self._editor_radio_white = QRadioButton("Белые")
         self._editor_radio_white.setStyleSheet(_radio_qss)
         self._editor_radio_black = QRadioButton("Чёрные")

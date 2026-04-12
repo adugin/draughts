@@ -42,14 +42,9 @@ _GREEN = "#2ecc71"
 _RED = "#e74c3c"
 _BLUE = "#3498db"
 _MUTED = "#8a7060"
-_BTN_STYLE = (
-    "QPushButton {"
-    "  background: #3a2a1a; color: #d4b483; border: 1px solid #5a4a3a;"
-    "  padding: 6px 14px; border-radius: 4px; font-size: 13px;"
-    "}"
-    "QPushButton:hover { background: #4a3a2a; }"
-    "QPushButton:disabled { color: #5a4a3a; border-color: #3a2a1a; }"
-)
+from draughts.ui.theme import button_qss as _button_qss
+
+_BTN_STYLE = _button_qss("dark_wood")
 
 
 # ---------------------------------------------------------------------------
@@ -229,7 +224,7 @@ class PuzzleTrainer(QDialog):
         diff_lbl.setStyleSheet(f"color: {_MUTED}; font-size: 13px;")
         top.addWidget(diff_lbl)
 
-        from draughts.ui.dialogs import combobox_qss
+        from draughts.ui.theme import combobox_qss
 
         self._diff_combo = QComboBox()
         self._diff_combo.setStyleSheet(combobox_qss("dark_wood"))
