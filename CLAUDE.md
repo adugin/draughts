@@ -13,20 +13,37 @@
 
 ---
 
-## Управление: Product Owner
+## Агенты и playbooks (`.agents/`)
 
-**Владелец продукта — агент `gsd-new-project` / `general-purpose` в роли
-Product Owner.** Он принимает решения о том, какие фичи добавлять, в
-каком порядке, какие legacy-решения менять, какие стандарты внедрять.
-Артефакты PO хранятся в `.planning/product/`:
+Проект имеет 4 специализированных агента и 5 playbooks, сохранённых
+локально. Каждый агент имеет invocation template в своём файле.
 
-- `.planning/product/ROADMAP.md` — упорядоченный список фич
-- `.planning/product/DECISIONS.md` — принятые архитектурные решения
-- `.planning/product/RESEARCH.md` — анализ конкурирующих продуктов
+**Агенты** (спавнить через `Agent(model="opus", prompt="...")`):
+- `.agents/product-owner.md` — гроссмейстер + product strategy. Решает
+  ЧТО строить. Перед любой существенной фичей — консультация с PO.
+- `.agents/elite-qa.md` — баг-хантер уровня "видит код как шахматист
+  видит доску". Запускать после каждой волны изменений и перед merge.
+- `.agents/engine-tuner.md` — alpha-beta internals + Texel + SPRT.
+  Запускать при любых изменениях в `draughts/game/ai/`.
+- `.agents/rules-oracle.md` — FMJD арбитр, знает все edge cases
+  русских шашек. Консультировать при работе с правилами/move gen.
 
-Перед любой существенной фичей — **консультация с PO**. PO анализирует
-запрос в контексте roadmap, говорит "да/нет/сначала сделай X", обновляет
-DECISIONS.md. Только после этого приступаем к реализации.
+**Playbooks** (справочные чеклисты, агенты ссылаются на них):
+- `.agents/playbooks/search-bug-debugging.md` — методика поиска багов
+  в minimax-поиске (та, что нашла quiescence fail-hard)
+- `.agents/playbooks/eval-change-checklist.md` — что проверить после
+  изменения весов eval (10 пунктов, родился из BUG-002)
+- `.agents/playbooks/agent-orchestration.md` — когда Opus vs Sonnet,
+  параллельные волны, шаблоны промптов, анти-паттерны
+- `.agents/playbooks/safe-refactoring.md` — последовательность для
+  безопасного split/move модулей (фазы 0-4)
+- `.agents/playbooks/lessons-learned.md` — "грабли" с цифрами: fail-hard
+  bug, eval scale mismatch, speed≠strength, 40 games мало
+
+**Артефакты PO** хранятся в `.planning/product/`:
+- `ROADMAP.md` — упорядоченный список фич
+- `DECISIONS.md` — принятые архитектурные решения (D1-D28)
+- `RESEARCH.md` — анализ конкурирующих продуктов
 
 ---
 
