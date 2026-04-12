@@ -442,12 +442,12 @@ class PuzzleTrainer(QDialog):
         still_going = [fp for fp in full_paths if fp[:len(extended)] == extended and len(fp) > len(extended)]
 
         if exact and not still_going:
-            # Completed capture — show the final landing square in the
-            # highlight chain before validating (gives visual feedback
-            # that the click registered).
+            # Completed capture — intermediates stay magenta, final
+            # landing square gets green selection (same as start).
             self._board_widget.set_capture_highlights(
-                [pos for pos in extended[1:]]
+                [pos for pos in extended[1:-1]]
             )
+            self._board_widget.set_selection(*extended[-1])
             self._capture_in_progress = []
             self._validate_move_path(extended)
         elif still_going:
@@ -498,8 +498,8 @@ class PuzzleTrainer(QDialog):
             self._board_widget.set_selection()
             return
 
-        # It's a legal simple move — highlight destination, then validate
-        self._board_widget.set_capture_highlights([to_sq])
+        # It's a legal simple move — highlight destination green, then validate
+        self._board_widget.set_selection(*to_sq)
         path = [from_sq, to_sq]
         self._validate_move_path(path)
 
