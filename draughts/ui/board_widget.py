@@ -360,14 +360,16 @@ class BoardWidget(QWidget):
                 rect = self._cell_rect(hx, hy, cell_size, bx, by)
                 painter.drawRect(rect.adjusted(1, 1, -1, -1))
 
-        # Draw last-move highlight overlay (item 26, part 1)
+        # Draw last-move highlight — subtle border instead of filled
+        # overlay so the wood texture stays visible underneath.
         if self._last_move is not None and self._settings.highlight_last_move:
-            lm_color = QColor(255, 220, 0, 70)  # semi-transparent yellow
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(lm_color)
+            lm_color = QColor(200, 180, 50, 160)
+            pen = QPen(lm_color, max(2, cell_size * 0.06))
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
             for lx, ly in self._last_move:
                 rect = self._cell_rect(lx, ly, cell_size, bx, by)
-                painter.fillRect(rect, lm_color)
+                painter.drawRect(rect.adjusted(2, 2, -2, -2))
 
         # Draw legal-move hover dots (item 26, part 2)
         if self._hover_legal_moves and self._settings.show_legal_moves_hover:
