@@ -15,16 +15,16 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from draughts.config import Color
-
-# analysis.py owns Analysis and get_ai_analysis; we re-export for compat.
-from draughts.game.analysis import Analysis as Analysis
-from draughts.game.analysis import get_ai_analysis as _get_ai_analysis
 from draughts.game.ai import (
     AIEngine,
     AIMove,
     _generate_all_moves,
     evaluate_position,
 )
+
+# analysis.py owns Analysis and get_ai_analysis; we re-export for compat.
+from draughts.game.analysis import Analysis as Analysis
+from draughts.game.analysis import get_ai_analysis as _get_ai_analysis
 from draughts.game.board import Board
 
 
@@ -39,6 +39,7 @@ class MoveRecord:
     path: list[tuple[int, int]]
     eval_before: float  # evaluation before the move (from moving side)
     eval_after: float  # evaluation after the move (from moving side)
+    annotation: str = ""  # annotation symbol: "!!", "!", "?!", "?", "??", or ""
 
 
 @dataclass
