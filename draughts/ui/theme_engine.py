@@ -592,6 +592,16 @@ QDockWidget::title {{
     color: {fg};
     font-weight: bold;
 }}
+QDockWidget::close-button, QDockWidget::float-button {{
+    background: {menu_bg};
+    border: 1px solid {tab_border};
+    border-radius: 3px;
+    padding: 2px;
+    icon-size: 12px;
+}}
+QDockWidget::close-button:hover, QDockWidget::float-button:hover {{
+    background: {btn_hover};
+}}
 
 /* --- Group box --- */
 QGroupBox {{
