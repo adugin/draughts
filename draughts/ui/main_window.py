@@ -6,7 +6,10 @@ All controls accessible via standard menus.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger("draughts.main_window")
 
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import (
@@ -190,9 +193,12 @@ class MainWindow(QMainWindow):
         filepath = show_load_dialog(self)
         if filepath:
             try:
-                self._controller.load_saved_game(filepath)
+                if filepath.lower().endswith(".pdn"):
+                    self._controller.load_game_from_pdn(filepath)
+                else:
+                    self._controller.load_saved_game(filepath)
             except Exception:
-                pass
+                logger.exception("Failed to load game from %s", filepath)
 
     def _on_save(self):
         from draughts.ui.dialogs import show_save_dialog
@@ -200,9 +206,12 @@ class MainWindow(QMainWindow):
         filepath = show_save_dialog(self)
         if filepath:
             try:
-                self._controller.save_current_game(filepath)
+                if filepath.lower().endswith(".pdn"):
+                    self._controller.save_game_as_pdn(filepath)
+                else:
+                    self._controller.save_current_game(filepath)
             except Exception:
-                pass
+                logger.exception("Failed to save game to %s", filepath)
 
     def _on_info(self):
         from draughts.ui.dialogs import InfoDialog

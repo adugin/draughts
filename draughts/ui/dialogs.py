@@ -181,17 +181,27 @@ class AboutDialog(QDialog):
 
 
 def show_save_dialog(parent: QWidget | None = None) -> str | None:
-    """Show a native file-save dialog for JSON game files.
+    """Show a native file-save dialog.
 
-    Returns the selected file path, or None if cancelled.
+    PDN is the default format; JSON is offered for backward compatibility.
+    Returns the selected file path (with extension), or None if cancelled.
     """
-    filepath, _ = QFileDialog.getSaveFileName(
+    filepath, selected_filter = QFileDialog.getSaveFileName(
         parent,
         "Сохранить партию",
         "",
-        "JSON файлы (*.json);;Все файлы (*)",
+        "PDN файлы (*.pdn);;JSON файлы (*.json);;Все файлы (*)",
     )
-    return filepath if filepath else None
+    if not filepath:
+        return None
+    # Ensure correct extension based on chosen filter
+    from pathlib import Path as _Path
+    p = _Path(filepath)
+    if not p.suffix and "PDN" in selected_filter:
+        filepath = filepath + ".pdn"
+    elif not p.suffix and "JSON" in selected_filter:
+        filepath = filepath + ".json"
+    return filepath
 
 
 # ---------------------------------------------------------------------------
@@ -200,15 +210,16 @@ def show_save_dialog(parent: QWidget | None = None) -> str | None:
 
 
 def show_load_dialog(parent: QWidget | None = None) -> str | None:
-    """Show a native file-open dialog for JSON game files.
+    """Show a native file-open dialog.
 
+    PDN is the primary format; JSON legacy saves are also accepted.
     Returns the selected file path, or None if cancelled.
     """
     filepath, _ = QFileDialog.getOpenFileName(
         parent,
         "Открыть партию",
         "",
-        "JSON файлы (*.json);;Все файлы (*)",
+        "Файлы партий (*.pdn *.json);;PDN файлы (*.pdn);;JSON файлы (*.json);;Все файлы (*)",
     )
     return filepath if filepath else None
 

@@ -15,9 +15,80 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from draughts.config import AUTOSAVE_FILENAME, BOARD_SIZE, Color, GameSettings, get_data_dir
 from draughts.game.ai import AIEngine, AIMove
 from draughts.game.board import Board
+from draughts.game.pdn import PDNGame, load_pdn_file, write_pdn, xy_to_square
 from draughts.game.save import GameSave, autosave, load_game, save_game
 
 logger = logging.getLogger("draughts.controller")
+
+
+# ---------------------------------------------------------------------------
+# PDN move helpers (module-level, no Qt dependency)
+# ---------------------------------------------------------------------------
+
+
+def _infer_pdn_move_from_boards(before: Board, after: Board) -> str | None:
+    """Infer a PDN numeric move token from two consecutive board states.
+
+    Returns a string like '22-17' or '9x18' or None on failure.
+    """
+    import numpy as np
+
+    diff = before.grid != after.grid
+    changed_yx = list(zip(*np.where(diff), strict=False))
+    if not changed_yx:
+        return None
+
+    sources = []
+    dests = []
+    for y, x in changed_yx:
+        b_piece = int(before.grid[y, x])
+        a_piece = int(after.grid[y, x])
+        if b_piece != 0 and a_piece == 0:
+            sources.append((int(x), int(y)))
+        elif b_piece == 0 and a_piece != 0:
+            dests.append((int(x), int(y)))
+        elif b_piece != 0 and a_piece != 0 and abs(b_piece) != abs(a_piece):
+            # King promotion in place — counts as a dest (source is same square)
+            dests.append((int(x), int(y)))
+
+    if len(sources) == 1 and len(dests) == 1:
+        sx, sy = sources[0]
+        tx, ty = dests[0]
+        try:
+            src_sq = xy_to_square(sx, sy)
+            dst_sq = xy_to_square(tx, ty)
+        except ValueError:
+            return None
+        is_capture = len(changed_yx) > 2
+        sep = "x" if is_capture else "-"
+        return f"{src_sq}{sep}{dst_sq}"
+
+    return None
+
+
+def _apply_pdn_move(board: Board, pdn_move: str) -> None:
+    """Apply a PDN numeric move to a board in-place.
+
+    Supports simple moves ('22-17'), single captures ('9x18'), and
+    multi-jump captures ('9x18x27').
+    Raises ValueError if the move cannot be applied.
+    """
+    from draughts.game.pdn import square_to_xy
+
+    is_capture = "x" in pdn_move
+    sep = "x" if is_capture else "-"
+    parts = pdn_move.split(sep)
+    squares = [square_to_xy(int(p.strip())) for p in parts]
+
+    if not is_capture:
+        if len(squares) != 2:
+            raise ValueError(f"Invalid simple move: {pdn_move!r}")
+        x1, y1 = squares[0]
+        x2, y2 = squares[1]
+        board.execute_move(x1, y1, x2, y2)
+    else:
+        # Build a full path for execute_capture_path
+        board.execute_capture_path(squares)
 
 
 class AIWorker(QObject):
@@ -437,6 +508,103 @@ class GameController(QObject):
             self.board = Board()
 
         self._current_turn = Color.WHITE if self._ply_count % 2 == 0 else Color.BLACK
+        self._selected = None
+        self._capture_path = []
+
+        self.board_changed.emit()
+        self.turn_changed.emit(self._current_turn)
+        self.selection_changed.emit(None, None)
+        self.capture_highlights_changed.emit([])
+
+        if self._current_turn == self._computer_color:
+            self._start_computer_turn()
+
+    def save_game_as_pdn(self, filepath: str) -> None:
+        """Save current game history as a PDN file.
+
+        Reconstructs algebraic moves from consecutive board positions,
+        converts to PDN numeric notation, and writes a single-game PDN file.
+        Autosave is NOT affected — that stays JSON.
+        """
+        from draughts.game.pdn import RUSSIAN_DRAUGHTS_GAMETYPE, _today_date_str
+
+        moves: list[str] = []
+        for i in range(len(self._positions) - 1):
+            board_before = Board()
+            board_before.load_from_position_string(self._positions[i])
+            board_after = Board()
+            board_after.load_from_position_string(self._positions[i + 1])
+            pdn_move = _infer_pdn_move_from_boards(board_before, board_after)
+            if pdn_move:
+                moves.append(pdn_move)
+
+        # Determine result from last known position
+        last_pos = self._positions[-1] if self._positions else ""
+        has_black = "b" in last_pos or "B" in last_pos
+        has_white = "w" in last_pos or "W" in last_pos
+        if has_black and not has_white:
+            result = "0-1"
+        elif has_white and not has_black:
+            result = "1-0"
+        else:
+            result = "*"
+
+        game = PDNGame(
+            headers={
+                "Event": "?",
+                "Site": "?",
+                "Date": _today_date_str(),
+                "Round": "?",
+                "White": "?",
+                "Black": "?",
+                "Result": result,
+                "GameType": RUSSIAN_DRAUGHTS_GAMETYPE,
+            },
+            moves=moves,
+        )
+        write_pdn([game], filepath)
+
+    def load_game_from_pdn(self, filepath: str) -> None:
+        """Load a game from a PDN file.
+
+        Replays all moves from the first game in the file, reconstructing
+        the position history. Starts the computer if it is its turn.
+        """
+        games = load_pdn_file(filepath)
+        if not games:
+            raise ValueError(f"No games found in PDN file: {filepath}")
+
+        pdn_game = games[0]
+
+        # Determine starting board (support SetUp/FEN positions)
+        fen_str = pdn_game.headers.get("FEN")
+        setup = pdn_game.headers.get("SetUp", "0")
+        if setup == "1" and fen_str:
+            from draughts.game.fen import parse_fen
+
+            start_board, start_color = parse_fen(fen_str)
+        else:
+            start_board = Board()
+            start_color = Color.WHITE
+
+        # Replay moves to build position list
+        positions: list[str] = [start_board.to_position_string()]
+        board = start_board.copy()
+
+        for pdn_move in pdn_game.moves:
+            try:
+                _apply_pdn_move(board, pdn_move)
+                positions.append(board.to_position_string())
+            except Exception:
+                logger.warning(f"Could not apply PDN move {pdn_move!r}, stopping replay")
+                break
+
+        self._positions = positions
+        self._replay_history = list(positions)
+        self._ply_count = len(positions) - 1
+
+        self.board.load_from_position_string(positions[-1])
+        self._current_turn = start_color if self._ply_count % 2 == 0 else start_color.opponent
         self._selected = None
         self._capture_path = []
 
