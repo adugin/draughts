@@ -185,11 +185,10 @@ def test_load_tuned_weights_valid_file() -> None:
         assert eval_module._ADVANCE_BONUS == pytest.approx(0.20)  # noqa: SLF001
     finally:
         tmp_path.unlink(missing_ok=True)
-        # Restore defaults so other tests aren't affected
-        eval_module.load_tuned_weights(Path("/tmp/nonexistent_restore.json"))
-        eval_module._PAWN_VALUE = 5.0   # noqa: SLF001
-        eval_module._KING_VALUE = 15.0  # noqa: SLF001
-        eval_module._ADVANCE_BONUS = 0.15  # noqa: SLF001
+        # Restore the weights that were active before this test ran.
+        # The production tuned_weights.json is auto-loaded at import time,
+        # so we reload it (or fall back to hand-tuned defaults if absent).
+        eval_module.load_tuned_weights()
 
 
 def test_load_tuned_weights_malformed_json() -> None:

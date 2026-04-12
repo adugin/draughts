@@ -528,10 +528,17 @@ class AIEngine:
                 if any exists.
         """
         # Opening book probe — O(1), no eval/search
+        # Only use the book move if it respects mandatory captures:
+        # Russian draughts requires capturing when possible, so a book
+        # move that is a quiet move when captures exist would be illegal.
         if self._use_book and self._book is not None:
             book_move = self._book.probe(board, self.color)
             if book_move is not None:
-                return book_move
+                captures_mandatory = board.has_any_capture(self.color)
+                if not captures_mandatory or book_move.kind == "capture":
+                    return book_move
+                # Book suggested a quiet move but captures are mandatory —
+                # fall through to normal search which always respects captures.
 
         # Endgame bitbase probe (D9) — O(1) per child, exact WLD result
         if self._use_bitbase and self._bitbase is not None:

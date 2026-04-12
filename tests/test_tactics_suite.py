@@ -135,7 +135,7 @@ _TRAP_IDS = [t["id"] for t in _TRAP_DATA]
 # tracked.  Remove an entry here once the AI has been improved enough to
 # avoid the blunder reliably.
 _TRAP_BLUNDER_XFAIL: dict[str, str] = {
-    "trap_002": "Depth-5 AI plays h2-g3 (Kingside Collapse) — needs depth 7+",
+    # trap_002 removed: AI now avoids the blunder at depth 5 (verified 2026-04)
     "trap_008": "Depth-5 AI plays b2-a3 (h-File Attack Trap) — needs depth 7+",
     "trap_017": "Depth-5 AI plays d6-e5 (Center Exchange + Right Wing) — needs depth 7+",
     "trap_019": "Depth-5 AI plays h6:f4 (g-File Diagonal Attack) — needs depth 7+",
@@ -259,6 +259,14 @@ _AMBIGUOUS_PUZZLES: dict[str, list[str]] = {
     "puzzle_027": ["b6:d8:g5", "b6:d8:h4"],
 }
 
+# Puzzles that depth-5 AI cannot solve — marked xfail so CI stays green.
+# Remove entries as the AI improves.
+# puzzle_012 removed: now solved at depth 5 (verified 2026-04)
+# puzzle_021 removed: now solved at depth 5 (verified 2026-04)
+_PUZZLE_XFAIL: dict[str, str] = {
+    "puzzle_025": "Depth-5 AI cannot solve this difficulty-4 puzzle",
+}
+
 
 @pytest.mark.tactics
 class TestTacticalPuzzles:
@@ -272,11 +280,8 @@ class TestTacticalPuzzles:
     @pytest.mark.parametrize("puzzle", _PUZZLE_DATA, ids=_PUZZLE_IDS)
     def test_solve_puzzle(self, puzzle: dict) -> None:
         """AI must find the best_move (or an accepted equivalent) for this puzzle."""
-        if puzzle["difficulty"] >= 4:
-            pytest.xfail(
-                f"Puzzle {puzzle['id']} has difficulty {puzzle['difficulty']} — "
-                "expected to be too hard for depth 5"
-            )
+        if puzzle["id"] in _PUZZLE_XFAIL:
+            pytest.xfail(_PUZZLE_XFAIL[puzzle["id"]])
 
         board = _make_board_from_position(puzzle["position"])
         color = _turn_from_str(puzzle["turn"])
