@@ -532,16 +532,44 @@ class PuzzleTrainer(QDialog):
             self._on_correct()
             return
 
-        # Equivalent capture — same intermediate squares (the piece
-        # visits the same set of squares en-route), only the FINAL
-        # landing square differs.  This covers the "king lands on h8
-        # vs g7" case where both are equally valid in Russian draughts
-        # (a flying king can land on any empty square past the captured
-        # piece on the same diagonal).
+        # Equivalent capture — the user's capture jumps over the same
+        # opponent pieces as the best_move, but the flying king landed
+        # on a different (equally valid) square.  Two cases:
+        #
+        # 1) Multi-capture (len >= 3): intermediate squares match,
+        #    only the final landing differs.  E.g. a1:c3:e5:g7 vs
+        #    a1:c3:e5:h8.
+        #
+        # 2) Single capture (len == 2): both paths start from the same
+        #    square and jump over the same diagonal.  E.g. a1:c3 vs
+        #    a1:d4 — both jump over b2.  We verify they lie on the
+        #    same diagonal and the captured piece (the opponent piece
+        #    between start and landing) is the same.
         if len(path) >= 3 and len(best_path) >= 3:
             if path[:-1] == best_path[:-1]:
                 self._on_correct()
                 return
+
+        if len(path) == 2 and len(best_path) == 2 and path[0] == best_path[0]:
+            # Both are 2-square moves from the same origin.  Check if
+            # they're captures on the same diagonal (same direction).
+            x0, y0 = path[0]
+            x1, y1 = path[1]      # user's landing
+            bx1, by1 = best_path[1]  # best landing
+            dx_u = x1 - x0
+            dy_u = y1 - y0
+            dx_b = bx1 - x0
+            dy_b = by1 - y0
+            # Same diagonal direction: signs of dx and dy match
+            if (dx_u != 0 and dy_u != 0 and dx_b != 0 and dy_b != 0
+                    and (dx_u > 0) == (dx_b > 0) and (dy_u > 0) == (dy_b > 0)):
+                # Both go in the same diagonal direction → same piece
+                # is captured → equivalent.  Guard: only for captures
+                # (abs(dx) > 1, meaning it's a jump, not a 1-step move
+                # from a pawn).
+                if abs(dx_u) >= 2 and abs(dx_b) >= 2:
+                    self._on_correct()
+                    return
 
         # Check if it's even a legal move (could be wrong but legal)
         legal = _get_all_legal_paths(self._current_board, puzzle.turn)
