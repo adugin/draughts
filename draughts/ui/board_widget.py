@@ -272,12 +272,20 @@ class BoardWidget(QWidget):
         """Return the rectangle for board cell (x, y) where x,y in 0..7.
 
         When the board is inverted (black at bottom) both axes are mirrored.
+
+        Pixel coordinates are snapped to integers so adjacent cells share
+        exact pixel boundaries — no sub-pixel gaps or dark lines between
+        cells caused by float rounding.
         """
         vx = (BOARD_SIZE - 1 - x) if self._inverted else x
         vy = (BOARD_SIZE - 1 - y) if self._inverted else y
-        px = bx + vx * cell_size
-        py = by + vy * cell_size
-        return QRectF(px, py, cell_size, cell_size)
+        # Snap left/top edge AND right/bottom edge independently to
+        # guarantee that cell N's right edge == cell N+1's left edge.
+        x0 = round(bx + vx * cell_size)
+        y0 = round(by + vy * cell_size)
+        x1 = round(bx + (vx + 1) * cell_size)
+        y1 = round(by + (vy + 1) * cell_size)
+        return QRectF(x0, y0, x1 - x0, y1 - y0)
 
     def _cell_from_pos(self, pos) -> tuple[int, int] | None:
         """Convert a mouse position to board coordinates (0..7), or None."""
