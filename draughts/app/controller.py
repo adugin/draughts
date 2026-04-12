@@ -7,12 +7,10 @@ validation, AI execution (in a worker thread), and save/load.
 from __future__ import annotations
 
 import logging
-import random
-from pathlib import Path
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
-from draughts.config import AUTOSAVE_FILENAME, BOARD_SIZE, Color, GameSettings, get_data_dir
+from draughts.config import AUTOSAVE_FILENAME, BOARD_SIZE, Color, GameSettings, get_data_dir, migrate_difficulty
 from draughts.game.ai import AIEngine, AIMove
 from draughts.game.board import Board
 from draughts.game.pdn import PDNGame, load_pdn_file, write_pdn, xy_to_square
@@ -153,20 +151,9 @@ class GameController(QObject):
         self._ai_thread: QThread | None = None
         self._ai_worker: AIWorker | None = None
 
-        # Messages
-        self._messages = self._load_messages()
-
         # Record initial position
         self._positions.append(self.board.to_position_string())
         self._replay_history.append(self.board.to_position_string())
-
-    def _load_messages(self) -> list[str]:
-        msg_path = Path(__file__).parent.parent / "resources" / "messages.txt"
-        try:
-            text = msg_path.read_text(encoding="utf-8")
-            return [line.strip() for line in text.strip().split("\n") if line.strip()]
-        except (FileNotFoundError, UnicodeDecodeError):
-            return ["Думаю..."]
 
     # --- New game ---
 
@@ -356,8 +343,7 @@ class GameController(QObject):
 
     def _start_computer_turn(self):
         """Start the AI computation in a background thread."""
-        msg = random.choice(self._messages) if self._messages else "Думаю..."
-        self.message_changed.emit(msg)
+        self.message_changed.emit("Думаю...")
         self.ai_thinking.emit(True)
 
         self._ai_thread = QThread()
@@ -424,9 +410,7 @@ class GameController(QObject):
     # --- Undo ---
 
     def undo_move(self):
-        """Undo the last move (player + computer response). Only on difficulty 1."""
-        if self.settings.difficulty != 1:
-            return
+        """Undo the last move (player + computer response). Available at all levels (D17)."""
         if self._ply_count < 2:
             return
         if self._ai_thread is not None:
@@ -494,7 +478,7 @@ class GameController(QObject):
     def load_saved_game(self, filepath: str):
         """Load a game from file."""
         gs = load_game(filepath)
-        self.settings.difficulty = gs.difficulty
+        self.settings.difficulty = migrate_difficulty(gs.difficulty)
         self.settings.remind = gs.remind
         self.settings.pause = gs.pause
 
@@ -653,7 +637,8 @@ class GameController(QObject):
 
     @property
     def can_undo(self) -> bool:
-        return self.settings.difficulty == 1 and self._ply_count >= 2
+        """Undo is available at all difficulty levels (D17)."""
+        return self._ply_count >= 2
 
     @property
     def can_save(self) -> bool:
