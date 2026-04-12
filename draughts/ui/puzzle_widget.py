@@ -130,6 +130,31 @@ def _captured_squares(path: list[tuple[int, int]]) -> set[tuple[int, int]]:
     return result
 
 
+def _captured_squares_on_board(path: list[tuple[int, int]], board: Board) -> set[tuple[int, int]]:
+    """Return the set of squares actually occupied by opponent pieces that a
+    capture path jumps over.
+
+    Unlike ``_captured_squares`` this version consults the board so that
+    empty intermediate squares (possible for flying-king long diagonal paths)
+    are excluded.  Only squares where ``board.piece_at`` returns non-zero are
+    included, giving the true set of captured pieces rather than every square
+    traversed.
+    """
+    result: set[tuple[int, int]] = set()
+    for i in range(len(path) - 1):
+        x1, y1 = path[i]
+        x2, y2 = path[i + 1]
+        dx = 1 if x2 > x1 else -1
+        dy = 1 if y2 > y1 else -1
+        cx, cy = x1 + dx, y1 + dy
+        while (cx, cy) != (x2, y2):
+            if board.piece_at(cx, cy) != 0:
+                result.add((cx, cy))
+            cx += dx
+            cy += dy
+    return result
+
+
 def _get_all_legal_paths(board: Board, turn: Color) -> list[list[tuple[int, int]]]:
     """Return all legal move paths for the given side.
 
@@ -589,25 +614,16 @@ class PuzzleTrainer(QDialog):
             return
 
         if len(path) == 2 and len(best_path) == 2 and path[0] == best_path[0]:
-            # Both are 2-square moves from the same origin.  Check if
-            # they're captures on the same diagonal (same direction).
-            x0, y0 = path[0]
-            x1, y1 = path[1]      # user's landing
-            bx1, by1 = best_path[1]  # best landing
-            dx_u = x1 - x0
-            dy_u = y1 - y0
-            dx_b = bx1 - x0
-            dy_b = by1 - y0
-            # Same diagonal direction: signs of dx and dy match
-            if (dx_u != 0 and dy_u != 0 and dx_b != 0 and dy_b != 0
-                    and (dx_u > 0) == (dx_b > 0) and (dy_u > 0) == (dy_b > 0)):
-                # Both go in the same diagonal direction → same piece
-                # is captured → equivalent.  Guard: only for captures
-                # (abs(dx) > 1, meaning it's a jump, not a 1-step move
-                # from a pawn).
-                if abs(dx_u) >= 2 and abs(dx_b) >= 2:
-                    self._on_correct()
-                    return
+            # Both are single-segment moves from the same origin.  Accept as
+            # equivalent only when they jump over exactly the same opponent
+            # piece(s) on the board — not merely the same diagonal direction.
+            # This correctly rejects captures of different pieces that happen
+            # to share the same direction (BUG-005).
+            user_caps = _captured_squares_on_board(path, self._current_board)
+            best_caps = _captured_squares_on_board(best_path, self._current_board)
+            if user_caps and user_caps == best_caps:
+                self._on_correct()
+                return
 
         # Check if it's even a legal move (could be wrong but legal)
         legal = _get_all_legal_paths(self._current_board, puzzle.turn)
