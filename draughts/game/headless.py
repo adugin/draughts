@@ -2,6 +2,10 @@
 
 Provides HeadlessGame for running complete games, analyzing positions,
 and testing AI behavior without PyQt6 event loop.
+
+Analysis concerns (Analysis dataclass, get_ai_analysis free function) live
+in draughts.game.analysis.  They are re-exported here so existing callers
+that do ``from draughts.game.headless import Analysis`` keep working.
 """
 
 from __future__ import annotations
@@ -11,13 +15,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from draughts.config import Color
-from draughts.game import ai as _ai
+
+# analysis.py owns Analysis and get_ai_analysis; we re-export for compat.
+from draughts.game.analysis import Analysis as Analysis
+from draughts.game.analysis import get_ai_analysis as _get_ai_analysis
 from draughts.game.ai import (
     AIEngine,
     AIMove,
     _generate_all_moves,
-    _search_best_move,
-    adaptive_depth,
     evaluate_position,
 )
 from draughts.game.board import Board
@@ -53,32 +58,6 @@ class GameResult:
         if self.winner is None:
             return "1/2-1/2"
         return "1-0" if self.winner == Color.BLACK else "0-1"
-
-
-@dataclass
-class Analysis:
-    """AI analysis of a position.
-
-    Attributes:
-        best_move: the minimax-chosen best move (or None if no legal moves).
-        score: minimax score of the best move, from the side-to-move's
-            perspective. This is the search result, NOT a static eval —
-            matches what the AI actually sees and plays.
-        static_score: the raw static eval of the current position, kept
-            for debugging and comparison with `score`. A large gap
-            between the two usually means horizon effects or a tactical
-            sequence the search uncovered.
-        depth: the effective search depth after adaptive_depth
-            adjustment (may differ from the requested depth in crowded
-            or endgame positions).
-        legal_move_count: how many legal moves the side to move has.
-    """
-
-    best_move: AIMove | None
-    score: float
-    static_score: float
-    depth: int
-    legal_move_count: int
 
 
 class HeadlessGame:
@@ -383,32 +362,20 @@ class HeadlessGame:
     def get_ai_analysis(self, depth: int = 6) -> Analysis:
         """Analyze current position.
 
+        Delegates to draughts.game.analysis.get_ai_analysis() which uses an
+        isolated SearchContext — no shared global state, safe for concurrent
+        calls from parallel tournament workers.
+
         Mirrors AIEngine.find_move's adaptive-depth behaviour so that the
         analysis reflects how the AI will actually play: in sparse
         endgames it applies a small depth bonus, and in crowded openings
-        it caps the depth. Previously get_ai_analysis skipped this,
-        which meant `dev.py analyze --depth 8` could report a different
-        move than the AI would pick at runtime in the same position.
+        it caps the depth.
 
         The reported `score` is the minimax score from the search, not
         a static eval of the pre-move position. `static_score` still
         exposes the raw eval for comparison.
         """
-        moves = _generate_all_moves(self._board, self._turn)
-        effective_depth = adaptive_depth(depth, self._board)
-        best = _search_best_move(self._board, self._turn, effective_depth)
-        static = evaluate_position(self._board.grid, self._turn)
-        # _last_search_score is populated as a side effect of
-        # _search_best_move. If search returned None (no legal moves),
-        # fall back to the static eval.
-        search_score = _ai._last_search_score if best is not None else static
-        return Analysis(
-            best_move=best,
-            score=search_score,
-            static_score=static,
-            depth=effective_depth,
-            legal_move_count=len(moves),
-        )
+        return _get_ai_analysis(self, depth)
 
     def get_legal_moves(self) -> list[tuple[str, list[tuple[int, int]]]]:
         """Get all legal moves for current side.
