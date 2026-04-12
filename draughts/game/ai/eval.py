@@ -390,11 +390,12 @@ def _is_drawn_endgame(grid: np.ndarray) -> bool:
     bp, bk, wp, wk = int(counts[1]), int(counts[2]), int(counts[255]), int(counts[254])
     black_total = bp + bk
     white_total = wp + wk
-    # King vs king (no pawns) — always a draw in Russian draughts
-    if bp == 0 and wp == 0 and bk >= 1 and wk >= 1:
+    # 1 King vs 1 King (no pawns) — always a draw in Russian draughts.
+    # Note: 2K vs 1K and 3K vs 1K are WINS (not draws) so we must check
+    # exact counts, not >= 1.
+    if bp == 0 and wp == 0 and bk == 1 and wk == 1:
         return True
-    # Lone piece vs lone piece with no captures — likely draw
-    return black_total == 1 and white_total == 1 and bk == 1 and wk == 1
+    return False
 
 
 def _diagonal_distance(dx: int, dy: int) -> float:

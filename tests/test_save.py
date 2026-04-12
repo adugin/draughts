@@ -26,7 +26,7 @@ class TestGameSaveValidation:
 
     def test_invalid_difficulty(self):
         with pytest.raises(ValueError, match="difficulty"):
-            GameSave(difficulty=5)
+            GameSave(difficulty=7)  # valid range is now 1-6
 
     def test_invalid_speed(self):
         with pytest.raises(ValueError, match="speed"):

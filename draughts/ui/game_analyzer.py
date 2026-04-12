@@ -221,10 +221,31 @@ def analyze_game_positions(
         played_pdn = _infer_pdn_move_from_boards(board_before, board_after_obj)
         played_notation = played_pdn if played_pdn else f"ход {ply + 1}"
 
+        # Best move notation in algebraic form (same format as _notation_from_move)
         best_notation = _notation_from_move(analysis_before.best_move)
 
-        # Is the move played the same as engine's best?
-        is_best = (played_notation == best_notation) or (delta_cp < 5.0)
+        # Compare moves by applying best move and checking if positions match,
+        # since played_notation (PDN numeric) and best_notation (algebraic)
+        # use different formats and direct string comparison would never match.
+        # Also use delta_cp as a secondary check: moves within a tiny margin
+        # of the best are functionally equivalent.
+        is_best = False
+        if analysis_before.best_move is not None:
+            try:
+                test_board = board_before.copy()
+                bm = analysis_before.best_move
+                if bm.kind == "capture":
+                    test_board.execute_capture_path(bm.path)
+                else:
+                    x1, y1 = bm.path[0]
+                    x2, y2 = bm.path[1]
+                    test_board.execute_move(x1, y1, x2, y2)
+                is_best = (test_board.to_position_string() == pos_after)
+            except Exception:
+                pass
+        # Fallback: if delta is negligible, treat as best (within ~0.1 pawn)
+        if not is_best and delta_cp < _INACCURACY_MIN:
+            is_best = True
 
         annotation = annotate_move(delta_cp, is_best)
 
