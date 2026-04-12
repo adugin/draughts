@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import random
 import time
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -30,29 +31,69 @@ from draughts.game.board import Board
 # Last valid index (0-indexed board)
 _LAST = BOARD_SIZE - 1
 
-# ---------------------------------------------------------------------------
-# Cooperative search cancellation — deadline-based
-# ---------------------------------------------------------------------------
-# Module-level deadline checked inside _alphabeta. Callers set via
-# AIEngine.find_move(deadline=...) or _search_best_move(deadline=...).
-# When the deadline passes, _alphabeta raises SearchCancelledError, which
-# unwinds recursion; _search_best_move catches it and returns the best
-# move from the last fully completed iterative-deepening iteration.
-
 
 class SearchCancelledError(Exception):
     """Raised inside alpha-beta when the search deadline passes."""
     pass
 
 
-_search_deadline: float | None = None
+# ---------------------------------------------------------------------------
+# SearchContext — per-search mutable state (replaces module-level globals)
+# ---------------------------------------------------------------------------
+# All five former module-level globals (_tt, _killers, _history,
+# _search_deadline, _last_search_score) now live in SearchContext so that
+# concurrent HeadlessGame instances (e.g. parallel Tournament) cannot
+# interfere with each other's search state.
 
-# Minimax score of the last _search_best_move call, from the searched
-# color's perspective. Populated as a side effect so callers (notably
-# get_ai_analysis / the dev-mode analyze command) can report the real
-# search score instead of a misleading static eval. NaN means "no
-# search has run yet".
+
+@dataclass
+class SearchContext:
+    """Isolated mutable state for one alpha-beta search tree."""
+
+    tt: dict[int, tuple[int, float, int, int]] = field(default_factory=dict)
+    killers: dict[int, list[tuple[str, tuple]]] = field(default_factory=dict)
+    history: dict[tuple, int] = field(default_factory=dict)
+    deadline: float | None = None
+    last_score: float = float("nan")
+
+    def clear(self) -> None:
+        self.tt.clear()
+        self.killers.clear()
+        self.history.clear()
+        self.last_score = float("nan")
+
+
+# ---------------------------------------------------------------------------
+# Module-level default SearchContext and backward-compatibility aliases
+# ---------------------------------------------------------------------------
+# _default_ctx is the shared module-level context used by _search_best_move
+# when no explicit ctx is passed. This replicates the old behaviour where
+# _tt, _killers, _history were module-level globals that persisted across
+# calls and were shared between any engines in the same process (e.g. both
+# sides in a game). When callers want isolation (parallel tournaments,
+# tests) they can pass their own SearchContext explicitly.
+#
+# _last_search_score and _tt are kept as module-level names so existing
+# callers (perf_baseline.py, head2head.py, headless.py) that do
+# `ai._tt.clear()` or read `_ai._last_search_score` keep working.
+# Both are updated by _search_best_move after every call.
+
+_default_ctx: SearchContext = SearchContext()
+
+# _tt points at the default ctx's tt dict so `ai._tt.clear()` still works.
+_tt: dict[int, tuple[int, float, int, int]] = _default_ctx.tt
+
 _last_search_score: float = float("nan")
+
+
+def _killers_clear() -> None:
+    """Backward-compat: clear killers on the default context."""
+    _default_ctx.killers.clear()
+
+
+def _history_clear() -> None:
+    """Backward-compat: clear history on the default context."""
+    _default_ctx.history.clear()
 
 # ---------------------------------------------------------------------------
 # Zobrist hashing — deterministic random table for position hashing
@@ -79,25 +120,25 @@ def _zobrist_hash(grid: np.ndarray, color: Color) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Transposition table
+# Transposition table helpers (operate on a ctx.tt dict)
 # ---------------------------------------------------------------------------
 
 _TT_EXACT = 0
 _TT_LOWER = 1  # score >= beta (fail-high)
 _TT_UPPER = 2  # score <= alpha (fail-low)
 
-# Entry: (depth, score, flag, best_move_index)
-_tt: dict[int, tuple[int, float, int, int]] = {}
 _TT_MAX = 500_000
 
 
-def _tt_clear() -> None:
-    _tt.clear()
-
-
-def _tt_probe(h: int, depth: int, alpha: float, beta: float) -> tuple[float | None, int]:
+def _tt_probe(
+    tt: dict[int, tuple[int, float, int, int]],
+    h: int,
+    depth: int,
+    alpha: float,
+    beta: float,
+) -> tuple[float | None, int]:
     """Probe TT. Returns (score_or_None, best_move_index)."""
-    entry = _tt.get(h)
+    entry = tt.get(h)
     if entry is None:
         return None, -1
     tt_depth, tt_score, tt_flag, tt_best = entry
@@ -111,30 +152,36 @@ def _tt_probe(h: int, depth: int, alpha: float, beta: float) -> tuple[float | No
     return None, tt_best  # no score but best move hint
 
 
-def _tt_store(h: int, depth: int, score: float, flag: int, best_idx: int) -> None:
-    old = _tt.get(h)
+def _tt_store(
+    tt: dict[int, tuple[int, float, int, int]],
+    h: int,
+    depth: int,
+    score: float,
+    flag: int,
+    best_idx: int,
+) -> None:
+    old = tt.get(h)
     if old is None or old[0] <= depth:
-        _tt[h] = (depth, score, flag, best_idx)
-    if len(_tt) > _TT_MAX:
-        _tt.clear()
+        tt[h] = (depth, score, flag, best_idx)
+    if len(tt) > _TT_MAX:
+        tt.clear()
 
 
 # ---------------------------------------------------------------------------
-# Killer moves — per-depth move tracking for better ordering
+# Killer moves helpers (operate on a ctx.killers dict)
 # ---------------------------------------------------------------------------
 
-_killers: dict[int, list[tuple[str, tuple]]] = {}
 
-
-def _killers_clear() -> None:
-    _killers.clear()
-
-
-def _record_killer(depth: int, kind: str, path: list) -> None:
+def _record_killer(
+    killers: dict[int, list[tuple[str, tuple]]],
+    depth: int,
+    kind: str,
+    path: list,
+) -> None:
     key = (kind, tuple(path))
-    slot = _killers.get(depth)
+    slot = killers.get(depth)
     if slot is None:
-        _killers[depth] = [key]
+        killers[depth] = [key]
     elif key not in slot:
         slot.insert(0, key)
         if len(slot) > 2:
@@ -142,31 +189,29 @@ def _record_killer(depth: int, kind: str, path: list) -> None:
 
 
 # ---------------------------------------------------------------------------
-# History heuristic — track which quiet moves have historically caused
-# beta cutoffs so that the move orderer can prioritise them at other
-# depths. Increment is depth*depth so cutoffs near the root (deep
-# subtrees eliminated) count more than shallow ones.
+# History heuristic helpers (operate on a ctx.history dict)
 # ---------------------------------------------------------------------------
-
-_history: dict[tuple, int] = {}
-
-
-def _history_clear() -> None:
-    _history.clear()
+# Increment is depth*depth so cutoffs near the root (deep subtrees
+# eliminated) count more than shallow ones.
 
 
-def _history_record(kind: str, path: list, depth: int) -> None:
+def _history_record(
+    history: dict[tuple, int],
+    kind: str,
+    path: list,
+    depth: int,
+) -> None:
     # Only track quiet moves — captures are already ordered first.
     if kind == "capture":
         return
     key = (kind, tuple(path))
-    _history[key] = _history.get(key, 0) + depth * depth
+    history[key] = history.get(key, 0) + depth * depth
 
 
-def _history_score(kind: str, path: list) -> int:
+def _history_score(history: dict[tuple, int], kind: str, path: list) -> int:
     if kind == "capture":
         return 0
-    return _history.get((kind, tuple(path)), 0)
+    return history.get((kind, tuple(path)), 0)
 
 
 # Precomputed advancement tables (0-indexed, 8x8)
@@ -694,6 +739,7 @@ def _order_moves(
     moves: list[tuple[str, list[tuple[int, int]]]],
     board: Board,
     color: str | Color,
+    history: dict[tuple, int] | None = None,
 ) -> list[tuple[str, list[tuple[int, int]]]]:
     """Order moves to improve alpha-beta pruning."""
     if len(moves) <= 1:
@@ -739,7 +785,8 @@ def _order_moves(
         # cutoffs get bumped. Small weight so history doesn't override
         # the heuristic priority for obviously strong moves like captures
         # and promotions.
-        priority += _history_score(kind, path) * 0.001
+        if history is not None:
+            priority += _history_score(history, kind, path) * 0.001
         scored.append((priority, kind, path))
 
     scored.sort(key=lambda x: -x[0])
@@ -760,6 +807,7 @@ def _quiescence(
     maximizing: bool,
     color: str | Color,
     root_color: str | Color,
+    ctx: SearchContext,
     qdepth: int = 0,
 ) -> float:
     """Search captures *and* promotion moves to tame horizon effects.
@@ -818,7 +866,7 @@ def _quiescence(
     if maximizing:
         for kind, path in tactical:
             child = _apply_move(board, kind, path)
-            score = _quiescence(child, alpha, beta, False, opp, root_color, qdepth + 1)
+            score = _quiescence(child, alpha, beta, False, opp, root_color, ctx, qdepth + 1)
             if score > best:
                 best = score
             if score > alpha:
@@ -829,7 +877,7 @@ def _quiescence(
     else:
         for kind, path in tactical:
             child = _apply_move(board, kind, path)
-            score = _quiescence(child, alpha, beta, True, opp, root_color, qdepth + 1)
+            score = _quiescence(child, alpha, beta, True, opp, root_color, ctx, qdepth + 1)
             if score < best:
                 best = score
             if score < beta:
@@ -852,17 +900,18 @@ def _alphabeta(
     maximizing: bool,
     color: str | Color,
     root_color: str | Color,
+    ctx: SearchContext,
     path_hashes: set[int] | None = None,
 ) -> float:
     """Alpha-beta pruning minimax with TT, quiescence, LMR, and repetition detection."""
     # Cooperative cancellation: check deadline at depths >= 2 (cheap enough,
     # still bounds wall-clock within ~few ms of any sub-tree at depth 2+).
-    if depth >= 2 and _search_deadline is not None and time.perf_counter() >= _search_deadline:
+    if depth >= 2 and ctx.deadline is not None and time.perf_counter() >= ctx.deadline:
         raise SearchCancelledError()
 
     # Quiescence search at leaf nodes
     if depth <= 0:
-        return _quiescence(board, alpha, beta, maximizing, color, root_color)
+        return _quiescence(board, alpha, beta, maximizing, color, root_color, ctx)
 
     # Transposition table probe
     h = _zobrist_hash(board.grid, color)
@@ -873,7 +922,7 @@ def _alphabeta(
     if path_hashes is not None and h in path_hashes:
         return -_CONTEMPT
 
-    tt_score, tt_best_idx = _tt_probe(h, depth, alpha, beta)
+    tt_score, tt_best_idx = _tt_probe(ctx.tt, h, depth, alpha, beta)
     if tt_score is not None:
         return tt_score
 
@@ -886,7 +935,7 @@ def _alphabeta(
         return -_CONTEMPT
 
     # Move ordering: TT best move first, then killers, then heuristic
-    moves = _order_moves(moves, board, color)
+    moves = _order_moves(moves, board, color, ctx.history)
 
     # Put TT best move first if available
     if 0 <= tt_best_idx < len(moves):
@@ -894,7 +943,7 @@ def _alphabeta(
         moves.insert(0, best)
 
     # Promote killer moves
-    killers = _killers.get(depth)
+    killers = ctx.killers.get(depth)
     if killers:
         for ki in range(len(moves) - 1, 0, -1):
             k, p = moves[ki]
@@ -915,19 +964,19 @@ def _alphabeta(
 
             # Late Move Reduction: after first 3 moves, reduce depth for non-captures
             if i >= 3 and depth >= 3 and kind != "capture":
-                child_val = _alphabeta(child, depth - 2, alpha, beta, False, opp, root_color, child_hashes)
+                child_val = _alphabeta(child, depth - 2, alpha, beta, False, opp, root_color, ctx, child_hashes)
                 if child_val > alpha:
-                    child_val = _alphabeta(child, depth - 1, alpha, beta, False, opp, root_color, child_hashes)
+                    child_val = _alphabeta(child, depth - 1, alpha, beta, False, opp, root_color, ctx, child_hashes)
             else:
-                child_val = _alphabeta(child, depth - 1, alpha, beta, False, opp, root_color, child_hashes)
+                child_val = _alphabeta(child, depth - 1, alpha, beta, False, opp, root_color, ctx, child_hashes)
 
             if child_val > value:
                 value = child_val
                 best_idx = i
             alpha = max(alpha, value)
             if alpha >= beta:
-                _record_killer(depth, kind, path)
-                _history_record(kind, path, depth)
+                _record_killer(ctx.killers, depth, kind, path)
+                _history_record(ctx.history, kind, path, depth)
                 break
     else:
         value = float("inf")
@@ -936,19 +985,19 @@ def _alphabeta(
 
             # Late Move Reduction
             if i >= 3 and depth >= 3 and kind != "capture":
-                child_val = _alphabeta(child, depth - 2, alpha, beta, True, opp, root_color, child_hashes)
+                child_val = _alphabeta(child, depth - 2, alpha, beta, True, opp, root_color, ctx, child_hashes)
                 if child_val < beta:
-                    child_val = _alphabeta(child, depth - 1, alpha, beta, True, opp, root_color, child_hashes)
+                    child_val = _alphabeta(child, depth - 1, alpha, beta, True, opp, root_color, ctx, child_hashes)
             else:
-                child_val = _alphabeta(child, depth - 1, alpha, beta, True, opp, root_color, child_hashes)
+                child_val = _alphabeta(child, depth - 1, alpha, beta, True, opp, root_color, ctx, child_hashes)
 
             if child_val < value:
                 value = child_val
                 best_idx = i
             beta = min(beta, value)
             if alpha >= beta:
-                _record_killer(depth, kind, path)
-                _history_record(kind, path, depth)
+                _record_killer(ctx.killers, depth, kind, path)
+                _history_record(ctx.history, kind, path, depth)
                 break
 
     # Store in transposition table
@@ -958,7 +1007,7 @@ def _alphabeta(
         flag = _TT_LOWER
     else:
         flag = _TT_EXACT
-    _tt_store(h, depth, value, flag, best_idx)
+    _tt_store(ctx.tt, h, depth, value, flag, best_idx)
 
     return value
 
@@ -968,6 +1017,7 @@ def _search_best_move(
     color: str | Color,
     max_depth: int,
     deadline: float | None = None,
+    ctx: SearchContext | None = None,
 ) -> AIMove | None:
     """Iterative deepening search with alpha-beta minimax.
 
@@ -976,17 +1026,30 @@ def _search_best_move(
     A depth-1 sweep is always attempted first to guarantee a legal move.
 
     Also updates module-level _last_search_score with the minimax value
-    of the returned move from `color`'s perspective.
+    of the returned move from `color`'s perspective (backward-compat).
+    The same value is stored in ctx.last_score for callers using the new API.
+
+    If ctx is None the module-level _default_ctx is used, which replicates
+    the old shared-global behaviour (TT persists across all calls in the
+    same process, killers/history are reset per call). Pass an explicit
+    SearchContext for isolation (e.g. parallel tournament games).
     """
-    global _search_deadline, _last_search_score
-    _last_search_score = float("nan")
+    global _last_search_score
+
+    # Use module-level default context when none supplied — matches the old
+    # behaviour where _tt / _killers / _history were shared module globals.
+    if ctx is None:
+        ctx = _default_ctx
+
+    ctx.killers.clear()
+    ctx.history.clear()
+    ctx.deadline = deadline
+    ctx.last_score = float("nan")
 
     moves = _generate_all_moves(board, color)
     if not moves:
+        _last_search_score = float("nan")
         return None
-
-    _killers_clear()
-    _history_clear()
 
     opp = _opponent(color)
     best_kind, best_path = moves[0]
@@ -995,12 +1058,10 @@ def _search_best_move(
     last_complete_best: list[tuple[str, list[tuple[int, int]]]] = [moves[0]]
     last_complete_score: float = float("nan")
 
-    prev_deadline = _search_deadline
-    _search_deadline = deadline
     try:
         # Iterative deepening: search at increasing depths
         for depth in range(1, max_depth + 1):
-            moves = _order_moves(moves, board, color)
+            moves = _order_moves(moves, board, color, ctx.history)
 
             # Put previous best move first
             for i, (k, p) in enumerate(moves):
@@ -1017,7 +1078,7 @@ def _search_best_move(
             try:
                 for kind, path in moves:
                     child = _apply_move(board, kind, path)
-                    score = _alphabeta(child, depth - 1, alpha, beta, False, opp, color)
+                    score = _alphabeta(child, depth - 1, alpha, beta, False, opp, color, ctx)
 
                     if score > best_score:
                         best_score = score
@@ -1034,7 +1095,7 @@ def _search_best_move(
                 last_complete_best = best_moves_at_depth[:]
                 last_complete_score = best_score
     finally:
-        _search_deadline = prev_deadline
+        ctx.deadline = None
 
     # Final selection: among moves with the same minimax score from the
     # last fully completed depth, prefer the one the move orderer ranks
@@ -1045,11 +1106,12 @@ def _search_best_move(
     # better even in the clean case). A tiny bit of randomness is kept
     # by shuffling within each priority bucket so repeated self-play
     # still produces variety.
-    _last_search_score = last_complete_score
+    ctx.last_score = last_complete_score
+    _last_search_score = last_complete_score  # backward-compat module alias
     if len(last_complete_best) == 1:
         kind, path = last_complete_best[0]
     else:
-        ordered = _order_moves(last_complete_best, board, color)
+        ordered = _order_moves(last_complete_best, board, color, ctx.history)
         # Group by priority (we recompute here lightly; _order_moves is
         # already a stable sort so equal-priority moves preserve their
         # input order — shuffle within groups via random.choice on the
@@ -1076,6 +1138,11 @@ class AIEngine:
 
     Inner search functions remain module-level for performance
     (no method dispatch overhead in hot paths).
+
+    By default uses the module-level _default_ctx (shared across all
+    engines in the same process) to reproduce the original behaviour where
+    a single TT was shared by all searches. Pass an explicit ctx to
+    find_move / _search_best_move for full isolation (e.g. parallel games).
     """
 
     def __init__(self, difficulty: int = 2, color: Color = Color.BLACK, search_depth: int = 0):
