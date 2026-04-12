@@ -37,8 +37,18 @@ from draughts.game.ai.tt import (
 )
 from draughts.game.board import Board
 
-# Difficulty → base search depth mapping
-_DIFFICULTY_DEPTH = {1: 3, 2: 5, 3: 7}
+# Difficulty → base search depth mapping.
+# Six levels mapped to approximate Elo strength.
+# NOTE: Elo numbers are placeholder calibration to be refined by
+# self-play tournaments (D6). Initial values are reasonable estimates.
+_DIFFICULTY_DEPTH = {
+    1: 2,  # ~800 Elo  — Новичок
+    2: 3,  # ~1100 Elo — Любитель
+    3: 4,  # ~1400 Elo — Клубный
+    4: 5,  # ~1700 Elo — Сильный клубный  (was old "normal")
+    5: 6,  # ~2000 Elo — Кандидат         (was old "professional")
+    6: 8,  # ~2200 Elo — Мастер           (max)
+}
 
 # Maximum quiescence depth
 _MAX_QDEPTH = 6
@@ -399,19 +409,26 @@ class AIEngine:
     Inner search functions remain module-level for performance
     (no method dispatch overhead in hot paths).
 
-    By default uses the module-level _default_ctx (shared across all
-    engines in the same process) to reproduce the original behaviour where
-    a single TT was shared by all searches. Pass an explicit ctx to
-    find_move / _search_best_move for full isolation (e.g. parallel games).
+    Each AIEngine instance owns its own SearchContext so that concurrent
+    engines (e.g. two sides in a parallel tournament) cannot pollute each
+    other's transposition table or killer-move state.  The module-level
+    _default_ctx is still used by _search_best_move when no ctx is passed
+    (backward compat for direct callers).
     """
 
     def __init__(self, difficulty: int = 2, color: Color = Color.BLACK, search_depth: int = 0):
         self.difficulty = difficulty
         self.color = color
         self.search_depth = search_depth  # 0 = auto (derived from difficulty)
+        self._ctx = SearchContext()
 
     def find_move(self, board: Board, deadline: float | None = None) -> AIMove | None:
         """Find the best move for the current board state.
+
+        The instance's SearchContext is cleared at the start of each call so
+        that TT entries from previous moves do not bleed into the next game
+        (important for parallel tournaments).  Within a single find_move call,
+        iterative-deepening reuses the TT as intended.
 
         Args:
             board: Position to search.
@@ -421,9 +438,32 @@ class AIEngine:
                 sweep is always attempted, so a legal move is always returned
                 if any exists.
         """
+        self._ctx.clear()
         base = self.search_depth if self.search_depth > 0 else _DIFFICULTY_DEPTH.get(self.difficulty, 5)
         depth = adaptive_depth(base, board)
-        return _search_best_move(board, self.color, depth, deadline=deadline)
+        return _search_best_move(board, self.color, depth, deadline=deadline, ctx=self._ctx)
+
+    def find_move_timed(self, board: Board, time_ms: int, deadline: float | None = None) -> AIMove | None:
+        """Iterative deepening under a time budget (D10 — time-based search).
+
+        Runs search up to a large depth cap; iterative deepening stops when
+        the time budget is exhausted (via cooperative SearchCancelledError).
+        Returns the best move found when the budget is exhausted.
+
+        Args:
+            board: Position to search.
+            time_ms: Time budget in milliseconds.
+            deadline: Optional external deadline (perf_counter seconds).
+                The effective deadline is the earlier of the time_ms budget
+                and the supplied deadline.
+        """
+        budget_deadline = time.perf_counter() + time_ms / 1000.0
+        if deadline is not None:
+            effective_deadline = min(budget_deadline, deadline)
+        else:
+            effective_deadline = budget_deadline
+        self._ctx.clear()
+        return _search_best_move(board, self.color, 16, deadline=effective_deadline, ctx=self._ctx)
 
 
 def adaptive_depth(base_depth: int, board: Board) -> int:
