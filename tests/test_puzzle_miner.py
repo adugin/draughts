@@ -81,13 +81,14 @@ class TestMineFromBlunderGame:
         # Ply 2 blunder → position is positions[2]
         assert puzzles[0]["position"] == positions[2]
 
-    def test_solver_is_opponent_of_blunderer(self):
-        """Ply 2 → white blundered (even ply) → black solves."""
+    def test_solver_is_the_blunderer(self):
+        """Ply 2 → white blundered (even ply) → white solves (find what they
+        should have played)."""
         puzzles = mine_puzzles_from_game(
             self._make_positions(),
             self._make_annotations(),
         )
-        assert puzzles[0]["turn"] == "black"
+        assert puzzles[0]["turn"] == "white"
 
     def test_best_move_preserved(self):
         puzzles = mine_puzzles_from_game(
@@ -126,14 +127,15 @@ class TestMineFromBlunderGame:
         puzzles = mine_puzzles_from_game(positions, annotations)
         assert puzzles[0]["category"] == "endgame"
 
-    def test_black_blunder_solver_is_white(self):
-        """Ply 1 → black blundered (odd ply) → white solves."""
+    def test_black_blunder_solver_is_black(self):
+        """Ply 1 → black blundered (odd ply) → black solves (find what they
+        should have played)."""
         positions = [_START_POS, _OTHER_POS, _START_POS]
         annotations = [
             _make_annotation(1, "??", delta_cp=500.0, best_notation="c3:e5"),
         ]
         puzzles = mine_puzzles_from_game(positions, annotations)
-        assert puzzles[0]["turn"] == "white"
+        assert puzzles[0]["turn"] == "black"
 
     def test_duplicate_positions_deduplicated(self):
         """Two blunders on the same position → only one puzzle."""
@@ -204,26 +206,30 @@ class TestNoPuzzlesFromCleanGame:
 # ---------------------------------------------------------------------------
 
 class TestDifficultyMapping:
-    """_delta_to_difficulty maps delta ranges to difficulty levels."""
+    """_delta_to_difficulty maps delta ranges to difficulty levels.
 
-    def test_400_to_600_is_difficulty_2(self):
-        assert _delta_to_difficulty(400) == 2
-        assert _delta_to_difficulty(500) == 2
-        assert _delta_to_difficulty(599) == 2
+    After Texel tuning (_PAWN_VALUE ~1.9), thresholds are in raw eval units:
+        4-6 → d2, 6-10 → d3, 10+ → d4
+    """
 
-    def test_600_to_1000_is_difficulty_3(self):
-        assert _delta_to_difficulty(600) == 3
-        assert _delta_to_difficulty(800) == 3
-        assert _delta_to_difficulty(999) == 3
+    def test_4_to_6_is_difficulty_2(self):
+        assert _delta_to_difficulty(4.0) == 2
+        assert _delta_to_difficulty(5.0) == 2
+        assert _delta_to_difficulty(5.9) == 2
 
-    def test_above_1000_is_difficulty_4(self):
-        assert _delta_to_difficulty(1000) == 4
-        assert _delta_to_difficulty(1500) == 4
-        assert _delta_to_difficulty(9999) == 4
+    def test_6_to_10_is_difficulty_3(self):
+        assert _delta_to_difficulty(6.0) == 3
+        assert _delta_to_difficulty(8.0) == 3
+        assert _delta_to_difficulty(9.9) == 3
+
+    def test_above_10_is_difficulty_4(self):
+        assert _delta_to_difficulty(10.0) == 4
+        assert _delta_to_difficulty(15.0) == 4
+        assert _delta_to_difficulty(100.0) == 4
 
     def test_puzzle_difficulty_field_matches_delta(self):
         positions = [_START_POS, _OTHER_POS]
-        for delta, expected_diff in [(450, 2), (700, 3), (1200, 4)]:
+        for delta, expected_diff in [(4.5, 2), (7.0, 3), (12.0, 4)]:
             annotations = [
                 _make_annotation(1, "??", delta_cp=float(delta), best_notation="c3:e5"),
             ]

@@ -18,14 +18,17 @@ logger = logging.getLogger("draughts.puzzle_miner")
 # Path to the user-specific mined puzzle collection.
 MINED_PUZZLES_PATH = Path.home() / ".draughts" / "mined_puzzles.json"
 
-# Minimum eval-swing (cp) to qualify a position as a puzzle.
-_DEFAULT_MIN_DELTA = 400
+# Minimum eval-swing to qualify a position as a puzzle.
+# With tuned weights (_PAWN_VALUE ~1.9), losing one pawn ≈ 2 eval units.
+# Previous value (400) was calibrated for _PAWN_VALUE=5.0 and never
+# triggered after Texel tuning reduced the eval scale.
+_DEFAULT_MIN_DELTA = 4.0
 
 # Difficulty mapping by delta magnitude (lower-bound inclusive).
-# Ranges: 400-599 → d2, 600-999 → d3, 1000+ → d4
+# Ranges: 4-6 → d2, 6-10 → d3, 10+ → d4
 _DIFF_THRESHOLDS = [
-    (1000, 4),   # delta ≥ 1000 → difficulty 4
-    (600, 3),    # delta ≥ 600  → difficulty 3
+    (10.0, 4),   # delta ≥ 10 (~5 pawns) → difficulty 4
+    (6.0, 3),    # delta ≥ 6  (~3 pawns) → difficulty 3
 ]
 
 
@@ -106,8 +109,11 @@ def mine_puzzles_from_game(
 
         # The blunderer is the side to move at ply N.
         blunderer_turn = _turn_string(ply)
-        # The solver is the opponent.
-        solver_turn = "black" if blunderer_turn == "white" else "white"
+        # The solver plays AS the blunderer: the puzzle asks "what should
+        # you have played instead?" from the pre-blunder position.  The
+        # best_move in the annotation is the engine's recommendation for
+        # the side-to-move (the blunderer), so solver_turn must match.
+        solver_turn = blunderer_turn
 
         best_move = ann.best_notation
         if not best_move or best_move == "—":

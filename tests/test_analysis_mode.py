@@ -32,31 +32,31 @@ class TestAnnotateMove:
         assert annotate_move(delta_cp=3.0, is_best=True) == "!"
 
     def test_normal_move_no_annotation(self):
-        # delta < 50 and not best → normal (no mark)
-        assert annotate_move(delta_cp=30.0, is_best=False) == ""
+        # delta < 0.5 and not best → normal (no mark)
+        assert annotate_move(delta_cp=0.3, is_best=False) == ""
 
     def test_inaccuracy_lower_boundary(self):
-        # exactly 50 → inaccuracy
-        assert annotate_move(delta_cp=50.0, is_best=False) == "?!"
+        # exactly 0.5 → inaccuracy
+        assert annotate_move(delta_cp=0.5, is_best=False) == "?!"
 
     def test_inaccuracy_upper_boundary(self):
-        # 149 → still inaccuracy
-        assert annotate_move(delta_cp=149.0, is_best=False) == "?!"
+        # 1.49 → still inaccuracy
+        assert annotate_move(delta_cp=1.49, is_best=False) == "?!"
 
     def test_mistake_lower_boundary(self):
-        # exactly 150 → mistake
-        assert annotate_move(delta_cp=150.0, is_best=False) == "?"
+        # exactly 1.5 → mistake
+        assert annotate_move(delta_cp=1.5, is_best=False) == "?"
 
     def test_mistake_upper_boundary(self):
-        # 399 → still mistake
-        assert annotate_move(delta_cp=399.0, is_best=False) == "?"
+        # 3.99 → still mistake
+        assert annotate_move(delta_cp=3.99, is_best=False) == "?"
 
     def test_blunder_lower_boundary(self):
-        # exactly 400 → blunder
-        assert annotate_move(delta_cp=400.0, is_best=False) == "??"
+        # exactly 4.0 → blunder
+        assert annotate_move(delta_cp=4.0, is_best=False) == "??"
 
     def test_blunder_large_delta(self):
-        assert annotate_move(delta_cp=1000.0, is_best=False) == "??"
+        assert annotate_move(delta_cp=10.0, is_best=False) == "??"
 
     def test_negative_delta_treated_as_zero(self):
         # Negative deltas should not crash; treated as 0 (normal)

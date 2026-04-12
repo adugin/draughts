@@ -610,6 +610,11 @@ class MainWindow(QMainWindow):
         self._controller.selection_changed.emit(None, None)
         self._controller.capture_highlights_changed.emit([])
 
+        # If it was the computer's turn when editor was entered, restart AI.
+        # enter_editor_mode kills the AI thread, so we must re-launch it.
+        if self._controller._current_turn == self._controller._computer_color:
+            self._controller._start_computer_turn()
+
     def _start_game_from_position(self, board, turn: Color):
         """Start a new game from a custom board position and side-to-move."""
         c = self._controller

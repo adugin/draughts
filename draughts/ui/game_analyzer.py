@@ -35,10 +35,13 @@ if TYPE_CHECKING:
 # Pure annotation logic (no Qt, testable)
 # ---------------------------------------------------------------------------
 
-# Threshold constants (cp units matching evaluate_position scale)
-_INACCURACY_MIN = 50
-_MISTAKE_MIN = 150
-_BLUNDER_MIN = 400
+# Threshold constants in raw evaluate_position units.
+# With tuned weights (_PAWN_VALUE ~1.9), losing one pawn ≈ 2 eval units.
+# Previous values (50/150/400) were calibrated for _PAWN_VALUE=5.0 and
+# never triggered in practice after Texel tuning reduced the eval scale.
+_INACCURACY_MIN = 0.5   # ~0.25 pawns — slight inaccuracy
+_MISTAKE_MIN = 1.5       # ~0.75 pawns — clear mistake
+_BLUNDER_MIN = 4.0       # ~2 pawns — serious blunder
 
 
 def annotate_move(delta_cp: float, is_best: bool) -> str:
