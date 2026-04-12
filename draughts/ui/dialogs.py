@@ -174,6 +174,16 @@ class OptionsDialog(QDialog):
         form = QFormLayout(page)
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
 
+        # Board theme selector (D18)
+        self._board_theme = QComboBox()
+        self._board_theme.addItem("Тёмное дерево", userData="dark_wood")
+        self._board_theme.addItem("Классическая светлая", userData="classic_light")
+        current_theme = getattr(s, "board_theme", "dark_wood")
+        theme_idx = self._board_theme.findData(current_theme)
+        if theme_idx >= 0:
+            self._board_theme.setCurrentIndex(theme_idx)
+        form.addRow("Тема доски:", self._board_theme)
+
         # Animation speed slider (maps pause 0.0-2.0 to slider 0-8)
         self._anim_slider = QSlider(Qt.Orientation.Horizontal)
         self._anim_slider.setRange(0, 8)
@@ -225,12 +235,14 @@ class OptionsDialog(QDialog):
     def get_settings(self) -> GameSettings:
         """Return a new GameSettings populated from all tab controls."""
         pause_val = round(self._anim_slider.value() * 0.25, 2)
+        board_theme = self._board_theme.currentData() or "dark_wood"
         s = GameSettings(
             difficulty=self._difficulty.currentIndex() + 1,
             remind=self._remind.isChecked(),
             pause=pause_val,
             invert_color=(self._side.currentIndex() == 1),
             search_depth=self._search_depth.value(),
+            board_theme=board_theme,
             show_coordinates=self._show_coords.isChecked(),
             highlight_last_move=self._highlight_last.isChecked(),
             show_legal_moves_hover=self._show_legal.isChecked(),

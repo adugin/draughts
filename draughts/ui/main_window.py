@@ -101,6 +101,11 @@ class MainWindow(QMainWindow):
         self._act_undo.triggered.connect(self._on_undo)
         game_menu.addAction(self._act_undo)
 
+        self._act_hint = QAction("&Подсказка", self)
+        self._act_hint.setShortcut(QKeySequence("Ctrl+H"))
+        self._act_hint.triggered.connect(self._on_hint)
+        game_menu.addAction(self._act_hint)
+
         game_menu.addSeparator()
 
         self._act_exit = QAction("Вы&ход", self)
@@ -112,9 +117,17 @@ class MainWindow(QMainWindow):
         settings_menu = menubar.addMenu("&Настройки")
 
         self._act_options = QAction("&Опции...", self)
-        self._act_options.setShortcut(QKeySequence("Ctrl+P"))
+        self._act_options.setShortcut(QKeySequence("Ctrl+,"))
         self._act_options.triggered.connect(self._on_options)
         settings_menu.addAction(self._act_options)
+
+        # --- Тренировка ---
+        training_menu = menubar.addMenu("&Тренировка")
+
+        self._act_puzzles = QAction("Решать &задачи...", self)
+        self._act_puzzles.setShortcut(QKeySequence("Ctrl+P"))
+        self._act_puzzles.triggered.connect(self._on_puzzles)
+        training_menu.addAction(self._act_puzzles)
 
         # --- Вид ---
         view_menu = menubar.addMenu("&Вид")
@@ -182,6 +195,12 @@ class MainWindow(QMainWindow):
         c.selection_changed.connect(self._on_selection_changed)
         c.capture_highlights_changed.connect(self._on_capture_highlights)
         c.capture_hint.connect(self._on_capture_hint)
+        c.last_move_changed.connect(self._on_last_move_changed)
+        c.hint_ready.connect(self._on_hint_ready)
+
+        # Push initial settings to board widget
+        self.board_widget.set_settings(c.settings)
+        self.board_widget.set_theme(getattr(c.settings, "board_theme", "dark_wood"))
 
         # Board clicks → controller
         self.board_widget.cell_left_clicked.connect(c.on_cell_left_click)
@@ -231,6 +250,19 @@ class MainWindow(QMainWindow):
     def _on_capture_hint(self, positions: list):
         self.board_widget.start_hint_pulse(positions)
 
+    def _on_last_move_changed(self, move):
+        """Propagate last-move highlight to board widget."""
+        self.board_widget.last_move = move
+
+    def _on_hint_ready(self, squares: list, message: str):
+        """Display the hint squares on the board and show a status message (D16)."""
+        self.board_widget.hint_squares = squares
+        # Show as a transient message box in the title bar area
+        self.setWindowTitle(f"Шашки — {message}")
+        # Restore plain title after 4 seconds
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(4000, lambda: self.setWindowTitle("Шашки"))
+
     # --- Menu actions ---
 
     def _on_undo(self):
@@ -268,6 +300,10 @@ class MainWindow(QMainWindow):
         dlg = InfoDialog(self)
         dlg.exec()
 
+    def _on_hint(self):
+        """Request a hint from the engine (D16, Ctrl+H)."""
+        self._controller.get_hint()
+
     def _on_options(self):
         from draughts.ui.dialogs import OptionsDialog
 
@@ -276,6 +312,10 @@ class MainWindow(QMainWindow):
             self._controller.settings = dlg.get_settings()
             self._controller._computer_color = Color.BLACK if not self._controller.settings.invert_color else Color.WHITE
             self._controller._player_color = Color.WHITE if not self._controller.settings.invert_color else Color.BLACK
+            # Propagate updated settings to board widget (coordinates, hover, etc.)
+            self.board_widget.set_settings(self._controller.settings)
+            # Apply theme change immediately so the board repaints (D18)
+            self.board_widget.set_theme(getattr(self._controller.settings, "board_theme", "dark_wood"))
 
     def _on_playback(self):
         from draughts.ui.playback import PlaybackDialog
@@ -300,6 +340,12 @@ class MainWindow(QMainWindow):
         from draughts.ui.dialogs import AboutDialog
 
         dlg = AboutDialog(self)
+        dlg.exec()
+
+    def _on_puzzles(self):
+        from draughts.ui.puzzle_widget import PuzzleTrainer
+
+        dlg = PuzzleTrainer(self)
         dlg.exec()
 
     def _on_toggle_analysis_pane(self, checked: bool) -> None:
