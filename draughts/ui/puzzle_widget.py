@@ -309,10 +309,51 @@ class PuzzleTrainer(QDialog):
         if direction == 0:
             self._puzzle_index = 0
         else:
-            self._puzzle_index = (self._puzzle_index + direction) % len(pool)
+            new_index = self._puzzle_index + direction
+            if new_index >= len(pool):
+                # Completed all puzzles — show summary
+                self._show_completion_summary(pool)
+                return
+            elif new_index < 0:
+                new_index = len(pool) - 1
+            self._puzzle_index = new_index
 
         puzzle = pool[self._puzzle_index]
         self._load_puzzle(puzzle)
+
+    def _show_completion_summary(self, pool: list) -> None:
+        """Show a congratulatory dialog when all puzzles are completed."""
+        from PyQt6.QtWidgets import QMessageBox
+
+        total = len(pool)
+        solved = sum(1 for p in pool if p.id in self._progress["solved"])
+        correct = self._progress["total_correct"]
+        attempts = self._progress["total_attempts"]
+        accuracy = (correct / attempts * 100) if attempts > 0 else 0
+        best_streak = self._progress["best_streak"]
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Тренировка завершена!")
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setText(
+            f"🏆 Все {total} задач пройдены!\n\n"
+            f"Решено: {solved}/{total}\n"
+            f"Точность: {correct}/{attempts} ({accuracy:.0f}%)\n"
+            f"Лучшая серия: {best_streak}\n\n"
+            f"Начать сначала?"
+        )
+        msg.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        msg.button(QMessageBox.StandardButton.Yes).setText("Заново")
+        msg.button(QMessageBox.StandardButton.No).setText("Закрыть")
+
+        result = msg.exec()
+        if result == QMessageBox.StandardButton.Yes:
+            self._puzzle_index = 0
+            self._load_puzzle(pool[0])
+        else:
+            self.close()
 
     def _load_puzzle(self, puzzle: Puzzle) -> None:
         """Load a puzzle onto the board and reset state."""
