@@ -35,6 +35,64 @@ if TYPE_CHECKING:
     from draughts.app.controller import GameController
 
 
+_THEMES = {
+    "dark_wood": {
+        "window_bg": "#2a1a0a",
+        "menu_bg": "#3a2510",
+        "menu_fg": "#d4b483",
+        "menu_hover": "#5a3d20",
+        "menu_border": "#6a4a2a",
+        "toolbar_bg": "#1e110a",
+        "toolbar_border": "#4a3a2a",
+        "btn_bg": "#3a2510",
+        "btn_hover": "#4a3520",
+        "btn_fg": "#d4b483",
+        "btn_border": "#6a4520",
+        "accent": "#f0d090",
+    },
+    "classic_light": {
+        "window_bg": "#f5ead0",
+        "menu_bg": "#e8dcc0",
+        "menu_fg": "#3a2a1a",
+        "menu_hover": "#d4c4a4",
+        "menu_border": "#b8a888",
+        "toolbar_bg": "#efe4cc",
+        "toolbar_border": "#c8b898",
+        "btn_bg": "#e0d4b8",
+        "btn_hover": "#d0c4a4",
+        "btn_fg": "#3a2a1a",
+        "btn_border": "#b0a080",
+        "accent": "#6a4a2a",
+    },
+}
+
+
+def _build_stylesheet(theme_name: str) -> str:
+    """Build a full-window QSS for the given board theme."""
+    t = _THEMES.get(theme_name, _THEMES["dark_wood"])
+    return (
+        f"QMainWindow {{ background-color: {t['window_bg']}; }}"
+        f"QMenuBar {{ background: {t['menu_bg']}; color: {t['menu_fg']};"
+        f"  border-bottom: 1px solid {t['menu_border']}; font-size: 13px; }}"
+        f"QMenuBar::item:selected {{ background: {t['menu_hover']}; }}"
+        f"QMenu {{ background: {t['menu_bg']}; color: {t['menu_fg']};"
+        f"  border: 1px solid {t['menu_border']}; }}"
+        f"QMenu::item:selected {{ background: {t['menu_hover']}; }}"
+        f"QMenu::separator {{ background: {t['menu_border']}; height: 1px; }}"
+        f"QToolBar {{ background: {t['toolbar_bg']};"
+        f"  border-top: 1px solid {t['toolbar_border']}; spacing: 12px; }}"
+        f"QLabel {{ color: {t['menu_fg']}; }}"
+        f"QPushButton {{ background: {t['btn_bg']}; color: {t['btn_fg']};"
+        f"  border: 1px solid {t['btn_border']}; border-radius: 3px;"
+        f"  padding: 4px 12px; }}"
+        f"QPushButton:hover {{ background: {t['btn_hover']}; }}"
+        f"QToolButton {{ background: {t['btn_bg']}; color: {t['btn_fg']};"
+        f"  border: 1px solid {t['btn_border']}; border-radius: 3px;"
+        f"  padding: 3px 8px; }}"
+        f"QToolButton:hover {{ background: {t['btn_hover']}; }}"
+    )
+
+
 class MainWindow(QMainWindow):
     """Main application window — board + menu bar."""
 
@@ -45,16 +103,22 @@ class MainWindow(QMainWindow):
         self.resize(720, 760)
 
         self._controller = controller
+        self._current_theme = controller.settings.board_theme
 
         self._build_ui()
         self._build_menus()
         self._build_analysis_pane()
         self._connect_controller()
+        self._apply_theme(self._current_theme)
+
+    def _apply_theme(self, theme_name: str) -> None:
+        """Apply the themed stylesheet to the entire window."""
+        self._current_theme = theme_name
+        self.setStyleSheet(_build_stylesheet(theme_name))
 
     def _build_ui(self):
         """Board widget as the sole central content."""
         central = QWidget()
-        central.setStyleSheet("background-color: #2a1a0a;")
         self.setCentralWidget(central)
 
         layout = QVBoxLayout(central)
@@ -72,10 +136,8 @@ class MainWindow(QMainWindow):
         self._clock_toolbar = QToolBar("Часы", self)
         self._clock_toolbar.setMovable(False)
         self._clock_toolbar.setFloatable(False)
-        self._clock_toolbar.setStyleSheet(
-            "QToolBar { background: #1e110a; border-top: 1px solid #4a3a2a; spacing: 12px; }"
-            "QLabel { color: #d4b483; font-family: Georgia; font-size: 13px; padding: 2px 8px; }"
-        )
+        # Clock toolbar inherits colors from the window-level theme QSS.
+        # Only set font here (not colors).
         self._clock_label_white = QLabel("\u26aa 0:00")
         self._clock_label_black = QLabel("\u26ab 0:00")
         self._clock_toolbar.addWidget(self._clock_label_white)
@@ -342,8 +404,11 @@ class MainWindow(QMainWindow):
             self._controller._player_color = Color.WHITE if not self._controller.settings.invert_color else Color.BLACK
             # Propagate updated settings to board widget (coordinates, hover, etc.)
             self.board_widget.set_settings(self._controller.settings)
-            # Apply theme change immediately so the board repaints (D18)
-            self.board_widget.set_theme(getattr(self._controller.settings, "board_theme", "dark_wood"))
+            # Apply theme change to board AND entire window (D18)
+            new_theme = getattr(self._controller.settings, "board_theme", "dark_wood")
+            self.board_widget.set_theme(new_theme)
+            if new_theme != self._current_theme:
+                self._apply_theme(new_theme)
             # Apply board orientation (D22)
             self.board_widget.inverted = self._controller.settings.invert_color
             # Show/hide clock toolbar (D19)
