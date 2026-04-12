@@ -228,7 +228,7 @@ def cmd_replay(args):
 
 def cmd_screenshot(args):
     """Render board position to PNG."""
-    from draughts.ui.renderer import render_board, render_position
+    from draughts.tools.renderer import render_board, render_position
 
     if args.position:
         img = render_position(args.position, output=args.output, size=args.size)
