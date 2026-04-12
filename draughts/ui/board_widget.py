@@ -16,11 +16,15 @@ from draughts.config import (
     COLUMN_LETTERS,
     EMPTY,
     ROW_NUMBERS,
+    WHITE,
     WHITE_KING,
     Color,
 )
 from draughts.game.board import Board
 from draughts.ui.textures import TextureCache, draw_realistic_piece
+
+# Piece cycle order for editor left-click: empty → black → black king → white → white king → empty
+_EDITOR_CYCLE = [int(EMPTY), int(BLACK), int(BLACK_KING), int(WHITE), int(WHITE_KING)]
 
 
 class BoardWidget(QWidget):
@@ -28,6 +32,10 @@ class BoardWidget(QWidget):
 
     cell_left_clicked = pyqtSignal(int, int)
     cell_right_clicked = pyqtSignal(int, int)
+
+    # Editor-mode signals (emitted instead of cell_*_clicked when editor_mode is True)
+    editor_cell_cycled = pyqtSignal(int, int)   # left-click: cycle piece at (x, y)
+    editor_cell_cleared = pyqtSignal(int, int)  # right-click: clear piece at (x, y)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -37,6 +45,9 @@ class BoardWidget(QWidget):
         self._turn_color: Color = Color.WHITE
         self._anim_hidden_cells: set[tuple[int, int]] = set()  # cells hidden during animation
         self._textures = TextureCache()
+
+        # Editor mode
+        self._editor_mode: bool = False
 
         # Hint pulse animation (mandatory capture indicator)
         self._hint_cells: list[tuple[int, int]] = []
@@ -48,6 +59,45 @@ class BoardWidget(QWidget):
 
         self.setMinimumSize(240, 240)
         self.setMouseTracking(False)
+
+    # --- Editor mode ---
+
+    @property
+    def editor_mode(self) -> bool:
+        return self._editor_mode
+
+    @editor_mode.setter
+    def editor_mode(self, value: bool):
+        self._editor_mode = value
+        self.update()
+
+    def cycle_piece(self, x: int, y: int) -> None:
+        """Cycle the piece at (x, y) through the editor piece sequence.
+
+        Sequence: empty → BLACK → BLACK_KING → WHITE → WHITE_KING → empty.
+        Only works on dark squares. No-op on light squares or when board is None.
+        """
+        if self._board is None:
+            return
+        if x % 2 == y % 2:  # light square — not playable
+            return
+        current = int(self._board.piece_at(x, y))
+        try:
+            idx = _EDITOR_CYCLE.index(current)
+        except ValueError:
+            idx = 0
+        next_piece = _EDITOR_CYCLE[(idx + 1) % len(_EDITOR_CYCLE)]
+        self._board.place_piece(x, y, next_piece)
+        self.update()
+
+    def clear_piece(self, x: int, y: int) -> None:
+        """Remove the piece at (x, y). No-op on light squares or when board is None."""
+        if self._board is None:
+            return
+        if x % 2 == y % 2:
+            return
+        self._board.place_piece(x, y, int(EMPTY))
+        self.update()
 
     # --- Public API ---
 
@@ -219,6 +269,25 @@ class BoardWidget(QWidget):
         # Draw coordinate labels
         self._draw_labels(painter, cell_size, bx, by, board_side)
 
+        # Editor-mode overlay: "РЕДАКТОР" label in the top-left corner
+        if self._editor_mode:
+            font_size = max(9, int(cell_size * 0.28))
+            font = QFont("Georgia", font_size, QFont.Weight.Bold)
+            painter.setFont(font)
+            label = "РЕДАКТОР"
+            fm = painter.fontMetrics()
+            text_w = fm.horizontalAdvance(label)
+            text_h = fm.height()
+            padding = max(4, int(cell_size * 0.12))
+            bg_rect = QRectF(bx, by, text_w + padding * 2, text_h + padding)
+            painter.fillRect(bg_rect, QColor(180, 60, 0, 210))
+            painter.setPen(QColor(255, 220, 100))
+            painter.drawText(
+                bg_rect,
+                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
+                label,
+            )
+
         painter.end()
 
     def _draw_piece(self, painter: QPainter, x: int, y: int, piece: int, cell_size: float, bx: float, by: float):
@@ -276,7 +345,19 @@ class BoardWidget(QWidget):
         if cell is None:
             return
         x, y = cell
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.cell_left_clicked.emit(x, y)
-        elif event.button() == Qt.MouseButton.RightButton:
-            self.cell_right_clicked.emit(x, y)
+        if self._editor_mode:
+            self._handle_editor_click(x, y, event.button())
+        else:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.cell_left_clicked.emit(x, y)
+            elif event.button() == Qt.MouseButton.RightButton:
+                self.cell_right_clicked.emit(x, y)
+
+    def _handle_editor_click(self, x: int, y: int, button) -> None:
+        """Handle mouse click in editor mode."""
+        if button == Qt.MouseButton.LeftButton:
+            self.cycle_piece(x, y)
+            self.editor_cell_cycled.emit(x, y)
+        elif button == Qt.MouseButton.RightButton:
+            self.clear_piece(x, y)
+            self.editor_cell_cleared.emit(x, y)
