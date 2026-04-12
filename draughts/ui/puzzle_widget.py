@@ -442,7 +442,12 @@ class PuzzleTrainer(QDialog):
         still_going = [fp for fp in full_paths if fp[:len(extended)] == extended and len(fp) > len(extended)]
 
         if exact and not still_going:
-            # Completed capture
+            # Completed capture — show the final landing square in the
+            # highlight chain before validating (gives visual feedback
+            # that the click registered).
+            self._board_widget.set_capture_highlights(
+                [pos for pos in extended[1:]]
+            )
             self._capture_in_progress = []
             self._validate_move_path(extended)
         elif still_going:
@@ -493,7 +498,8 @@ class PuzzleTrainer(QDialog):
             self._board_widget.set_selection()
             return
 
-        # It's a legal simple move — validate it
+        # It's a legal simple move — highlight destination, then validate
+        self._board_widget.set_capture_highlights([to_sq])
         path = [from_sq, to_sq]
         self._validate_move_path(path)
 
@@ -566,12 +572,13 @@ class PuzzleTrainer(QDialog):
 
         self._update_stats_label()
 
-        # Flash green
+        # Flash green — keep selection + capture highlights visible so the
+        # user sees the full move chain (start = green, intermediates =
+        # magenta, final landing = magenta) during the success flash.
+        # They get cleared when the next puzzle loads.
         self._flash_status("✓ Правильно!", _GREEN)
-        self._board_widget.set_selection()
-        self._board_widget.set_capture_highlights([])
 
-        # Auto-advance after 1.5 s
+        # Auto-advance after 1.5 s (highlights cleared by _load_puzzle)
         QTimer.singleShot(1500, lambda: self._load_next_puzzle(direction=1))
 
     def _on_wrong_move(self) -> None:
