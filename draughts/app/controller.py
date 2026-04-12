@@ -128,6 +128,8 @@ class GameController(QObject):
     selection_changed = pyqtSignal(object, object)
     capture_highlights_changed = pyqtSignal(list)
     capture_hint = pyqtSignal(list)  # [(x, y), ...] — pieces that must capture (pulse animation)
+    last_move_changed = pyqtSignal(object)  # tuple[tuple,tuple] | None — last move highlight
+    hint_ready = pyqtSignal(object, str)  # (squares: list[tuple], message: str) — D16 hint
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -170,6 +172,7 @@ class GameController(QObject):
         self._ply_count = 0
         self._game_started = False
 
+        self.last_move_changed.emit(None)
         self.board_changed.emit()
         self.turn_changed.emit(self._current_turn)
         self.selection_changed.emit(None, None)
@@ -289,7 +292,7 @@ class GameController(QObject):
 
         notation = f"{Board.pos_to_notation(sx, sy)}-{Board.pos_to_notation(tx, ty)}"
         self.board.execute_move(sx, sy, tx, ty)
-        self._finish_player_move(notation)
+        self._finish_player_move(notation, from_sq=(sx, sy), to_sq=(tx, ty))
 
     def _try_capture_move(self, sx: int, sy: int, tx: int, ty: int):
         """Try a capture move."""
@@ -313,9 +316,9 @@ class GameController(QObject):
         self.board.execute_capture_path(best_path)
 
         notation = ":".join(Board.pos_to_notation(x, y) for x, y in best_path)
-        self._finish_player_move(notation)
+        self._finish_player_move(notation, from_sq=best_path[0], to_sq=best_path[-1])
 
-    def _finish_player_move(self, notation: str):
+    def _finish_player_move(self, notation: str, from_sq: tuple[int, int] | None = None, to_sq: tuple[int, int] | None = None):
         """Finalize player's move — record, switch turns, start AI."""
         self._ply_count += 1
         self._game_started = True
@@ -325,6 +328,9 @@ class GameController(QObject):
         pos = self.board.to_position_string()
         self._positions.append(pos)
         self._replay_history.append(pos)
+
+        if from_sq is not None and to_sq is not None:
+            self.last_move_changed.emit((from_sq, to_sq))
 
         self.board_changed.emit()
         self.selection_changed.emit(None, None)
@@ -381,6 +387,9 @@ class GameController(QObject):
             self.game_over.emit("Вы выиграли!")
             return
 
+        ai_from = result.path[0]
+        ai_to = result.path[-1]
+
         if result.kind == "capture":
             self.board.execute_capture_path(result.path)
         elif result.kind in ("move", "sacrifice"):
@@ -397,6 +406,7 @@ class GameController(QObject):
         self._positions.append(pos)
         self._replay_history.append(pos)
 
+        self.last_move_changed.emit((ai_from, ai_to))
         self.board_changed.emit()
 
         if self._check_game_over():
@@ -428,6 +438,7 @@ class GameController(QObject):
         self._capture_path = []
         self._current_turn = self._player_color
 
+        self.last_move_changed.emit(None)
         self.board_changed.emit()
         self.turn_changed.emit(self._current_turn)
         self.selection_changed.emit(None, None)
@@ -648,6 +659,39 @@ class GameController(QObject):
     def is_thinking(self) -> bool:
         """True while the AI background thread is running."""
         return self._ai_thread is not None
+
+    def get_hint(self) -> None:
+        """Ask the engine for the best move and emit hint_ready (D16).
+
+        Ignored when it is not the player's turn, the game is over, or AI
+        is already thinking.  Uses depth=4 for a fast (~0.1 s) response.
+        Emits hint_ready(squares, message) where squares = [from_sq, to_sq].
+        """
+        if self._current_turn != self._player_color:
+            return
+        if self._ai_thread is not None:
+            return
+        try:
+            from draughts.game.analysis import get_ai_analysis
+            from draughts.game.headless import HeadlessGame
+
+            hg = HeadlessGame(position=self.board.to_position_string(), auto_ai=False)
+            hg._turn = self._current_turn
+            analysis = get_ai_analysis(hg, depth=4)
+            if analysis.best_move is None:
+                return
+            path = analysis.best_move.path
+            from_sq = path[0]
+            to_sq = path[-1]
+            score = analysis.score
+            from_note = self.board.pos_to_notation(*from_sq)
+            to_note = self.board.pos_to_notation(*to_sq)
+            sep = ":" if analysis.best_move.kind == "capture" else "-"
+            score_str = f"{score:+.1f}"
+            message = f"Лучший ход: {from_note}{sep}{to_note} (оценка: {score_str})"
+            self.hint_ready.emit([from_sq, to_sq], message)
+        except Exception:
+            logger.exception("get_hint failed")
 
     def request_analysis(self, depth: int = 6) -> object:  # returns Analysis | None
         """Analyze the current position synchronously and return an Analysis.

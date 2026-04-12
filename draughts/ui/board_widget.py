@@ -20,6 +20,8 @@ from draughts.config import (
     WHITE_KING,
     Color,
 )
+from draughts.config import GameSettings
+
 from draughts.game.board import Board
 from draughts.ui.textures import TextureCache, draw_realistic_piece
 
@@ -44,7 +46,9 @@ class BoardWidget(QWidget):
         self._capture_highlights: list[tuple[int, int]] = []
         self._turn_color: Color = Color.WHITE
         self._anim_hidden_cells: set[tuple[int, int]] = set()  # cells hidden during animation
-        self._textures = TextureCache()
+        self._theme: str = "dark_wood"
+        self._textures = TextureCache(theme=self._theme)
+        self._settings: GameSettings = GameSettings()
 
         # Editor mode
         self._editor_mode: bool = False
@@ -57,8 +61,60 @@ class BoardWidget(QWidget):
         self._hint_timer.timeout.connect(self._hint_tick)
         self._HINT_DURATION = 1.0  # seconds for full pulse cycle
 
+        # Last-move highlight (item 26)
+        self._last_move: tuple[tuple[int, int], tuple[int, int]] | None = None
+
+        # Legal-move hover preview (item 26)
+        self._hover_legal_moves: list[tuple[int, int]] = []
+
+        # Hint-move overlay (D16)
+        self._hint_squares: list[tuple[int, int]] | None = None
+        self._hint_clear_timer = QTimer(self)
+        self._hint_clear_timer.setSingleShot(True)
+        self._hint_clear_timer.timeout.connect(self._clear_hint_squares)
+
         self.setMinimumSize(240, 240)
         self.setMouseTracking(False)
+
+    # --- Settings ---
+
+    def set_settings(self, settings: GameSettings) -> None:
+        """Update rendering settings and enable mouse tracking if needed."""
+        self._settings = settings
+        need_tracking = settings.show_legal_moves_hover
+        self.setMouseTracking(need_tracking)
+        if not need_tracking:
+            self._hover_legal_moves = []
+        self.update()
+
+    # --- Last-move highlight ---
+
+    @property
+    def last_move(self) -> tuple[tuple[int, int], tuple[int, int]] | None:
+        return self._last_move
+
+    @last_move.setter
+    def last_move(self, value: tuple[tuple[int, int], tuple[int, int]] | None) -> None:
+        self._last_move = value
+        self.update()
+
+    # --- Hint squares (D16) ---
+
+    @property
+    def hint_squares(self) -> list[tuple[int, int]] | None:
+        return self._hint_squares
+
+    @hint_squares.setter
+    def hint_squares(self, value: list[tuple[int, int]] | None) -> None:
+        self._hint_squares = value
+        self._hint_clear_timer.stop()
+        if value:
+            self._hint_clear_timer.start(3000)
+        self.update()
+
+    def _clear_hint_squares(self) -> None:
+        self._hint_squares = None
+        self.update()
 
     # --- Editor mode ---
 
@@ -122,6 +178,24 @@ class BoardWidget(QWidget):
     def set_turn_indicator(self, color: str | Color):
         """Set which side's turn it is."""
         self._turn_color = color
+        self.update()
+
+    def set_theme(self, theme: str) -> None:
+        """Switch the board texture theme and repaint.
+
+        Args:
+            theme: One of ``TextureCache.THEMES`` (e.g. ``"dark_wood"`` or
+                   ``"classic_light"``).  Invalid names are silently ignored
+                   to avoid crashing the UI on bad settings values.
+        """
+        from draughts.ui.textures import TextureCache
+        if theme not in TextureCache.THEMES:
+            return
+        self._textures.clear()
+        self._textures.theme = theme
+        # Dark-wood background stays for dark_wood; use a neutral light
+        # tone for the classic_light frame area outside the board.
+        self._theme = theme
         self.update()
 
     def start_hint_pulse(self, positions: list[tuple[int, int]]):
@@ -197,25 +271,33 @@ class BoardWidget(QWidget):
         board_side = cell_size * BOARD_SIZE
         cs = max(1, int(cell_size))
 
-        # Background — exactly match right panel (#3a2a1a) for seamless look
-        painter.fillRect(self.rect(), QColor(0x3A, 0x2A, 0x1A))
+        # Background color depends on theme
+        _theme = getattr(self, "_theme", "dark_wood")
+        if _theme == "classic_light":
+            painter.fillRect(self.rect(), QColor(0xC8, 0xAA, 0x8C))
+        else:
+            # Dark wood: exactly match right panel (#3a2a1a) for seamless look
+            painter.fillRect(self.rect(), QColor(0x3A, 0x2A, 0x1A))
 
-        # Board frame — dark mahogany wood texture
+        # Board frame texture
         frame_margin = cell_size * 0.65
         frame_rect = QRectF(
             bx - frame_margin, by - frame_margin, board_side + 2 * frame_margin, board_side + 2 * frame_margin
         )
-        frame_tex = self._textures.get_frame_wood(max(1, int(board_side + 2 * frame_margin)))
+        frame_tex = self._textures.get_frame(max(1, int(board_side + 2 * frame_margin)))
         painter.drawPixmap(frame_rect.toRect(), frame_tex)
 
         # Subtle frame border
-        painter.setPen(QPen(QColor(30, 20, 10), max(1, cell_size * 0.03)))
+        if _theme == "classic_light":
+            painter.setPen(QPen(QColor(0x6B, 0x4A, 0x36), max(1, cell_size * 0.03)))
+        else:
+            painter.setPen(QPen(QColor(30, 20, 10), max(1, cell_size * 0.03)))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(frame_rect)
 
-        # Draw cells with wood textures
-        light_tex = self._textures.get_light_wood(cs)
-        dark_tex = self._textures.get_dark_wood(cs)
+        # Draw cells — theme-aware
+        light_tex = self._textures.get_light_cell(cs)
+        dark_tex = self._textures.get_dark_cell(cs)
 
         for y in range(BOARD_SIZE):
             for x in range(BOARD_SIZE):
@@ -256,6 +338,27 @@ class BoardWidget(QWidget):
                 rect = self._cell_rect(hx, hy, cell_size, bx, by)
                 painter.drawRect(rect.adjusted(1, 1, -1, -1))
 
+        # Draw last-move highlight overlay (item 26, part 1)
+        if self._last_move is not None and self._settings.highlight_last_move:
+            lm_color = QColor(255, 220, 0, 70)  # semi-transparent yellow
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(lm_color)
+            for lx, ly in self._last_move:
+                rect = self._cell_rect(lx, ly, cell_size, bx, by)
+                painter.fillRect(rect, lm_color)
+
+        # Draw legal-move hover dots (item 26, part 2)
+        if self._hover_legal_moves and self._settings.show_legal_moves_hover:
+            dot_r = max(4, cell_size * 0.13)
+            dot_color = QColor(255, 255, 255, 140)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(dot_color)
+            for hx, hy in self._hover_legal_moves:
+                rect = self._cell_rect(hx, hy, cell_size, bx, by)
+                cx = rect.center().x()
+                cy = rect.center().y()
+                painter.drawEllipse(QRectF(cx - dot_r, cy - dot_r, dot_r * 2, dot_r * 2))
+
         # Draw pieces (skip cells hidden by active animations)
         if self._board:
             for y in range(BOARD_SIZE):
@@ -265,6 +368,15 @@ class BoardWidget(QWidget):
                     piece = self._board.piece_at(x, y)
                     if piece != EMPTY:
                         self._draw_piece(painter, x, y, piece, cell_size, bx, by)
+
+        # Draw hint-move overlay — bright green borders (D16)
+        if self._hint_squares:
+            hint_pen = QPen(QColor(0, 230, 80), max(3, cell_size * 0.10))
+            painter.setPen(hint_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            for hx, hy in self._hint_squares:
+                rect = self._cell_rect(hx, hy, cell_size, bx, by)
+                painter.drawRect(rect.adjusted(2, 2, -2, -2))
 
         # Draw coordinate labels
         self._draw_labels(painter, cell_size, bx, by, board_side)
@@ -303,8 +415,12 @@ class BoardWidget(QWidget):
     def _draw_labels(self, painter: QPainter, cell_size: float, bx: float, by: float, board_side: float):
         """Draw column letters (a-h) and row numbers (8-1) around the board.
 
+        Labels are drawn only when settings.show_coordinates is True.
         Labels are centered in the frame margin between the board edge and frame edge.
         """
+        if not self._settings.show_coordinates:
+            return
+
         font_size = max(8, int(cell_size * 0.32))
         font = QFont("Georgia", font_size)
         painter.setFont(font)
@@ -361,3 +477,51 @@ class BoardWidget(QWidget):
         elif button == Qt.MouseButton.RightButton:
             self.clear_piece(x, y)
             self.editor_cell_cleared.emit(x, y)
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        """Track hover position to show legal-move dots (item 26, part 2)."""
+        if not self._settings.show_legal_moves_hover or self._board is None or self._editor_mode:
+            return
+        cell = self._cell_from_pos(event.position())
+        if cell is None:
+            self._hover_legal_moves = []
+            self.update()
+            return
+        x, y = cell
+        piece = self._board.piece_at(x, y)
+        # Determine if piece belongs to current turn's player
+        is_player_piece = (
+            (self._turn_color == Color.WHITE and self._board.is_white(piece))
+            or (self._turn_color == Color.BLACK and self._board.is_black(piece))
+        )
+        if not is_player_piece:
+            if self._hover_legal_moves:
+                self._hover_legal_moves = []
+                self.update()
+            return
+        # Compute reachable squares
+        destinations: list[tuple[int, int]] = []
+        captures = self._board.get_captures(x, y)
+        if captures:
+            for path in captures:
+                if len(path) >= 2:
+                    destinations.append(path[-1])
+        else:
+            destinations = list(self._board.get_valid_moves(x, y))
+        # Deduplicate while preserving order
+        seen: set[tuple[int, int]] = set()
+        unique: list[tuple[int, int]] = []
+        for sq in destinations:
+            if sq not in seen:
+                seen.add(sq)
+                unique.append(sq)
+        if unique != self._hover_legal_moves:
+            self._hover_legal_moves = unique
+            self.update()
+
+    def leaveEvent(self, event):
+        """Clear hover dots when mouse leaves the widget."""
+        if self._hover_legal_moves:
+            self._hover_legal_moves = []
+            self.update()
+        super().leaveEvent(event)
