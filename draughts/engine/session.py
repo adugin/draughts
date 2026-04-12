@@ -257,6 +257,7 @@ class EngineSession:
                 depth = int(tokens[1]) if len(tokens) > 1 else 4
             except (ValueError, IndexError):
                 depth = 4
+            depth = max(1, depth)  # clamp: depth 0 would produce no move (BUG-007)
             self._go_depth(depth, out)
 
         elif mode == "movetime":
@@ -355,7 +356,18 @@ class EngineSession:
             emit(out, f"bestmove {format_move(best_move.kind, best_move.path)}")
 
     def _go_infinite(self, out: IO[str]) -> None:
-        """Start an infinite search in a worker thread; block until 'stop'."""
+        """Start an infinite search in a worker thread without blocking stdin.
+
+        The worker runs iterative deepening up to ``_MAX_INFINITE_DEPTH`` (or
+        until ``stop`` sets ``_stop_event``).  It emits ``info`` lines and the
+        final ``bestmove`` itself so that the main ``run()`` loop stays free to
+        read the ``stop`` command from stdin.
+
+        Note: on Windows ``select()`` cannot poll stdin, so true mid-search
+        interruption requires sending ``stop`` before the search reaches max
+        depth.  The worker is a daemon thread — if the process exits it will
+        be killed automatically.
+        """
         board, color = self._current_board_and_color()
         if board is None:
             emit(out, "info string No position set")
@@ -364,8 +376,6 @@ class EngineSession:
 
         self._stop_event.clear()
         self._ctx.clear()
-
-        result: dict[str, AIMove | None] = {"move": None}
 
         def worker() -> None:
             t0 = time.perf_counter()
@@ -392,23 +402,17 @@ class EngineSession:
                 if self._stop_event.is_set():
                     break
 
-            result["move"] = best
+            # Emit bestmove from the worker so the main thread is not blocked
+            if best is None:
+                emit(out, "bestmove (none)")
+            else:
+                emit(out, f"bestmove {format_move(best.kind, best.path)}")
+            # Signal that the worker has finished so _cmd_stop can clean up
+            self._worker_thread = None
 
         self._worker_thread = threading.Thread(target=worker, daemon=True)
         self._worker_thread.start()
-
-        # Main thread reads stdin for 'stop' (or any terminator)
-        # In the run() loop this is handled externally; but when called
-        # standalone we must poll here.  In tests the stop_event is set
-        # externally, so we just join the thread.
-        self._worker_thread.join()
-        self._worker_thread = None
-
-        best_move = result["move"]
-        if best_move is None:
-            emit(out, "bestmove (none)")
-        else:
-            emit(out, f"bestmove {format_move(best_move.kind, best_move.path)}")
+        # Return immediately — run() loop continues reading stdin for 'stop'
 
     # -----------------------------------------------------------------------
     # Helpers
