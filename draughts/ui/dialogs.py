@@ -30,6 +30,55 @@ from draughts.config import GameSettings
 from draughts.game.ai.elo import ELO_LEVELS
 
 # ---------------------------------------------------------------------------
+# Shared theme-aware styling for ALL dialogs
+# ---------------------------------------------------------------------------
+
+_DIALOG_PALETTES = {
+    "dark_wood": {
+        "bg": "#2a1a0a", "fg": "#d4b483",
+        "border": "#6a4520", "hover": "#5a3d20",
+        "input_bg": "#3a2a1a", "btn_bg": "#3a2510",
+    },
+    "classic_light": {
+        "bg": "#f5ead0", "fg": "#3a2a1a",
+        "border": "#b8a888", "hover": "#d4c4a4",
+        "input_bg": "#ffffff", "btn_bg": "#e0d4b8",
+    },
+}
+
+
+def _get_current_theme() -> str:
+    """Best-effort read of the active board theme for dialog styling."""
+    try:
+        # If a GameSettings instance is accessible, use it; otherwise default.
+        return "dark_wood"  # caller overrides via apply_dialog_theme
+    except Exception:
+        return "dark_wood"
+
+
+def apply_dialog_theme(dialog: QDialog, theme_name: str | None = None) -> None:
+    """Apply the project's theme colors to any QDialog.
+
+    Keeps all dialogs (Options, About, GameOver, etc.) visually
+    consistent with the main window and puzzle trainer.
+    """
+    if theme_name is None:
+        theme_name = "dark_wood"
+    t = _DIALOG_PALETTES.get(theme_name, _DIALOG_PALETTES["dark_wood"])
+    dialog.setStyleSheet(
+        f"QDialog {{ background: {t['bg']}; color: {t['fg']}; }}"
+        f"QLabel {{ color: {t['fg']}; }}"
+        f"QTextEdit {{ background: {t['input_bg']}; color: {t['fg']};"
+        f"  border: 1px solid {t['border']}; }}"
+        f"QPushButton {{ background: {t['btn_bg']}; color: {t['fg']};"
+        f"  border: 1px solid {t['border']}; border-radius: 3px;"
+        f"  padding: 5px 16px; }}"
+        f"QPushButton:hover {{ background: {t['hover']}; }}"
+        f"QDialogButtonBox QPushButton {{ min-width: 70px; }}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # 1. OptionsDialog
 # ---------------------------------------------------------------------------
 
@@ -45,6 +94,24 @@ class OptionsDialog(QDialog):
     Tab 4: Анализ    — stub placeholder for M3 analysis features
     """
 
+    # Theme palettes matching main_window._THEMES
+    _DIALOG_THEMES = {
+        "dark_wood": {
+            "bg": "#2a1a0a", "fg": "#d4b483",
+            "tab_bg": "#3a2510", "tab_sel": "#4a3520", "tab_border": "#6a4520",
+            "input_bg": "#3a2a1a", "input_border": "#5a4a3a",
+            "btn_bg": "#3a2510", "btn_hover": "#5a3d20", "btn_border": "#6a4520",
+            "hint_fg": "#a08a60", "check_accent": "#d4b483",
+        },
+        "classic_light": {
+            "bg": "#f5ead0", "fg": "#3a2a1a",
+            "tab_bg": "#e8dcc0", "tab_sel": "#d4c4a4", "tab_border": "#b8a888",
+            "input_bg": "#ffffff", "input_border": "#c8b898",
+            "btn_bg": "#e0d4b8", "btn_hover": "#d0c4a4", "btn_border": "#b0a080",
+            "hint_fg": "#7a6a4a", "check_accent": "#6a4a2a",
+        },
+    }
+
     def __init__(self, settings: GameSettings, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Опции")
@@ -52,6 +119,10 @@ class OptionsDialog(QDialog):
 
         self._settings = settings
         self._dev_mode: bool = getattr(settings, "dev_mode", False)
+
+        # Apply theme-aware stylesheet
+        theme = getattr(settings, "board_theme", "dark_wood")
+        self._apply_dialog_theme(theme)
 
         outer = QVBoxLayout(self)
 
@@ -74,6 +145,41 @@ class OptionsDialog(QDialog):
         outer.addWidget(buttons)
 
         self.setMinimumWidth(400)
+
+    def _apply_dialog_theme(self, theme_name: str) -> None:
+        t = self._DIALOG_THEMES.get(theme_name, self._DIALOG_THEMES["dark_wood"])
+        self.setStyleSheet(
+            f"QDialog {{ background: {t['bg']}; color: {t['fg']}; }}"
+            f"QTabWidget::pane {{ background: {t['bg']};"
+            f"  border: 1px solid {t['tab_border']}; }}"
+            f"QTabBar::tab {{ background: {t['tab_bg']}; color: {t['fg']};"
+            f"  padding: 6px 14px; border: 1px solid {t['tab_border']};"
+            f"  border-bottom: none; border-top-left-radius: 4px;"
+            f"  border-top-right-radius: 4px; margin-right: 2px; }}"
+            f"QTabBar::tab:selected {{ background: {t['tab_sel']};"
+            f"  font-weight: bold; }}"
+            f"QComboBox {{ background: {t['input_bg']}; color: {t['fg']};"
+            f"  border: 1px solid {t['input_border']}; padding: 4px 8px;"
+            f"  border-radius: 3px; }}"
+            f"QComboBox QAbstractItemView {{ background: {t['input_bg']};"
+            f"  color: {t['fg']}; selection-background-color: {t['tab_sel']}; }}"
+            f"QComboBox::drop-down {{ border: none; }}"
+            f"QSpinBox {{ background: {t['input_bg']}; color: {t['fg']};"
+            f"  border: 1px solid {t['input_border']}; padding: 3px;"
+            f"  border-radius: 3px; }}"
+            f"QCheckBox {{ color: {t['fg']}; spacing: 6px; }}"
+            f"QCheckBox::indicator {{ width: 16px; height: 16px; }}"
+            f"QRadioButton {{ color: {t['fg']}; }}"
+            f"QLabel {{ color: {t['fg']}; }}"
+            f"QGroupBox {{ color: {t['fg']}; border: 1px solid {t['tab_border']};"
+            f"  border-radius: 4px; margin-top: 8px; padding-top: 12px; }}"
+            f"QGroupBox::title {{ color: {t['fg']}; }}"
+            f"QPushButton {{ background: {t['btn_bg']}; color: {t['fg']};"
+            f"  border: 1px solid {t['btn_border']}; border-radius: 3px;"
+            f"  padding: 5px 16px; }}"
+            f"QPushButton:hover {{ background: {t['btn_hover']}; }}"
+            f"QDialogButtonBox QPushButton {{ min-width: 70px; }}"
+        )
 
     # ------------------------------------------------------------------
     # Tab builders
@@ -266,10 +372,11 @@ class OptionsDialog(QDialog):
 class InfoDialog(QDialog):
     """Scrollable help text dialog loaded from resources/help.txt."""
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, parent: QWidget | None = None, theme: str = "dark_wood"):
         super().__init__(parent)
         self.setWindowTitle("Информация")
         self.setModal(True)
+        apply_dialog_theme(self, theme)
 
         layout = QVBoxLayout(self)
 
@@ -311,10 +418,11 @@ class InfoDialog(QDialog):
 class AboutDialog(QDialog):
     """About the author / program dialog."""
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, parent: QWidget | None = None, theme: str = "dark_wood"):
         super().__init__(parent)
         self.setWindowTitle("Об авторе")
         self.setModal(True)
+        apply_dialog_theme(self, theme)
 
         layout = QVBoxLayout(self)
 
@@ -399,16 +507,19 @@ class GameOverDialog(QDialog):
         self,
         message: str,
         parent: QWidget | None = None,
+        theme: str = "dark_wood",
     ):
         """Create the game-over dialog.
 
         Args:
             message: Display text, e.g. "Вы выиграли!", "Вы проиграли!", "Ничья!"
             parent: Parent widget.
+            theme: Board theme name for consistent dialog styling.
         """
         super().__init__(parent)
         self.setWindowTitle("Конец игры")
         self.setModal(True)
+        apply_dialog_theme(self, theme)
 
         self._result_action = self.RESULT_EXIT
 
@@ -458,10 +569,11 @@ class GameOverDialog(QDialog):
 class ConfirmExitDialog(QDialog):
     """Exit confirmation dialog — 'Are you sure you want to quit?'"""
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, parent: QWidget | None = None, theme: str = "dark_wood"):
         super().__init__(parent)
         self.setWindowTitle("Выход")
         self.setModal(True)
+        apply_dialog_theme(self, theme)
 
         layout = QVBoxLayout(self)
 
@@ -492,14 +604,17 @@ class ConfiscateWarningDialog(QDialog):
         self,
         piece_position: str,
         parent: QWidget | None = None,
+        theme: str = "dark_wood",
     ):
         """Create the confiscation warning.
 
         Args:
             piece_position: Human-readable position string, e.g. "c3".
             parent: Parent widget.
+            theme: Board theme name for styling.
         """
         super().__init__(parent)
+        apply_dialog_theme(self, theme)
         self.setWindowTitle("Предупреждение")
         self.setModal(True)
 

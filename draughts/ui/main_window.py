@@ -304,7 +304,7 @@ class MainWindow(QMainWindow):
     def _on_game_over(self, message: str):
         from draughts.ui.dialogs import GameOverDialog
 
-        dlg = GameOverDialog(message, self)
+        dlg = GameOverDialog(message, self, theme=self._current_theme)
         dlg.exec()
         if dlg.result_action == GameOverDialog.RESULT_PLAY_AGAIN:
             self._on_new_game()
@@ -387,7 +387,7 @@ class MainWindow(QMainWindow):
     def _on_info(self):
         from draughts.ui.dialogs import InfoDialog
 
-        dlg = InfoDialog(self)
+        dlg = InfoDialog(self, theme=self._current_theme)
         dlg.exec()
 
     def _on_hint(self):
@@ -432,14 +432,14 @@ class MainWindow(QMainWindow):
     def _on_exit(self):
         from draughts.ui.dialogs import ConfirmExitDialog
 
-        dlg = ConfirmExitDialog(self)
+        dlg = ConfirmExitDialog(self, theme=self._current_theme)
         if dlg.exec():
             self.close()
 
     def _on_about(self):
         from draughts.ui.dialogs import AboutDialog
 
-        dlg = AboutDialog(self)
+        dlg = AboutDialog(self, theme=self._current_theme)
         dlg.exec()
 
     def _on_puzzles(self):
