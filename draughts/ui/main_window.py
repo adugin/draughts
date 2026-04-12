@@ -11,10 +11,18 @@ from typing import TYPE_CHECKING
 
 logger = logging.getLogger("draughts.main_window")
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import (
+    QButtonGroup,
+    QInputDialog,
+    QLabel,
     QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
     QSizePolicy,
+    QToolBar,
     QVBoxLayout,
     QWidget,
 )
@@ -113,6 +121,14 @@ class MainWindow(QMainWindow):
         self._act_playback.setShortcut(QKeySequence("Ctrl+R"))
         self._act_playback.triggered.connect(self._on_playback)
         view_menu.addAction(self._act_playback)
+
+        # --- Позиция ---
+        position_menu = menubar.addMenu("По&зиция")
+
+        self._act_editor = QAction("&Редактор...", self)
+        self._act_editor.setShortcut(QKeySequence("E"))
+        self._act_editor.triggered.connect(self.enter_editor_mode)
+        position_menu.addAction(self._act_editor)
 
         # --- Справка ---
         help_menu = menubar.addMenu("&Справка")
@@ -253,11 +269,243 @@ class MainWindow(QMainWindow):
         dlg = AboutDialog(self)
         dlg.exec()
 
+    # --- Board editor ---
+
+    def enter_editor_mode(self):
+        """Enter board editor mode: save state, disable game logic, show toolbar."""
+        if self.board_widget.editor_mode:
+            return  # already in editor mode
+
+        # Snapshot the current game state for Cancel
+        self._editor_saved_positions = list(self._controller._positions)
+        self._editor_saved_replay = list(self._controller._replay_history)
+        self._editor_saved_ply = self._controller._ply_count
+        self._editor_saved_turn = self._controller._current_turn
+        self._editor_saved_player_color = self._controller._player_color
+        self._editor_saved_board = self._controller.board.copy()
+
+        # Stop any running AI
+        if self._controller._ai_thread is not None:
+            self._controller._ai_thread.quit()
+            self._controller._ai_thread.wait()
+            self._controller._ai_worker = None
+            self._controller._ai_thread = None
+            self._controller.ai_thinking.emit(False)
+
+        # Make a working copy of the board for editing
+        self._editor_board = self._controller.board.copy()
+        self.board_widget.set_board(self._editor_board)
+        self.board_widget.set_selection()
+        self.board_widget.set_capture_highlights([])
+
+        # Default side-to-move in the editor
+        self._editor_turn = self._controller._current_turn
+
+        # Enable editor mode on the widget
+        self.board_widget.editor_mode = True
+
+        # Build the editor toolbar
+        self._editor_toolbar = QToolBar("Редактор позиции", self)
+        self._editor_toolbar.setMovable(False)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._editor_toolbar)
+
+        # Side-to-move radio buttons
+        lbl = QLabel("Ход:")
+        lbl.setStyleSheet("color: #d4b483; font-weight: bold; padding: 0 4px;")
+        self._editor_toolbar.addWidget(lbl)
+
+        self._editor_radio_white = QRadioButton("Белые")
+        self._editor_radio_white.setStyleSheet("color: #d4b483;")
+        self._editor_radio_black = QRadioButton("Чёрные")
+        self._editor_radio_black.setStyleSheet("color: #d4b483;")
+
+        self._editor_side_group = QButtonGroup(self)
+        self._editor_side_group.addButton(self._editor_radio_white)
+        self._editor_side_group.addButton(self._editor_radio_black)
+
+        if self._editor_turn == Color.WHITE:
+            self._editor_radio_white.setChecked(True)
+        else:
+            self._editor_radio_black.setChecked(True)
+
+        self._editor_toolbar.addWidget(self._editor_radio_white)
+        self._editor_toolbar.addWidget(self._editor_radio_black)
+        self._editor_toolbar.addSeparator()
+
+        # Action buttons
+        btn_clear = QPushButton("Очистить доску")
+        btn_clear.clicked.connect(self._editor_clear_board)
+        self._editor_toolbar.addWidget(btn_clear)
+
+        btn_start = QPushButton("Начальная позиция")
+        btn_start.clicked.connect(self._editor_start_position)
+        self._editor_toolbar.addWidget(btn_start)
+
+        self._editor_toolbar.addSeparator()
+
+        btn_import = QPushButton("Импорт FEN")
+        btn_import.clicked.connect(self._editor_import_fen)
+        self._editor_toolbar.addWidget(btn_import)
+
+        btn_export = QPushButton("Экспорт FEN")
+        btn_export.clicked.connect(self._editor_export_fen)
+        self._editor_toolbar.addWidget(btn_export)
+
+        self._editor_toolbar.addSeparator()
+
+        btn_play = QPushButton("▶ Играть отсюда")
+        btn_play.setStyleSheet("font-weight: bold; color: #2a8a2a;")
+        btn_play.clicked.connect(self._editor_play_from_here)
+        self._editor_toolbar.addWidget(btn_play)
+
+        btn_analyze = QPushButton("Анализ отсюда")
+        btn_analyze.clicked.connect(self._editor_analyze_from_here)
+        self._editor_toolbar.addWidget(btn_analyze)
+
+        btn_cancel = QPushButton("Отмена")
+        btn_cancel.setStyleSheet("color: #a03030;")
+        btn_cancel.clicked.connect(self._editor_cancel)
+        self._editor_toolbar.addWidget(btn_cancel)
+
+        # Disable game actions while editing
+        self._act_new.setEnabled(False)
+        self._act_load.setEnabled(False)
+        self._act_save.setEnabled(False)
+        self._act_undo.setEnabled(False)
+
+    def exit_editor_mode(self):
+        """Exit editor mode and remove the toolbar."""
+        if not self.board_widget.editor_mode:
+            return
+        self.board_widget.editor_mode = False
+        if hasattr(self, "_editor_toolbar") and self._editor_toolbar is not None:
+            self.removeToolBar(self._editor_toolbar)
+            self._editor_toolbar.deleteLater()
+            self._editor_toolbar = None
+        self._act_new.setEnabled(True)
+        self._act_load.setEnabled(True)
+        self._update_action_states()
+
+    def _editor_side(self) -> Color:
+        """Return the currently selected side-to-move from the editor toolbar."""
+        if hasattr(self, "_editor_radio_black") and self._editor_radio_black.isChecked():
+            return Color.BLACK
+        return Color.WHITE
+
+    def _editor_clear_board(self):
+        """Clear all pieces from the editor board."""
+        from draughts.game.board import Board
+
+        self._editor_board = Board(empty=True)
+        self.board_widget.set_board(self._editor_board)
+
+    def _editor_start_position(self):
+        """Reset editor board to the standard starting position."""
+        from draughts.game.board import Board
+
+        self._editor_board = Board()
+        self.board_widget.set_board(self._editor_board)
+
+    def _editor_export_fen(self):
+        """Export the current editor position as a FEN string, copy to clipboard."""
+        from PyQt6.QtWidgets import QApplication
+
+        from draughts.game.fen import board_to_fen
+
+        fen = board_to_fen(self._editor_board, self._editor_side())
+        QApplication.clipboard().setText(fen)
+        QMessageBox.information(
+            self,
+            "Экспорт FEN",
+            f"FEN скопирован в буфер обмена:\n\n{fen}",
+        )
+
+    def _editor_import_fen(self):
+        """Import a FEN string into the editor board."""
+        from draughts.game.fen import parse_fen
+
+        text, ok = QInputDialog.getText(
+            self,
+            "Импорт FEN",
+            "Введите FEN-строку:",
+        )
+        if not ok or not text.strip():
+            return
+        try:
+            board, color = parse_fen(text.strip())
+        except ValueError as exc:
+            QMessageBox.warning(self, "Ошибка FEN", f"Неверный FEN:\n{exc}")
+            return
+        self._editor_board = board
+        self.board_widget.set_board(self._editor_board)
+        if color == Color.WHITE:
+            self._editor_radio_white.setChecked(True)
+        else:
+            self._editor_radio_black.setChecked(True)
+
+    def _editor_play_from_here(self):
+        """Exit editor and start a game from the edited position."""
+        side = self._editor_side()
+        board = self._editor_board.copy()
+        self.exit_editor_mode()
+        self._start_game_from_position(board, side)
+
+    def _editor_analyze_from_here(self):
+        """Exit editor and start a game from the position (analysis stub for M3 #15)."""
+        # Analysis pane (D12 / ROADMAP #15) is deferred; for now we start a
+        # normal game from the position so the user can play/explore it.
+        self._editor_play_from_here()
+
+    def _editor_cancel(self):
+        """Cancel editing and restore the previous game state."""
+        self.exit_editor_mode()
+        # Restore snapshot
+        self._controller._positions = self._editor_saved_positions
+        self._controller._replay_history = self._editor_saved_replay
+        self._controller._ply_count = self._editor_saved_ply
+        self._controller._current_turn = self._editor_saved_turn
+        self._controller._player_color = self._editor_saved_player_color
+        self._controller.board = self._editor_saved_board
+        self._controller.board_changed.emit()
+        self._controller.turn_changed.emit(self._controller._current_turn)
+        self._controller.selection_changed.emit(None, None)
+        self._controller.capture_highlights_changed.emit([])
+
+    def _start_game_from_position(self, board, turn: Color):
+        """Start a new game from a custom board position and side-to-move."""
+        c = self._controller
+        c.board = board
+        c._current_turn = turn
+        c._computer_color = Color.BLACK if not c.settings.invert_color else Color.WHITE
+        c._player_color = Color.WHITE if not c.settings.invert_color else Color.BLACK
+        c._selected = None
+        c._capture_path = []
+        c._positions = [board.to_position_string()]
+        c._replay_history = [board.to_position_string()]
+        c._ply_count = 0
+        c._game_started = True
+
+        c.board_changed.emit()
+        c.turn_changed.emit(turn)
+        c.selection_changed.emit(None, None)
+        c.capture_highlights_changed.emit([])
+
+        if turn == c._computer_color:
+            c._start_computer_turn()
+
     # --- UI helpers ---
 
     def _update_action_states(self):
         self._act_undo.setEnabled(self._controller.can_undo)
         self._act_save.setEnabled(self._controller.can_save)
+
+    # --- Keyboard events ---
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and self.board_widget.editor_mode:
+            self._editor_play_from_here()
+            return
+        super().keyPressEvent(event)
 
     # --- Close event ---
 
