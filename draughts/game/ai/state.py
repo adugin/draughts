@@ -27,12 +27,19 @@ class SearchContext:
     history: dict[tuple, int] = field(default_factory=dict)
     deadline: float | None = None
     last_score: float = float("nan")
+    # Scored root moves from the last completed depth iteration.
+    # Each entry is (score, kind, path) sorted best-first (descending score).
+    # Populated by _search_best_move after each fully completed depth so that
+    # callers (e.g. blunder selection in AIEngine.find_move) can inspect the
+    # full ranked list without re-running search.
+    root_move_scores: list[tuple[float, str, list[tuple[int, int]]]] = field(default_factory=list)
 
     def clear(self) -> None:
         self.tt.clear()
         self.killers.clear()
         self.history.clear()
         self.last_score = float("nan")
+        self.root_move_scores.clear()
 
 
 # ---------------------------------------------------------------------------
