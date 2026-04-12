@@ -69,14 +69,9 @@ class AnalysisWorker(QObject):
 
     def run(self) -> None:
         try:
-            from draughts.game.ai import AIEngine
-
-            engine = AIEngine(difficulty=3, color=self._color)
-            t0 = time.perf_counter()
-            engine.find_move_timed(self._board.copy(), self._time_ms)
-            elapsed_ms = (time.perf_counter() - t0) * 1000.0
-
-            # Build an Analysis-like result reusing the analysis module
+            # Build an Analysis-like result using a single depth-limited search.
+            # Previously this ran find_move_timed AND _search_best_move, doing
+            # the work twice and discarding the first result (BUG-006).
             from draughts.game.ai import _generate_all_moves, _search_best_move, adaptive_depth, evaluate_position
             from draughts.game.ai.state import SearchContext
             from draughts.game.analysis import Analysis
@@ -85,9 +80,10 @@ class AnalysisWorker(QObject):
             effective_depth = adaptive_depth(6, self._board)
             static = evaluate_position(self._board.grid, self._color)
 
-            # Use the move from timed search; reuse ctx for last_score
             ctx = SearchContext()
+            t0 = time.perf_counter()
             best = _search_best_move(self._board, self._color, effective_depth, ctx=ctx)
+            elapsed_ms = (time.perf_counter() - t0) * 1000.0
             search_score = ctx.last_score if best is not None else static
 
             result = Analysis(
