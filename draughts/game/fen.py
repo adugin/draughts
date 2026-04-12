@@ -17,6 +17,7 @@ Reference: https://wiegerw.github.io/pdn/pdntags.html
 from __future__ import annotations
 
 from draughts.config import BLACK, BLACK_KING, WHITE, WHITE_KING, Color
+from draughts.game.board import Board
 from draughts.game.pdn import square_to_xy, xy_to_square
 
 # ---------------------------------------------------------------------------
@@ -31,7 +32,7 @@ START_FEN = "W:W21,22,23,24,25,26,27,28,29,30,31,32:B1,2,3,4,5,6,7,8,9,10,11,12"
 # ---------------------------------------------------------------------------
 
 
-def parse_fen(fen: str) -> tuple:
+def parse_fen(fen: str) -> tuple[Board, Color]:
     """Parse a Russian-draughts FEN string into (Board, Color).
 
     Args:
@@ -94,7 +95,7 @@ def parse_fen(fen: str) -> tuple:
                 raise ValueError(f"Invalid square number in FEN token {token!r}") from exc
 
             x, y = square_to_xy(sq)
-            piece = (WHITE_KING if is_king else WHITE) if side_char == "W" else (BLACK_KING if is_king else BLACK)
+            piece = int((WHITE_KING if is_king else WHITE) if side_char == "W" else (BLACK_KING if is_king else BLACK))
             board.place_piece(x, y, piece)
 
     return board, color
@@ -105,7 +106,7 @@ def parse_fen(fen: str) -> tuple:
 # ---------------------------------------------------------------------------
 
 
-def board_to_fen(board, color: Color) -> str:
+def board_to_fen(board: Board, color: Color) -> str:
     """Serialize a board position to Russian-draughts FEN string.
 
     Args:

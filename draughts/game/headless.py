@@ -11,7 +11,7 @@ that do ``from draughts.game.headless import Analysis`` keep working.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from draughts.config import Color
@@ -233,7 +233,7 @@ class HeadlessGame:
         eval_after = evaluate_position(self._board.grid, self._turn)
         return self._record_move("move", path, notation, eval_before, eval_after)
 
-    def make_capture(self, path: list[str | tuple[int, int]]) -> MoveRecord | None:
+    def make_capture(self, path: Sequence[str | tuple[int, int]]) -> MoveRecord | None:
         """Make a multi-step capture with explicit path.
 
         Args:

@@ -21,10 +21,9 @@ _PIECE_TO_ZI = {0: 0, 1: 1, 2: 2, -1: 3, -2: 4}
 
 def _zobrist_hash(grid: np.ndarray, color: Color) -> int:
     """Compute Zobrist hash for a board position."""
-    h = np.int64(0)
+    h: int = 0
     for y, x in zip(*np.nonzero(grid), strict=True):
-        h ^= _ZOBRIST[y, x, _PIECE_TO_ZI[int(grid[y, x])]]
-    h = int(h)
+        h ^= int(_ZOBRIST[y, x, _PIECE_TO_ZI[int(grid[y, x])]])
     if color == Color.BLACK:
         h ^= _ZOBRIST_SIDE
     return h

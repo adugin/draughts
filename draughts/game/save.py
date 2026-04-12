@@ -23,7 +23,7 @@ class GameSave:
     positions: list[str] = field(default_factory=list)  # history of 32-char board states
     replay_positions: list[str] = field(default_factory=list)  # same positions for playback
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not 1 <= self.difficulty <= 3:
             raise ValueError(f"difficulty must be 1-3, got {self.difficulty}")
         if not 1 <= self.speed <= 3:

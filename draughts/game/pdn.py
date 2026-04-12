@@ -21,6 +21,10 @@ import re
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from draughts.game.board import Board
 
 
 @dataclass
@@ -420,7 +424,7 @@ def _today_date_str() -> str:
     return f"{d.year:04d}.{d.month:02d}.{d.day:02d}"
 
 
-def _infer_pdn_move(before, after) -> str | None:
+def _infer_pdn_move(before: Board, after: Board) -> str | None:
     """Try to infer the PDN numeric move between two board states.
 
     Returns a PDN move string like '22-17' or '11x18' or None if inference fails.

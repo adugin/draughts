@@ -309,7 +309,7 @@ from draughts.game.ai.tt import (
 # We implement __getattr__ on the package so attribute access is live.
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> object:
     if name == "_last_search_score":
         return _state_mod._last_search_score
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

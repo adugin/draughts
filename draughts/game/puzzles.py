@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import random
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -59,7 +60,7 @@ class PuzzleSet:
     def __len__(self) -> int:
         return len(self._puzzles)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Puzzle]:
         return iter(self._puzzles)
 
     def get_by_id(self, puzzle_id: str) -> Puzzle | None:

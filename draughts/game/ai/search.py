@@ -203,7 +203,7 @@ def _alphabeta(
         return _quiescence(board, alpha, beta, maximizing, color, root_color, ctx)
 
     # Transposition table probe
-    h = _zobrist_hash(board.grid, color)
+    h = _zobrist_hash(board.grid, Color(color))
 
     # Repetition detection — draw score with contempt bias.
     # Contempt is always a slight negative from root's perspective so the

@@ -34,8 +34,8 @@ class BookEntry:
     for hashability / JSON compactness).
     """
 
-    moves: list[tuple[tuple[int, int, ...], int]] = field(default_factory=list)
-    # moves[i] = (path_as_flat_tuple, weight)
+    moves: list[tuple[tuple[tuple[int, int], ...], int]] = field(default_factory=list)
+    # moves[i] = (path_as_tuple_of_xy_pairs, weight)
     # We store path as a list of [x,y] in JSON; converted to tuple on load.
 
 
@@ -83,7 +83,7 @@ class OpeningBook:
         weights = [item[1] for item in entry.moves]
 
         _rng = rng or random
-        chosen = _rng.choices(paths, weights=weights, k=1)[0]
+        chosen: tuple[tuple[int, int], ...] = _rng.choices(paths, weights=weights, k=1)[0]
         # Reconstruct the kind from the path length / board state:
         # A move is a capture when any intermediate square differs from
         # the straight line between start and end by more than 1 step.
@@ -93,7 +93,7 @@ class OpeningBook:
     def add(self, zhash: int, move: AIMove, weight: int = 1) -> None:
         """Add *move* at *zhash*, or increment its weight if already present."""
         entry = self._entries.setdefault(zhash, BookEntry())
-        path_tuple = tuple(move.path)  # type: ignore[arg-type]
+        path_tuple: tuple[tuple[int, int], ...] = tuple(tuple(p) for p in move.path)  # type: ignore[misc]
         for i, (p, w) in enumerate(entry.moves):
             if p == path_tuple:
                 entry.moves[i] = (p, w + weight)
@@ -142,8 +142,8 @@ class OpeningBook:
             entry = BookEntry()
             for item in moves_json:
                 _kind, path_list, w = item
-                path_tuple = tuple(tuple(xy) for xy in path_list)
-                entry.moves.append((path_tuple, int(w)))  # type: ignore[arg-type]
+                path_tuple: tuple[tuple[int, int], ...] = tuple((int(xy[0]), int(xy[1])) for xy in path_list)
+                entry.moves.append((path_tuple, int(w)))
             entries[h] = entry
         return cls(entries=entries)
 
@@ -164,12 +164,12 @@ class OpeningBook:
 # ---------------------------------------------------------------------------
 
 
-def _infer_kind(board: Board, path: tuple) -> str:  # type: ignore[type-arg]
+def _infer_kind(board: Board, path: tuple[tuple[int, int], ...]) -> str:
     """Infer 'capture' or 'move' from the path without searching the board."""
     return "capture" if _path_is_capture(path) else "move"
 
 
-def _path_is_capture(path: tuple) -> bool:  # type: ignore[type-arg]
+def _path_is_capture(path: tuple[tuple[int, int], ...]) -> bool:
     """A path is a capture if it has ≥ 3 waypoints, or if the distance
     between consecutive waypoints is > 2 squares diagonally."""
     if len(path) >= 3:

@@ -77,8 +77,8 @@ class Board:
     def piece_at(self, x: int, y: int) -> int:
         """Get piece at position (x, y). Returns EMPTY for out-of-bounds."""
         if not self._in_bounds(x, y):
-            return EMPTY
-        return int(self.grid[y, x])
+            return int(EMPTY)
+        return int(self.grid[y, x])  # type: ignore[return-value]
 
     def place_piece(self, x: int, y: int, piece: int | str) -> None:
         """Place a piece at position (x, y). Accepts int or legacy char."""
@@ -229,7 +229,7 @@ class Board:
 
                 if promoted:
                     # Russian draughts: promoted pawn MUST continue capturing as king
-                    king_piece = WHITE_KING if self.is_white(piece) else BLACK_KING
+                    king_piece = int(WHITE_KING if self.is_white(piece) else BLACK_KING)
                     self._find_king_captures(lx, ly, king_piece, new_path, new_captured, results)
                 else:
                     self._find_pawn_captures(lx, ly, piece, new_path, new_captured, results)
