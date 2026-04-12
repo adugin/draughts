@@ -104,8 +104,11 @@ class AnalysisPane(QDockWidget):
 
     def __init__(self, parent=None):
         super().__init__("Анализ позиции", parent)
-        # Theme colors are applied via the parent window's QSS cascade
-        self._tc = _get_theme_colors("dark_wood")
+        # Resolve theme from parent window or default
+        current_theme = "dark_wood"
+        if parent is not None and hasattr(parent, "_current_theme"):
+            current_theme = parent._current_theme
+        self._tc = _get_theme_colors(current_theme)
         self.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable
             | QDockWidget.DockWidgetFeature.DockWidgetFloatable

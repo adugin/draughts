@@ -178,11 +178,14 @@ class PuzzleTrainer(QDialog):
         self.setMinimumSize(560, 660)
         self.resize(660, 740)
 
-        # Resolve theme colors once for this dialog
-        self._tc = _get_theme_colors("dark_wood")
+        # Resolve theme from parent window or default
+        current_theme = "dark_wood"
+        if parent is not None and hasattr(parent, "_current_theme"):
+            current_theme = parent._current_theme
+        self._tc = _get_theme_colors(current_theme)
         from draughts.ui.theme_engine import apply_theme as _apply_engine_theme
 
-        _apply_engine_theme(self, "dark_wood")
+        _apply_engine_theme(self, current_theme)
 
         # Load puzzles and progress
         self._puzzles: PuzzleSet = load_bundled_puzzles()
