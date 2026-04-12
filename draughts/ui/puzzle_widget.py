@@ -487,6 +487,7 @@ class PuzzleTrainer(QDialog):
                         self._board_widget.set_capture_highlights([to_sq])
                         return
                     elif exact:
+                        self._board_widget.set_destination(*to_sq)
                         self._validate_move_path(partial)
                         return
             # Wrong: must capture but tried a simple move
