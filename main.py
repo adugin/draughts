@@ -6,7 +6,6 @@ Usage:
     python main.py --resume            # Continue from autosave
     python main.py --difficulty 3      # Start at Professional level
     python main.py --black             # Play as black
-    python main.py --depth 8           # Manual AI search depth
     python main.py --version           # Show version and exit
 """
 
@@ -40,15 +39,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--difficulty",
         type=int,
-        choices=[1, 2, 3],
+        choices=[1, 2, 3, 4, 5, 6],
         default=None,
-        help="уровень сложности: 1=Любитель, 2=Нормал, 3=Профессионал",
-    )
-    parser.add_argument(
-        "--depth",
-        type=int,
-        default=None,
-        help="глубина поиска AI (1-10, 0=авто из сложности)",
+        help=(
+            "уровень сложности: "
+            "1=Новичок (~800), 2=Любитель (~1100), 3=Клубный (~1400), "
+            "4=Сильный клубный (~1700), 5=Кандидат (~2000), 6=Мастер (~2200+)"
+        ),
     )
     parser.add_argument(
         "--black",
@@ -66,10 +63,6 @@ def _build_parser() -> argparse.ArgumentParser:
 def main():
     parser = _build_parser()
     args = parser.parse_args()
-
-    # Validate --depth range
-    if args.depth is not None and not 0 <= args.depth <= 10:
-        parser.error("--depth должен быть от 0 до 10")
 
     # Resolve save file: explicit file > --resume > none
     load_path: str | None = None
@@ -92,8 +85,6 @@ def main():
     # Apply CLI settings before starting the game
     if args.difficulty is not None:
         controller.settings.difficulty = args.difficulty
-    if args.depth is not None:
-        controller.settings.search_depth = args.depth
     if args.black:
         controller.settings.invert_color = True
 
