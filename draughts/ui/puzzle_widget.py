@@ -105,6 +105,33 @@ def _path_to_notation(path: list[tuple[int, int]]) -> str:
     return sep.join(parts)
 
 
+def _captured_squares(path: list[tuple[int, int]]) -> set[tuple[int, int]]:
+    """Return the set of squares that a capture path jumps over.
+
+    In Russian draughts a flying king can land several squares past the
+    captured piece, so the captured piece is NOT a member of ``path`` —
+    it sits on the diagonal between consecutive path elements.  For
+    ordinary pawns (jump distance 2) there is exactly one square between
+    consecutive elements.
+
+    Two capture paths that jump over the *same* set of opponent pieces
+    are strategically equivalent (the only difference is where the
+    capturing piece lands after the final jump).
+    """
+    result: set[tuple[int, int]] = set()
+    for i in range(len(path) - 1):
+        x1, y1 = path[i]
+        x2, y2 = path[i + 1]
+        dx = 1 if x2 > x1 else -1
+        dy = 1 if y2 > y1 else -1
+        cx, cy = x1 + dx, y1 + dy
+        while (cx, cy) != (x2, y2):
+            result.add((cx, cy))
+            cx += dx
+            cy += dy
+    return result
+
+
 def _get_all_legal_paths(board: Board, turn: Color) -> list[list[tuple[int, int]]]:
     """Return all legal move paths for the given side.
 
@@ -475,26 +502,44 @@ class PuzzleTrainer(QDialog):
     # ------------------------------------------------------------------
 
     def _validate_move_path(self, path: list[tuple[int, int]]) -> None:
-        """Check whether the user's move path matches the best_move."""
-        puzzle = self._current_puzzle
+        """Check whether the user's move path matches the best_move.
 
-        # Convert best_move to a path for comparison
+        In Russian draughts a flying king can land on ANY empty square
+        past the captured piece.  Two capture paths that jump over the
+        same set of opponent pieces are strategically equivalent — only
+        the final landing square differs.  So we accept any legal capture
+        that removes the same pieces as the puzzle's best_move, not just
+        an exact path match.
+        """
+        puzzle = self._current_puzzle
         best_path = _notation_to_path(puzzle.best_move)
 
-        # Compare paths
+        # Exact match — always correct
         if path == best_path:
             self._on_correct()
+            return
+
+        # Equivalent capture — same intermediate squares (the piece
+        # visits the same set of squares en-route), only the FINAL
+        # landing square differs.  This covers the "king lands on h8
+        # vs g7" case where both are equally valid in Russian draughts
+        # (a flying king can land on any empty square past the captured
+        # piece on the same diagonal).
+        if len(path) >= 3 and len(best_path) >= 3:
+            if path[:-1] == best_path[:-1]:
+                self._on_correct()
+                return
+
+        # Check if it's even a legal move (could be wrong but legal)
+        legal = _get_all_legal_paths(self._current_board, puzzle.turn)
+        if path in legal:
+            self._on_wrong_move()
         else:
-            # Check if it's even a legal move (could be wrong but legal)
-            legal = _get_all_legal_paths(self._current_board, puzzle.turn)
-            if path in legal:
-                self._on_wrong_move()
-            else:
-                # Illegal — just deselect silently
-                self._selected_sq = None
-                self._board_widget.set_selection()
-                self._capture_in_progress = []
-                self._board_widget.set_capture_highlights([])
+            # Illegal — just deselect silently
+            self._selected_sq = None
+            self._board_widget.set_selection()
+            self._capture_in_progress = []
+            self._board_widget.set_capture_highlights([])
 
     # ------------------------------------------------------------------
     # Result handlers
