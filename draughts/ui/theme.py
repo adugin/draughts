@@ -92,9 +92,12 @@ def combobox_qss(theme: str = "dark_wood") -> str:
         f"QComboBox::down-arrow {{ image: url({arrow});"
         f"  width: 10px; height: 10px; }}"
         f"QComboBox QAbstractItemView {{ background: {t['input_bg']};"
-        f"  color: {t['fg']}; outline: none;"
+        f"  color: {t['fg']}; outline: 0; border: none;"
         f"  selection-background-color: {t['btn_bg']};"
         f"  selection-color: {t['fg_accent']}; }}"
+        f"QComboBox QAbstractItemView::item {{ padding: 3px 6px; }}"
+        f"QComboBox QAbstractItemView::item:selected {{"
+        f"  background: {t['btn_bg']}; color: {t['fg_accent']}; }}"
         f"QComboBox QAbstractItemView::item:hover {{"
         f"  background: {t['btn_bg']}; color: {t['fg_accent']}; }}"
     )
