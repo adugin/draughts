@@ -42,6 +42,15 @@ from draughts.game.ai.tt import (
 )
 from draughts.game.board import Board
 
+# Blundering configuration (D7).
+# At low Elo levels the AI deliberately picks a non-best move with the
+# given probability, chosen from the top-K moves by eval.  This makes
+# beginner games winnable with realistic-looking mistakes.
+_BLUNDER_CONFIG: dict[int, dict] = {
+    1: {"probability": 0.20, "top_k": 5},  # 20% chance, pick from top 5
+    2: {"probability": 0.10, "top_k": 4},  # 10% chance, pick from top 4
+}
+
 # Difficulty → base search depth mapping.
 # Six levels mapped to approximate Elo strength.
 # NOTE: Elo numbers are placeholder calibration to be refined by
@@ -534,7 +543,30 @@ class AIEngine:
         self._ctx.clear()
         base = self.search_depth if self.search_depth > 0 else _DIFFICULTY_DEPTH.get(self.difficulty, 5)
         depth = adaptive_depth(base, board)
-        return _search_best_move(board, self.color, depth, deadline=deadline, ctx=self._ctx)
+        best = _search_best_move(board, self.color, depth, deadline=deadline, ctx=self._ctx)
+
+        # Blunder injection (D7): at low levels, occasionally pick a non-best
+        # move from the ranked root list so beginners face winnable mistakes.
+        blunder_cfg = _BLUNDER_CONFIG.get(self.difficulty)
+        if blunder_cfg is not None and best is not None and self.search_depth == 0:
+            prob = blunder_cfg["probability"]
+            top_k = blunder_cfg["top_k"]
+            # Use a position-derived seed for reproducibility in tests while
+            # still producing variety across different board positions.
+            rng = random.Random(hash(board.to_position_string()))
+            if rng.random() < prob:
+                scored = self._ctx.root_move_scores
+                # Collect up to top_k candidates, excluding the best move.
+                best_key = (best.kind, [tuple(p) for p in best.path])
+                candidates: list[tuple[str, list[tuple[int, int]]]] = []
+                for _score, kind, path in scored[:top_k]:
+                    if (kind, [tuple(p) for p in path]) != best_key:
+                        candidates.append((kind, path))
+                if candidates:
+                    kind, path = rng.choice(candidates)
+                    best = AIMove(kind, path)
+
+        return best
 
     def find_move_timed(self, board: Board, time_ms: int, deadline: float | None = None) -> AIMove | None:
         """Iterative deepening under a time budget (D10 — time-based search).
