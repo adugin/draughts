@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import draughts.game.ai.state as _state
 
 if TYPE_CHECKING:
+    from draughts.game.ai.bitbase import EndgameBitbase
     from draughts.game.ai.book import OpeningBook
 from draughts.config import Color
 from draughts.game.ai.eval import (
@@ -422,13 +423,16 @@ class AIEngine:
 
     #: Sentinel that means "use DEFAULT_BOOK from the ai package".
     _USE_DEFAULT_BOOK = object()
+    #: Sentinel that means "use DEFAULT_BITBASE from the ai package".
+    _USE_DEFAULT_BITBASE = object()
 
     def __init__(
         self,
         difficulty: int = 2,
         color: Color = Color.BLACK,
         search_depth: int = 0,
-        book: "OpeningBook | None | object" = _USE_DEFAULT_BOOK,
+        book: OpeningBook | None | object = _USE_DEFAULT_BOOK,
+        bitbase: EndgameBitbase | None | object = _USE_DEFAULT_BITBASE,
     ):
         self.difficulty = difficulty
         self.color = color
@@ -437,10 +441,16 @@ class AIEngine:
 
         if book is AIEngine._USE_DEFAULT_BOOK:
             # Lazy import to avoid circular dependency (ai.__init__ imports search)
-            import draughts.game.ai as _ai_pkg  # noqa: PLC0415
-            self._book: "OpeningBook | None" = _ai_pkg.DEFAULT_BOOK
+            import draughts.game.ai as _ai_pkg
+            self._book: OpeningBook | None = _ai_pkg.DEFAULT_BOOK
         else:
             self._book = book  # type: ignore[assignment]
+
+        if bitbase is AIEngine._USE_DEFAULT_BITBASE:
+            import draughts.game.ai as _ai_pkg2
+            self._bitbase: EndgameBitbase | None = _ai_pkg2.DEFAULT_BITBASE
+        else:
+            self._bitbase = bitbase  # type: ignore[assignment]
 
     def find_move(self, board: Board, deadline: float | None = None) -> AIMove | None:
         """Find the best move for the current board state.
@@ -469,6 +479,17 @@ class AIEngine:
             if book_move is not None:
                 return book_move
 
+        # Endgame bitbase probe (D9) — O(1) per child, exact WLD result
+        if self._bitbase is not None:
+            piece_count = board.count_pieces(Color.BLACK) + board.count_pieces(Color.WHITE)
+            if piece_count <= 3:
+                bb_move = _bitbase_best_move(board, self.color, self._bitbase)
+                if bb_move is not None:
+                    return bb_move
+                # bb_move is None when all children are outside the bitbase
+                # (e.g. position was reached from a 4-piece parent and hasn't
+                # been generated yet) — fall through to normal search.
+
         self._ctx.clear()
         base = self.search_depth if self.search_depth > 0 else _DIFFICULTY_DEPTH.get(self.difficulty, 5)
         depth = adaptive_depth(base, board)
@@ -489,12 +510,62 @@ class AIEngine:
                 and the supplied deadline.
         """
         budget_deadline = time.perf_counter() + time_ms / 1000.0
-        if deadline is not None:
-            effective_deadline = min(budget_deadline, deadline)
-        else:
-            effective_deadline = budget_deadline
+        effective_deadline = min(budget_deadline, deadline) if deadline is not None else budget_deadline
         self._ctx.clear()
         return _search_best_move(board, self.color, 16, deadline=effective_deadline, ctx=self._ctx)
+
+
+def _bitbase_best_move(
+    board: Board,
+    color: Color,
+    bitbase: EndgameBitbase,
+) -> AIMove | None:
+    """Pick the best move using bitbase probe instead of alpha-beta search.
+
+    Used when piece_count <= 3 and a bitbase is available.  Each legal move
+    is applied; the resulting position is probed.  The move leading to the
+    best outcome is selected:
+        opponent LOSS  → we WIN  (best)
+        DRAW           → draw
+        opponent WIN   → we LOSS (last resort)
+
+    Ties within the same category are broken by move ordering (captures first,
+    then center control) for consistency with the normal search.
+    """
+    from draughts.game.ai.bitbase import DRAW, LOSS, WIN  # avoid circular at module level
+
+    opp = Color.WHITE if color == Color.BLACK else Color.BLACK
+    moves = _generate_all_moves(board, color)
+    if not moves:
+        return None
+
+    # Score each move from our perspective: opp LOSS=2 (best), DRAW=1, opp WIN=0 (worst), unknown=-1
+    score_map = {LOSS: 2, DRAW: 1, WIN: 0}  # opponent's result → our score
+
+    best_score = -1
+    best_moves: list[tuple[str, list[tuple[int, int]]]] = []
+
+    for kind, path in moves:
+        child = _apply_move(board, kind, path)
+        child_h = _zobrist_hash(child.grid, opp)
+        opp_result = bitbase.probe_hash(child_h)
+
+        score = -1 if opp_result is None else score_map.get(opp_result, -1)
+
+        if score > best_score:
+            best_score = score
+            best_moves = [(kind, path)]
+        elif score == best_score:
+            best_moves.append((kind, path))
+
+    if not best_moves or best_score == -1:
+        # All children unknown — fall back to normal search
+        return None
+
+    # Tie-break by move ordering
+    ordered = _order_moves(best_moves, board, color, None)
+    kind, path = ordered[0]
+    return AIMove(kind, path)
 
 
 def adaptive_depth(base_depth: int, board: Board) -> int:
