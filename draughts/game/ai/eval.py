@@ -7,6 +7,10 @@ _max_diagonal_reach, _scan_diagonal, _is_path_clear).
 
 from __future__ import annotations
 
+import json
+import logging
+from pathlib import Path
+
 import numpy as np
 
 from draughts.config import (
@@ -19,6 +23,8 @@ from draughts.config import (
     Color,
 )
 from draughts.game.board import Board
+
+_log = logging.getLogger(__name__)
 
 # Last valid index (0-indexed board)
 _LAST = BOARD_SIZE - 1
@@ -106,7 +112,7 @@ for _y in range(BOARD_SIZE):
         _BLACK_ADVANCE[_y, _x] = _y / _LAST  # 0.0 at row 0, 1.0 at row 7
         _WHITE_ADVANCE[_y, _x] = (_LAST - _y) / _LAST  # 1.0 at row 0, 0.0 at row 7
 
-# Evaluation weights
+# Evaluation weights — hand-tuned defaults (fallback when no tuned file present)
 _KING_VALUE = 15.0
 _PAWN_VALUE = 5.0
 _ADVANCE_BONUS = 0.15
@@ -149,6 +155,83 @@ _KING_DISTANCE_WEIGHT = 0.4  # reward kings for approaching opponent pieces
 _CONTEMPT = 0.5
 
 _OFF_DIAGONAL_PENALTY = 0.5
+
+# King centralization multiplier (applied per-phase in _evaluate_fast)
+_KING_CENTER_WEIGHT = 0.3
+
+# ---------------------------------------------------------------------------
+# Tuned-weight loading (D11 — Texel method)
+# ---------------------------------------------------------------------------
+
+# Path to the tuned weights file produced by draughts/tools/tune_eval.py
+_TUNED_WEIGHTS_PATH = Path(__file__).parent.parent.parent / "resources" / "tuned_weights.json"
+
+
+def load_tuned_weights(path: Path | str | None = None) -> bool:
+    """Load tuned weights from JSON and update the module-level constants.
+
+    The weights file is produced by draughts/tools/tune_eval.py (D11 Texel
+    tuning).  If the file does not exist or is malformed the function returns
+    False and all module constants keep their hand-tuned defaults — so this
+    is always safe to call at import time.
+
+    Args:
+        path: Path to the JSON weights file.  None → use the default location
+              next to draughts/resources/tuned_weights.json.
+
+    Returns:
+        True if weights were successfully loaded, False otherwise.
+    """
+    global _KING_VALUE, _PAWN_VALUE, _ADVANCE_BONUS, _CENTER_BONUS  # noqa: PLW0603
+    global _SAFETY_BONUS, _CONNECTED_BONUS, _GOLDEN_CORNER          # noqa: PLW0603
+    global _KING_CENTER_WEIGHT, _KING_DISTANCE_WEIGHT               # noqa: PLW0603
+
+    weights_path = Path(path) if path is not None else _TUNED_WEIGHTS_PATH
+
+    if not weights_path.exists():
+        return False
+
+    try:
+        with open(weights_path, encoding="utf-8") as fh:
+            data = json.load(fh)
+
+        # Validate required keys
+        required = {
+            "pawn_value", "king_value", "advance_bonus", "center_bonus",
+            "safety_bonus", "connected_bonus", "golden_corner",
+            "king_center_weight", "king_distance_weight",
+        }
+        missing = required - data.keys()
+        if missing:
+            _log.warning("tuned_weights.json missing keys: %s — using defaults", missing)
+            return False
+
+        _PAWN_VALUE = float(data["pawn_value"])
+        _KING_VALUE = float(data["king_value"])
+        _ADVANCE_BONUS = float(data["advance_bonus"])
+        _CENTER_BONUS = float(data["center_bonus"])
+        _SAFETY_BONUS = float(data["safety_bonus"])
+        _CONNECTED_BONUS = float(data["connected_bonus"])
+        _GOLDEN_CORNER = float(data["golden_corner"])
+        _KING_CENTER_WEIGHT = float(data["king_center_weight"])
+        _KING_DISTANCE_WEIGHT = float(data["king_distance_weight"])
+
+        _log.debug(
+            "Loaded tuned eval weights from %s (PV=%.2f KV=%.2f)",
+            weights_path,
+            _PAWN_VALUE,
+            _KING_VALUE,
+        )
+        return True
+
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        _log.warning("Failed to load tuned_weights.json: %s — using defaults", exc)
+        return False
+
+
+# Auto-load tuned weights at import time if the file exists.
+# Failures are silent (logged at DEBUG) so the module is always importable.
+load_tuned_weights()
 
 # ---------------------------------------------------------------------------
 # Danger detection
@@ -469,7 +552,7 @@ def _evaluate_fast(grid: np.ndarray, color: str | Color) -> float:
             king_center += float(np.dot(bk_mask, _CENTER_FLAT)) * phase
         if np.any(wk_mask):
             king_center -= float(np.dot(wk_mask, _CENTER_FLAT)) * phase
-        total += king_center * 0.3
+        total += king_center * _KING_CENTER_WEIGHT
 
     # King distance to opponent — kings should approach enemy pieces in endgame
     if phase > 0.3 and (black_kings > 0 or white_kings > 0):

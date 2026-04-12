@@ -92,6 +92,8 @@ class GameSettings:
     use_opening_book: bool = True
     # Endgame bitbase (D9)
     use_endgame_bitbase: bool = True
+    # Tuned eval weights (D11 — Texel method)
+    use_tuned_eval: bool = True
     # NOTE: DIFFICULTY_NAMES is kept for backward compat; new code uses
     # draughts.game.ai.elo.ELO_LEVELS directly.
     DIFFICULTY_NAMES: dict[int, str] = field(
