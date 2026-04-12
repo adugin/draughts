@@ -404,6 +404,9 @@ class MainWindow(QMainWindow):
     def _on_toggle_analysis_pane(self, checked: bool) -> None:
         """Show or hide the analysis pane."""
         if checked:
+            # Unlock size so the dock can expand the window
+            self.setMinimumSize(0, 0)
+            self.setMaximumSize(16777215, 16777215)
             self._analysis_pane.show()
             # Prime the pane with the current position
             if not self._controller.is_thinking:
@@ -411,10 +414,21 @@ class MainWindow(QMainWindow):
         else:
             self._analysis_pane.stop_analysis()
             self._analysis_pane.hide()
+            # Re-lock: shrink window back to board-only size
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(50, self._relock_size)
+
+    def _relock_size(self) -> None:
+        """Re-lock window size after dock widget is hidden."""
+        self.adjustSize()
+        self.setFixedSize(self.size())
 
     def _on_pane_visibility_changed(self, visible: bool) -> None:
         """Keep the menu checkbox synced with the dock widget's actual visibility."""
         self._act_toggle_pane.setChecked(visible)
+        if not visible:
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(50, self._relock_size)
 
     def _on_analyze_game(self) -> None:
         """Run full-game analysis and show annotations + summary."""
