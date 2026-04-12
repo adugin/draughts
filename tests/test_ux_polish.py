@@ -82,14 +82,14 @@ class TestLastMoveProperty:
         assert stored[0] == from_sq
         assert stored[1] == to_sq
 
-    def test_settings_flag_default_true(self):
+    def test_settings_flag_default_off(self):
         s = GameSettings()
-        assert s.highlight_last_move is True
-
-    def test_settings_flag_can_disable(self):
-        s = GameSettings()
-        s.highlight_last_move = False
         assert s.highlight_last_move is False
+
+    def test_settings_flag_can_enable(self):
+        s = GameSettings()
+        s.highlight_last_move = True
+        assert s.highlight_last_move is True
 
 
 # ---------------------------------------------------------------------------
