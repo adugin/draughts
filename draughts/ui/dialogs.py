@@ -13,19 +13,21 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
-    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSlider,
     QSpinBox,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
 from draughts.config import GameSettings
+from draughts.game.ai.elo import ELO_LEVELS
 
 # ---------------------------------------------------------------------------
 # 1. OptionsDialog
@@ -33,7 +35,15 @@ from draughts.config import GameSettings
 
 
 class OptionsDialog(QDialog):
-    """Settings dialog — difficulty, speed, hints, sound, delay, etc."""
+    """Settings dialog — tabbed layout (D15).
+
+    Tab 1: Игра      — side, Elo level, mandatory-capture hint
+    Tab 2: Движок    — hash size, threads (stub), opening book (stub),
+                       endgame bitbase (stub), depth override (dev)
+    Tab 3: Интерфейс — animation speed, coordinates, last-move highlight,
+                       show legal moves on hover
+    Tab 4: Анализ    — stub placeholder for M3 analysis features
+    """
 
     def __init__(self, settings: GameSettings, parent: QWidget | None = None):
         super().__init__(parent)
@@ -41,59 +51,190 @@ class OptionsDialog(QDialog):
         self.setModal(True)
 
         self._settings = settings
+        self._dev_mode: bool = getattr(settings, "dev_mode", False)
 
-        layout = QFormLayout(self)
+        outer = QVBoxLayout(self)
 
-        # Difficulty
-        self._difficulty = QComboBox()
-        self._difficulty.addItems(["Любитель", "Нормал", "Профессионал"])
-        self._difficulty.setCurrentIndex(settings.difficulty - 1)
-        layout.addRow("Сложность:", self._difficulty)
+        tabs = QTabWidget()
+        outer.addWidget(tabs)
 
-        # Remind
-        self._remind = QCheckBox("Подсказка взятия")
-        self._remind.setChecked(settings.remind)
-        layout.addRow(self._remind)
+        tabs.addTab(self._build_game_tab(settings), "Игра")
+        tabs.addTab(self._build_engine_tab(settings), "Движок")
+        tabs.addTab(self._build_ui_tab(settings), "Интерфейс")
+        tabs.addTab(self._build_analysis_tab(), "Анализ")
 
-        # Pause (delay multiplier)
-        self._pause = QDoubleSpinBox()
-        self._pause.setRange(0.0, 5.0)
-        self._pause.setSingleStep(0.25)
-        self._pause.setDecimals(2)
-        self._pause.setValue(settings.pause)
-        layout.addRow("Задержка:", self._pause)
-
-        # Search depth
-        self._search_depth = QSpinBox()
-        self._search_depth.setRange(0, 10)
-        self._search_depth.setValue(settings.search_depth)
-        self._search_depth.setSpecialValueText("Авто")
-        self._search_depth.setToolTip("0 = автоматически из сложности, 1-10 = ручная глубина")
-        layout.addRow("Глубина поиска:", self._search_depth)
-
-        # Invert color
-        self._invert_color = QCheckBox("Играть чёрными")
-        self._invert_color.setChecked(settings.invert_color)
-        layout.addRow(self._invert_color)
-
-        # Buttons
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        # OK / Cancel
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Ок")
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        layout.addRow(buttons)
+        outer.addWidget(buttons)
 
-        self.setMinimumWidth(280)
+        self.setMinimumWidth(400)
+
+    # ------------------------------------------------------------------
+    # Tab builders
+    # ------------------------------------------------------------------
+
+    def _build_game_tab(self, s: GameSettings) -> QWidget:
+        page = QWidget()
+        form = QFormLayout(page)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+
+        # Side — radio-style via combobox (keeps layout compact)
+        self._side = QComboBox()
+        self._side.addItem("Белые")
+        self._side.addItem("Чёрные")
+        self._side.setCurrentIndex(1 if s.invert_color else 0)
+        form.addRow("Сторона:", self._side)
+
+        # Elo level — combobox populated from ELO_LEVELS
+        self._difficulty = QComboBox()
+        for lvl in sorted(ELO_LEVELS):
+            self._difficulty.addItem(ELO_LEVELS[lvl]["label"])
+        # clamp to valid range
+        idx = max(0, min(len(ELO_LEVELS) - 1, s.difficulty - 1))
+        self._difficulty.setCurrentIndex(idx)
+        form.addRow("Уровень:", self._difficulty)
+
+        # Mandatory-capture hint
+        self._remind = QCheckBox("Подсказывать обязательное взятие")
+        self._remind.setChecked(s.remind)
+        form.addRow(self._remind)
+
+        # Informational note about mandatory-capture rule
+        rule_label = QLabel(
+            "<i>По правилам русских шашек взятие обязательно.<br>"
+            "При нарушении шашка противника конфискуется.</i>"
+        )
+        rule_label.setWordWrap(True)
+        rule_label.setTextFormat(Qt.TextFormat.RichText)
+        form.addRow(rule_label)
+
+        return page
+
+    def _build_engine_tab(self, s: GameSettings) -> QWidget:
+        page = QWidget()
+        form = QFormLayout(page)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+
+        # Hash size (MB) — wired to settings, TT resize not yet implemented
+        self._hash_size = QSpinBox()
+        self._hash_size.setRange(4, 1024)
+        self._hash_size.setSuffix(" МБ")
+        self._hash_size.setValue(getattr(s, "hash_size_mb", 32))
+        self._hash_size.setToolTip(
+            "Размер таблицы транспозиций. "
+            "Изменение вступит в силу в следующей партии."
+        )
+        form.addRow("Хэш-таблица:", self._hash_size)
+
+        # Threads — stub, always 1, disabled
+        self._threads = QSpinBox()
+        self._threads.setRange(1, 1)
+        self._threads.setValue(1)
+        self._threads.setEnabled(False)
+        self._threads.setToolTip("Многопоточность (не реализована)")
+        form.addRow("Потоки:", self._threads)
+
+        # Opening book — stub, disabled
+        self._opening_book = QCheckBox("Дебютная книга")
+        self._opening_book.setChecked(False)
+        self._opening_book.setEnabled(False)
+        self._opening_book.setToolTip("Не реализовано (планируется в M2)")
+        form.addRow(self._opening_book)
+
+        # Endgame bitbase — stub, disabled
+        self._bitbase = QCheckBox("Эндшпильная база")
+        self._bitbase.setChecked(False)
+        self._bitbase.setEnabled(False)
+        self._bitbase.setToolTip("Не реализовано (планируется в M2)")
+        form.addRow(self._bitbase)
+
+        # Depth override — only enabled in dev mode
+        self._search_depth = QSpinBox()
+        self._search_depth.setRange(0, 16)
+        self._search_depth.setValue(s.search_depth)
+        self._search_depth.setSpecialValueText("Авто")
+        self._search_depth.setToolTip(
+            "0 = автоматически из уровня, 1-16 = принудительная глубина (dev)"
+        )
+        self._search_depth.setEnabled(self._dev_mode)
+        lbl = QLabel("Глубина (dev):")
+        lbl.setEnabled(self._dev_mode)
+        form.addRow(lbl, self._search_depth)
+
+        return page
+
+    def _build_ui_tab(self, s: GameSettings) -> QWidget:
+        page = QWidget()
+        form = QFormLayout(page)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+
+        # Animation speed slider (maps pause 0.0-2.0 to slider 0-8)
+        self._anim_slider = QSlider(Qt.Orientation.Horizontal)
+        self._anim_slider.setRange(0, 8)
+        self._anim_slider.setTickInterval(1)
+        self._anim_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        slider_val = round(s.pause / 0.25)
+        self._anim_slider.setValue(max(0, min(8, slider_val)))
+        self._anim_slider.setToolTip("0 = без анимации, 8 = медленно (пауза 2 с)")
+        form.addRow("Скорость анимации:", self._anim_slider)
+
+        # Show coordinates
+        self._show_coords = QCheckBox("Показывать координаты")
+        self._show_coords.setChecked(getattr(s, "show_coordinates", False))
+        form.addRow(self._show_coords)
+
+        # Highlight last move
+        self._highlight_last = QCheckBox("Подсвечивать последний ход")
+        self._highlight_last.setChecked(getattr(s, "highlight_last_move", True))
+        form.addRow(self._highlight_last)
+
+        # Show legal moves on hover
+        self._show_legal = QCheckBox("Показывать возможные ходы при наведении")
+        self._show_legal.setChecked(getattr(s, "show_legal_moves_hover", False))
+        form.addRow(self._show_legal)
+
+        return page
+
+    def _build_analysis_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        coming_soon = QLabel(
+            "<h3>Анализ партии</h3>"
+            "<p>Функции анализа (оценка позиции, аннотации ходов,<br>"
+            "график оценки) будут доступны в следующем обновлении (M3).</p>"
+        )
+        coming_soon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        coming_soon.setTextFormat(Qt.TextFormat.RichText)
+        coming_soon.setWordWrap(True)
+        layout.addWidget(coming_soon)
+
+        return page
+
+    # ------------------------------------------------------------------
+    # Result
+    # ------------------------------------------------------------------
 
     def get_settings(self) -> GameSettings:
-        """Return a new GameSettings with values from the dialog controls."""
+        """Return a new GameSettings populated from all tab controls."""
+        pause_val = round(self._anim_slider.value() * 0.25, 2)
         s = GameSettings(
             difficulty=self._difficulty.currentIndex() + 1,
             remind=self._remind.isChecked(),
-            pause=self._pause.value(),
-            invert_color=self._invert_color.isChecked(),
+            pause=pause_val,
+            invert_color=(self._side.currentIndex() == 1),
             search_depth=self._search_depth.value(),
+            show_coordinates=self._show_coords.isChecked(),
+            highlight_last_move=self._highlight_last.isChecked(),
+            show_legal_moves_hover=self._show_legal.isChecked(),
+            hash_size_mb=self._hash_size.value(),
         )
         return s
 
