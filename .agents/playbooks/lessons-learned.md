@@ -126,3 +126,26 @@ Black. If there's a Theme with dark/light — test light. If there's
 a panel that opens/closes — test the close path.
 
 This is the single highest-ROI testing technique for UI apps.
+
+### "Validation ranges must track schema changes"
+GameSave validated `difficulty` in range 1-3, but the difficulty system
+was expanded to 1-6. The validation was never updated. Result: every
+save/autosave crashed, but autosave's `except Exception: pass` masked
+the error. The user's game was never persisted — data loss on close.
+- **Rule:** when expanding a value's range, grep for ALL validators.
+- **Better rule:** define valid ranges as constants, not inline literals.
+- **Detection:** test the save path with the DEFAULT settings, not just
+  edge cases. The default difficulty (4) was outside the old range.
+
+### "Drawn endgame detection must match actual draughts rules"
+`_is_drawn_endgame` checked `bk >= 1 and wk >= 1` (any kings = draw).
+But in Russian draughts, only 1K vs 1K is a theoretical draw. 2K vs 1K
+and 3K vs 1K are wins. The engine treated winning endgames as draws.
+- **Rule:** verify endgame detection against actual rules, not intuition.
+- **Detection:** test with concrete positions (2K vs 1K, 3K vs 1K).
+
+### "Never compare notations in different formats"
+Game analyzer compared PDN numeric notation ("22-17") with algebraic
+("c3-d4"). They never match. The fallback `delta_cp < 5.0` made every
+move "best". Use position comparison instead of notation comparison
+when the two sides might use different notation systems.
