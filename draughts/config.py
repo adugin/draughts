@@ -86,6 +86,8 @@ class GameSettings:
     show_legal_moves_hover: bool = False
     # Engine stubs (D15 — wired to UI but TT resize / SMP not implemented yet)
     hash_size_mb: int = 32
+    # Clock display (D19)
+    show_clock: bool = False
     # Opening book (D8)
     use_opening_book: bool = True
     # Endgame bitbase (D9)

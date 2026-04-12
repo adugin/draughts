@@ -68,6 +68,22 @@ class MainWindow(QMainWindow):
         # No status bar
         self.setStatusBar(None)
 
+        # Clock toolbar (D19) — shown only when settings.show_clock is True
+        self._clock_toolbar = QToolBar("Часы", self)
+        self._clock_toolbar.setMovable(False)
+        self._clock_toolbar.setFloatable(False)
+        self._clock_toolbar.setStyleSheet(
+            "QToolBar { background: #1e110a; border-top: 1px solid #4a3a2a; spacing: 12px; }"
+            "QLabel { color: #d4b483; font-family: Georgia; font-size: 13px; padding: 2px 8px; }"
+        )
+        self._clock_label_white = QLabel("\u26aa 0:00")
+        self._clock_label_black = QLabel("\u26ab 0:00")
+        self._clock_toolbar.addWidget(self._clock_label_white)
+        self._clock_toolbar.addSeparator()
+        self._clock_toolbar.addWidget(self._clock_label_black)
+        self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self._clock_toolbar)
+        self._clock_toolbar.setVisible(False)
+
     def _build_menus(self):
         """Create standard menu bar with all game actions."""
         menubar = self.menuBar()
@@ -197,10 +213,12 @@ class MainWindow(QMainWindow):
         c.capture_hint.connect(self._on_capture_hint)
         c.last_move_changed.connect(self._on_last_move_changed)
         c.hint_ready.connect(self._on_hint_ready)
+        c.clock_updated.connect(self._on_clock_updated)
 
         # Push initial settings to board widget
         self.board_widget.set_settings(c.settings)
         self.board_widget.set_theme(getattr(c.settings, "board_theme", "dark_wood"))
+        self.board_widget.inverted = c.settings.invert_color
 
         # Board clicks → controller
         self.board_widget.cell_left_clicked.connect(c.on_cell_left_click)
@@ -263,6 +281,16 @@ class MainWindow(QMainWindow):
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(4000, lambda: self.setWindowTitle("Шашки"))
 
+    def _on_clock_updated(self, white_ms: int, black_ms: int):
+        """Update clock labels (D19)."""
+        def fmt(ms: int) -> str:
+            total_s = ms // 1000
+            m, s = divmod(total_s, 60)
+            return f"{m}:{s:02d}"
+
+        self._clock_label_white.setText(f"\u26aa {fmt(white_ms)}")
+        self._clock_label_black.setText(f"\u26ab {fmt(black_ms)}")
+
     # --- Menu actions ---
 
     def _on_undo(self):
@@ -316,6 +344,10 @@ class MainWindow(QMainWindow):
             self.board_widget.set_settings(self._controller.settings)
             # Apply theme change immediately so the board repaints (D18)
             self.board_widget.set_theme(getattr(self._controller.settings, "board_theme", "dark_wood"))
+            # Apply board orientation (D22)
+            self.board_widget.inverted = self._controller.settings.invert_color
+            # Show/hide clock toolbar (D19)
+            self._clock_toolbar.setVisible(self._controller.settings.show_clock)
 
     def _on_playback(self):
         from draughts.ui.playback import PlaybackDialog

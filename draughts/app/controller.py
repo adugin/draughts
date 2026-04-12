@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QElapsedTimer, QObject, QThread, pyqtSignal
 
 from draughts.config import AUTOSAVE_FILENAME, BOARD_SIZE, Color, GameSettings, get_data_dir, migrate_difficulty
 from draughts.game.ai import AIEngine, AIMove
@@ -130,6 +130,7 @@ class GameController(QObject):
     capture_hint = pyqtSignal(list)  # [(x, y), ...] — pieces that must capture (pulse animation)
     last_move_changed = pyqtSignal(object)  # tuple[tuple,tuple] | None — last move highlight
     hint_ready = pyqtSignal(object, str)  # (squares: list[tuple], message: str) — D16 hint
+    clock_updated = pyqtSignal(int, int)  # (white_ms, black_ms) — D19 clock display
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -148,6 +149,11 @@ class GameController(QObject):
         self._replay_history: list[str] = []
         self._ply_count: int = 0
         self._game_started: bool = False
+
+        # Clock (D19) — cumulative thinking time per side in ms
+        self._white_time_ms: int = 0
+        self._black_time_ms: int = 0
+        self._move_timer: QElapsedTimer = QElapsedTimer()
 
         # AI thread
         self._ai_thread: QThread | None = None
@@ -171,6 +177,12 @@ class GameController(QObject):
         self._replay_history = [self.board.to_position_string()]
         self._ply_count = 0
         self._game_started = False
+
+        # Reset clock (D19)
+        self._white_time_ms = 0
+        self._black_time_ms = 0
+        self._move_timer.start()
+        self.clock_updated.emit(0, 0)
 
         self.last_move_changed.emit(None)
         self.board_changed.emit()
@@ -320,6 +332,15 @@ class GameController(QObject):
 
     def _finish_player_move(self, notation: str, from_sq: tuple[int, int] | None = None, to_sq: tuple[int, int] | None = None):
         """Finalize player's move — record, switch turns, start AI."""
+        # Accumulate elapsed time for the player's side (D19)
+        elapsed = self._move_timer.elapsed() if self._move_timer.isValid() else 0
+        if self._player_color == Color.WHITE:
+            self._white_time_ms += elapsed
+        else:
+            self._black_time_ms += elapsed
+        self._move_timer.start()
+        self.clock_updated.emit(self._white_time_ms, self._black_time_ms)
+
         self._ply_count += 1
         self._game_started = True
         self._selected = None
@@ -401,6 +422,15 @@ class GameController(QObject):
             return
 
         self._ply_count += 1
+
+        # Accumulate elapsed time for the computer's side (D19)
+        elapsed = self._move_timer.elapsed() if self._move_timer.isValid() else 0
+        if self._computer_color == Color.WHITE:
+            self._white_time_ms += elapsed
+        else:
+            self._black_time_ms += elapsed
+        self._move_timer.start()
+        self.clock_updated.emit(self._white_time_ms, self._black_time_ms)
 
         pos = self.board.to_position_string()
         self._positions.append(pos)

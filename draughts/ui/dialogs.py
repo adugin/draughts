@@ -209,6 +209,12 @@ class OptionsDialog(QDialog):
         self._show_legal.setChecked(getattr(s, "show_legal_moves_hover", False))
         form.addRow(self._show_legal)
 
+        # Clock display (D19)
+        self._show_clock = QCheckBox("Показывать затраченное время сторон")
+        self._show_clock.setChecked(getattr(s, "show_clock", False))
+        self._show_clock.setToolTip("Отображает суммарное время обдумывания каждой стороны")
+        form.addRow(self._show_clock)
+
         return page
 
     def _build_analysis_tab(self) -> QWidget:
@@ -246,6 +252,7 @@ class OptionsDialog(QDialog):
             show_coordinates=self._show_coords.isChecked(),
             highlight_last_move=self._highlight_last.isChecked(),
             show_legal_moves_hover=self._show_legal.isChecked(),
+            show_clock=self._show_clock.isChecked(),
             hash_size_mb=self._hash_size.value(),
         )
         return s
