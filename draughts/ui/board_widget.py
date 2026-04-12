@@ -210,17 +210,19 @@ class BoardWidget(QWidget):
         """Switch the board texture theme and repaint.
 
         Args:
-            theme: One of ``TextureCache.THEMES`` (e.g. ``"dark_wood"`` or
-                   ``"classic_light"``).  Invalid names are silently ignored
-                   to avoid crashing the UI on bad settings values.
+            theme: Theme name (e.g. ``"dark_wood"``, ``"catppuccin_mocha"``).
+                   The board textures map to the theme's ``board_style``
+                   (``"dark_wood"`` or ``"classic_light"``).
+                   Unknown names fall back to ``"dark_wood"`` textures.
         """
         from draughts.ui.textures import TextureCache
-        if theme not in TextureCache.THEMES:
-            return
+        from draughts.ui.theme_engine import get_board_style
+
+        board_style = get_board_style(theme)
+        if board_style not in TextureCache.THEMES:
+            board_style = "dark_wood"
         self._textures.clear()
-        self._textures.theme = theme
-        # Dark-wood background stays for dark_wood; use a neutral light
-        # tone for the classic_light frame area outside the board.
+        self._textures.theme = board_style
         self._theme = theme
         self.update()
 

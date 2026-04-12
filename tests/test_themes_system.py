@@ -277,34 +277,37 @@ class TestQssGeneration:
 # ---------------------------------------------------------------------------
 
 
+_ALL_THEMES = list_themes()
+
+
 class TestContrastRatios:
     """WCAG AA requires >= 4.5:1 contrast ratio for normal text."""
 
-    @pytest.mark.parametrize("theme_name", ["dark_wood", "classic_light"])
+    @pytest.mark.parametrize("theme_name", _ALL_THEMES)
     def test_fg_on_bg_meets_aa(self, theme_name: str):
         tc = get_theme_colors(theme_name)
         ratio = contrast_ratio(tc["fg"], tc["bg"])
         assert ratio >= 4.5, f"{theme_name}: fg/bg contrast {ratio:.2f} < 4.5 (fg={tc['fg']}, bg={tc['bg']})"
 
-    @pytest.mark.parametrize("theme_name", ["dark_wood", "classic_light"])
+    @pytest.mark.parametrize("theme_name", _ALL_THEMES)
     def test_fg_accent_on_bg_meets_aa(self, theme_name: str):
         tc = get_theme_colors(theme_name)
         ratio = contrast_ratio(tc["fg_accent"], tc["bg"])
         assert ratio >= 4.5, f"{theme_name}: fg_accent/bg contrast {ratio:.2f} < 4.5"
 
-    @pytest.mark.parametrize("theme_name", ["dark_wood", "classic_light"])
+    @pytest.mark.parametrize("theme_name", _ALL_THEMES)
     def test_green_on_bg_visible(self, theme_name: str):
         tc = get_theme_colors(theme_name)
         ratio = contrast_ratio(tc["green"], tc["bg"])
         assert ratio >= 3.0, f"{theme_name}: green/bg contrast {ratio:.2f} < 3.0"
 
-    @pytest.mark.parametrize("theme_name", ["dark_wood", "classic_light"])
+    @pytest.mark.parametrize("theme_name", _ALL_THEMES)
     def test_red_on_bg_visible(self, theme_name: str):
         tc = get_theme_colors(theme_name)
         ratio = contrast_ratio(tc["red"], tc["bg"])
         assert ratio >= 3.0, f"{theme_name}: red/bg contrast {ratio:.2f} < 3.0"
 
-    @pytest.mark.parametrize("theme_name", ["dark_wood", "classic_light"])
+    @pytest.mark.parametrize("theme_name", _ALL_THEMES)
     def test_tab_selected_distinguishable(self, theme_name: str):
         tc = get_theme_colors(theme_name)
         # Selected tab should differ noticeably from unselected
@@ -312,17 +315,54 @@ class TestContrastRatios:
         # Even a small ratio difference is acceptable for backgrounds
         assert ratio >= 1.1, f"{theme_name}: tab_sel/tab_bg indistinguishable"
 
-    @pytest.mark.parametrize("theme_name", ["dark_wood", "classic_light"])
+    @pytest.mark.parametrize("theme_name", _ALL_THEMES)
     def test_hover_distinguishable_from_default(self, theme_name: str):
         tc = get_theme_colors(theme_name)
         ratio = contrast_ratio(tc["btn_hover"], tc["btn_bg"])
         assert ratio >= 1.1, f"{theme_name}: btn_hover/btn_bg indistinguishable"
 
-    @pytest.mark.parametrize("theme_name", ["dark_wood", "classic_light"])
+    @pytest.mark.parametrize("theme_name", _ALL_THEMES)
     def test_fg_muted_distinguishable_from_fg(self, theme_name: str):
         tc = get_theme_colors(theme_name)
         ratio = contrast_ratio(tc["fg"], tc["fg_muted"])
         assert ratio >= 1.3, f"{theme_name}: fg/fg_muted not distinguishable"
+
+
+# ---------------------------------------------------------------------------
+# 5b. All themes load, generate QSS, and render icons
+# ---------------------------------------------------------------------------
+
+
+class TestAllThemesLoadAndRender:
+    """Every TOML file in draughts/themes/ must load, generate valid QSS, and render icons."""
+
+    @pytest.mark.parametrize("theme_name", _ALL_THEMES)
+    def test_loads_without_error(self, theme_name: str):
+        theme = load_theme(theme_name)
+        assert isinstance(theme, Theme)
+        assert theme.display_name  # must have a display name
+
+    @pytest.mark.parametrize("theme_name", _ALL_THEMES)
+    def test_qss_covers_all_selectors(self, theme_name: str):
+        theme = load_theme(theme_name)
+        qss = generate_qss(theme)
+        for selector in ("QMainWindow", "QDialog", "QMenuBar", "QPushButton", "QComboBox", "QLabel"):
+            assert selector in qss, f"{theme_name}: missing QSS selector {selector}"
+
+    @pytest.mark.parametrize("theme_name", _ALL_THEMES)
+    def test_icons_rendered(self, theme_name: str):
+        theme = load_theme(theme_name)
+        for icon in ("checkbox", "radio", "arrow"):
+            assert icon in theme.icon_paths
+            p = Path(theme.icon_paths[icon])
+            assert p.exists(), f"{theme_name}: icon {icon} not rendered at {p}"
+
+    @pytest.mark.parametrize("theme_name", _ALL_THEMES)
+    def test_board_style_valid(self, theme_name: str):
+        theme = load_theme(theme_name)
+        assert theme.board_style in ("dark_wood", "classic_light"), (
+            f"{theme_name}: invalid board_style '{theme.board_style}'"
+        )
 
 
 # ---------------------------------------------------------------------------

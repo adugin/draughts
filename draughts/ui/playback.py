@@ -30,6 +30,14 @@ class PlaybackDialog(QDialog):
         self.setModal(True)
         self.resize(600, 520)
 
+        # Apply theme from parent window
+        current_theme = "dark_wood"
+        if parent is not None and hasattr(parent, "_current_theme"):
+            current_theme = parent._current_theme
+        from draughts.ui.theme_engine import apply_theme as _apply_engine_theme
+
+        _apply_engine_theme(self, current_theme)
+
         self._positions = positions
         self._current = 0
         self._playing = False

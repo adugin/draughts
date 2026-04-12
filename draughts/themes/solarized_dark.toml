@@ -1,0 +1,89 @@
+# Solarized Dark theme for DRAUGHTS
+# Scientifically designed palette with precise CIELAB contrast ratios.
+# https://ethanschoonover.com/solarized/
+
+[meta]
+name = "Solarized Dark"
+display_name = "Solarized тёмная"
+author = "DRAUGHTS Team (palette: Ethan Schoonover)"
+version = "1.0"
+board_style = "dark_wood"
+
+[colors]
+# Base tones (Solarized monotones)
+bg = "#002b36"
+bg_deep = "#001f27"
+fg = "#93a1a1"
+fg_muted = "#586e75"
+fg_accent = "#b58900"
+input_bg = "#073642"
+input_border = "#2a4a52"
+btn_bg = "#073642"
+btn_hover = "#0a4f5c"
+btn_border = "#2a4a52"
+btn_disabled_fg = "#2a4a52"
+tab_bg = "#073642"
+tab_sel = "#0a4f5c"
+tab_border = "#2a4a52"
+check_accent = "#b58900"
+green = "#859900"
+red = "#dc322f"
+blue = "#268bd2"
+
+# Main window
+menu_bg = "#073642"
+menu_hover = "#0a4f5c"
+menu_border = "#2a4a52"
+toolbar_bg = "#001f27"
+toolbar_border = "#073642"
+
+# Analysis pane
+analysis_run_bg = "#073642"
+analysis_run_border = "#859900"
+analysis_run_hover = "#0a4f5c"
+analysis_stop_bg = "#073642"
+analysis_stop_border = "#dc322f"
+analysis_stop_hover = "#0a4f5c"
+disabled_bg = "#001f27"
+disabled_fg = "#2a4a52"
+caption_fg = "#839496"
+
+# Editor
+editor_play_fg = "#859900"
+editor_cancel_fg = "#dc322f"
+
+# Game analyzer annotations
+ann_brilliant = "#859900"
+ann_good = "#2aa198"
+ann_inaccuracy = "#b58900"
+ann_mistake = "#cb4b16"
+ann_blunder = "#dc322f"
+ann_normal = "#93a1a1"
+ann_move_num = "#586e75"
+
+# Eval curve
+curve_zero_line = "#073642"
+curve_line = "#268bd2"
+curve_point = "#2aa198"
+curve_selected = "#cb4b16"
+curve_bg = "#001f27"
+curve_axis = "#2a4a52"
+curve_label = "#586e75"
+
+# Scroll area
+scroll_bg = "#001f27"
+
+[icons]
+checkbox = """<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+  <path d="M3 8.5 L6.5 12 L13 4" stroke="{check_accent}" stroke-width="2.5"
+        fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+radio = """<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+  <circle cx="7" cy="7" r="4" fill="{check_accent}"/>
+</svg>"""
+
+arrow = """<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+  <path d="M2 3 L5 7 L8 3" stroke="{fg}" stroke-width="1.8"
+        fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""

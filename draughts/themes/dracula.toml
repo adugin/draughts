@@ -1,0 +1,89 @@
+# Dracula theme for DRAUGHTS
+# Dark purple-accent palette — based on the Dracula project.
+# https://draculatheme.com/spec
+
+[meta]
+name = "Dracula"
+display_name = "Дракула"
+author = "DRAUGHTS Team (palette: Dracula)"
+version = "1.0"
+board_style = "dark_wood"
+
+[colors]
+# Base tones
+bg = "#282a36"
+bg_deep = "#21222c"
+fg = "#f8f8f2"
+fg_muted = "#6272a4"
+fg_accent = "#bd93f9"
+input_bg = "#343746"
+input_border = "#44475a"
+btn_bg = "#44475a"
+btn_hover = "#525568"
+btn_border = "#6272a4"
+btn_disabled_fg = "#44475a"
+tab_bg = "#343746"
+tab_sel = "#44475a"
+tab_border = "#6272a4"
+check_accent = "#bd93f9"
+green = "#50fa7b"
+red = "#ff5555"
+blue = "#8be9fd"
+
+# Main window
+menu_bg = "#21222c"
+menu_hover = "#44475a"
+menu_border = "#6272a4"
+toolbar_bg = "#21222c"
+toolbar_border = "#343746"
+
+# Analysis pane
+analysis_run_bg = "#343746"
+analysis_run_border = "#50fa7b"
+analysis_run_hover = "#44475a"
+analysis_stop_bg = "#343746"
+analysis_stop_border = "#ff5555"
+analysis_stop_hover = "#44475a"
+disabled_bg = "#21222c"
+disabled_fg = "#44475a"
+caption_fg = "#8be9fd"
+
+# Editor
+editor_play_fg = "#50fa7b"
+editor_cancel_fg = "#ff5555"
+
+# Game analyzer annotations
+ann_brilliant = "#50fa7b"
+ann_good = "#8be9fd"
+ann_inaccuracy = "#f1fa8c"
+ann_mistake = "#ffb86c"
+ann_blunder = "#ff5555"
+ann_normal = "#f8f8f2"
+ann_move_num = "#6272a4"
+
+# Eval curve
+curve_zero_line = "#44475a"
+curve_line = "#bd93f9"
+curve_point = "#ff79c6"
+curve_selected = "#ffb86c"
+curve_bg = "#21222c"
+curve_axis = "#6272a4"
+curve_label = "#6272a4"
+
+# Scroll area
+scroll_bg = "#21222c"
+
+[icons]
+checkbox = """<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+  <path d="M3 8.5 L6.5 12 L13 4" stroke="{check_accent}" stroke-width="2.5"
+        fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+radio = """<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+  <circle cx="7" cy="7" r="4" fill="{check_accent}"/>
+</svg>"""
+
+arrow = """<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+  <path d="M2 3 L5 7 L8 3" stroke="{fg}" stroke-width="1.8"
+        fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""

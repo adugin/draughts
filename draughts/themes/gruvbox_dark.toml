@@ -1,0 +1,89 @@
+# Gruvbox Dark theme for DRAUGHTS
+# Retro warm palette with amber on dark brown — by morhetz.
+# https://github.com/morhetz/gruvbox
+
+[meta]
+name = "Gruvbox Dark"
+display_name = "Gruvbox тёмная"
+author = "DRAUGHTS Team (palette: morhetz)"
+version = "1.0"
+board_style = "dark_wood"
+
+[colors]
+# Base tones
+bg = "#282828"
+bg_deep = "#1d2021"
+fg = "#ebdbb2"
+fg_muted = "#7c6f64"
+fg_accent = "#fabd2f"
+input_bg = "#3c3836"
+input_border = "#504945"
+btn_bg = "#3c3836"
+btn_hover = "#504945"
+btn_border = "#665c54"
+btn_disabled_fg = "#504945"
+tab_bg = "#3c3836"
+tab_sel = "#504945"
+tab_border = "#665c54"
+check_accent = "#fabd2f"
+green = "#b8bb26"
+red = "#fb4934"
+blue = "#83a598"
+
+# Main window
+menu_bg = "#3c3836"
+menu_hover = "#504945"
+menu_border = "#665c54"
+toolbar_bg = "#1d2021"
+toolbar_border = "#3c3836"
+
+# Analysis pane
+analysis_run_bg = "#3c3836"
+analysis_run_border = "#b8bb26"
+analysis_run_hover = "#504945"
+analysis_stop_bg = "#3c3836"
+analysis_stop_border = "#fb4934"
+analysis_stop_hover = "#504945"
+disabled_bg = "#1d2021"
+disabled_fg = "#504945"
+caption_fg = "#a89984"
+
+# Editor
+editor_play_fg = "#b8bb26"
+editor_cancel_fg = "#fb4934"
+
+# Game analyzer annotations
+ann_brilliant = "#b8bb26"
+ann_good = "#8ec07c"
+ann_inaccuracy = "#fabd2f"
+ann_mistake = "#fe8019"
+ann_blunder = "#fb4934"
+ann_normal = "#ebdbb2"
+ann_move_num = "#7c6f64"
+
+# Eval curve
+curve_zero_line = "#504945"
+curve_line = "#fabd2f"
+curve_point = "#d79921"
+curve_selected = "#fe8019"
+curve_bg = "#1d2021"
+curve_axis = "#665c54"
+curve_label = "#7c6f64"
+
+# Scroll area
+scroll_bg = "#1d2021"
+
+[icons]
+checkbox = """<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+  <path d="M3 8.5 L6.5 12 L13 4" stroke="{check_accent}" stroke-width="2.5"
+        fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+radio = """<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+  <circle cx="7" cy="7" r="4" fill="{check_accent}"/>
+</svg>"""
+
+arrow = """<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+  <path d="M2 3 L5 7 L8 3" stroke="{fg}" stroke-width="1.8"
+        fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""

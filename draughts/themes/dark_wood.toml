@@ -6,6 +6,7 @@ name = "Dark Wood"
 display_name = "Тёмное дерево"
 author = "DRAUGHTS Team"
 version = "1.0"
+board_style = "dark_wood"
 
 [colors]
 bg = "#2a1a0a"

@@ -56,6 +56,10 @@ class Theme:
     version: str = "1.0"
     file_stem: str = ""  # e.g. "dark_wood" (used as theme ID)
 
+    # Board texture style: "dark_wood" or "classic_light".
+    # New themes reuse one of the two procedural texture sets.
+    board_style: str = "dark_wood"
+
     # Color palette -- all values are "#rrggbb" strings
     colors: dict[str, str] = field(default_factory=dict)
 
@@ -186,12 +190,18 @@ def load_theme(name: str) -> Theme:
     colors = data.get("colors", {})
     icons = data.get("icons", {})
 
+    # board_style maps to procedural texture set ("dark_wood" or "classic_light")
+    valid_board_styles = ("dark_wood", "classic_light")
+    raw_board_style = meta.get("board_style", "dark_wood")
+    board_style = raw_board_style if raw_board_style in valid_board_styles else "dark_wood"
+
     theme = Theme(
         name=meta.get("name", name),
         display_name=meta.get("display_name", meta.get("name", name)),
         author=meta.get("author", ""),
         version=meta.get("version", "1.0"),
         file_stem=name,
+        board_style=board_style,
         colors=colors,
         icon_templates=icons,
     )
@@ -592,6 +602,14 @@ def get_theme(name: str) -> Theme:
 def get_theme_colors(name: str) -> dict[str, str]:
     """Return the color dict for a theme (for non-QSS uses like QPainter)."""
     return get_theme(name).colors
+
+
+def get_board_style(name: str) -> str:
+    """Return the board texture style for a theme ('dark_wood' or 'classic_light').
+
+    New themes map to one of the two procedural texture sets via ``board_style``.
+    """
+    return get_theme(name).board_style
 
 
 def apply_theme(window, theme_name: str) -> None:

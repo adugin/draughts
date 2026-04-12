@@ -6,6 +6,7 @@ name = "Classic Light"
 display_name = "Классическая светлая"
 author = "DRAUGHTS Team"
 version = "1.0"
+board_style = "classic_light"
 
 [colors]
 bg = "#f5ead0"
