@@ -80,6 +80,7 @@ class GameSettings:
     invert_color: bool = False  # player plays black instead of white
     search_depth: int = 0  # 0=auto (from difficulty), 1-10=manual override
     # UI extras (D15)
+    board_theme: str = "dark_wood"  # "dark_wood" | "classic_light" (D18)
     show_coordinates: bool = False
     highlight_last_move: bool = True
     show_legal_moves_hover: bool = False
