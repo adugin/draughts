@@ -31,24 +31,29 @@ class EvalCurveWidget(QWidget):
     _MARGIN_R = 10
     _MARGIN_T = 10
     _MARGIN_B = 18
-    _CLIP_SCORE = 600.0  # clamp displayed score to ±this value
-    _ZERO_LINE_COLOR = QColor("#4a3520")
-    _CURVE_COLOR = QColor("#c8a050")
+    _CLIP_SCORE = 600.0  # clamp displayed score to +/-this value
     _WHITE_AREA_COLOR = QColor(255, 255, 200, 40)
     _BLACK_AREA_COLOR = QColor(0, 0, 80, 40)
-    _POINT_COLOR = QColor("#f0d090")
-    _SELECTED_COLOR = QColor("#ff8844")
-    _BG_COLOR = QColor("#1a0e05")
-    _AXIS_COLOR = QColor("#6a4520")
-    _LABEL_COLOR = QColor("#806040")
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, theme_name: str = "dark_wood"):
         super().__init__(parent)
         self._evals: list[float] = []
         self._selected_index: int | None = None
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setMinimumHeight(80)
         self.setToolTip("Кривая оценки по ходам. Нажмите для перехода к ходу.")
+
+        # Load colors from theme engine
+        from draughts.ui.theme_engine import get_theme_colors
+
+        tc = get_theme_colors(theme_name)
+        self._ZERO_LINE_COLOR = QColor(tc["curve_zero_line"])
+        self._CURVE_COLOR = QColor(tc["curve_line"])
+        self._POINT_COLOR = QColor(tc["curve_point"])
+        self._SELECTED_COLOR = QColor(tc["curve_selected"])
+        self._BG_COLOR = QColor(tc["curve_bg"])
+        self._AXIS_COLOR = QColor(tc["curve_axis"])
+        self._LABEL_COLOR = QColor(tc["curve_label"])
 
     # ------------------------------------------------------------------
     # Public API

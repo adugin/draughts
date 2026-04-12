@@ -39,9 +39,9 @@ if TYPE_CHECKING:
 # With tuned weights (_PAWN_VALUE ~1.9), losing one pawn ≈ 2 eval units.
 # Previous values (50/150/400) were calibrated for _PAWN_VALUE=5.0 and
 # never triggered in practice after Texel tuning reduced the eval scale.
-_INACCURACY_MIN = 0.5   # ~0.25 pawns — slight inaccuracy
-_MISTAKE_MIN = 1.5       # ~0.75 pawns — clear mistake
-_BLUNDER_MIN = 4.0       # ~2 pawns — serious blunder
+_INACCURACY_MIN = 0.5  # ~0.25 pawns — slight inaccuracy
+_MISTAKE_MIN = 1.5  # ~0.75 pawns — clear mistake
+_BLUNDER_MIN = 4.0  # ~2 pawns — serious blunder
 
 
 def annotate_move(delta_cp: float, is_best: bool) -> str:
@@ -87,9 +87,9 @@ class MoveAnnotation:
     notation: str
     annotation: str  # "!!", "!", "?!", "?", "??", or ""
     eval_before: float  # engine eval before move (from side-to-move's POV)
-    eval_after: float   # engine eval after move (from side-to-move's POV)
+    eval_after: float  # engine eval after move (from side-to-move's POV)
     best_notation: str  # engine's top move notation (may equal notation)
-    delta_cp: float     # eval loss in cp (non-negative)
+    delta_cp: float  # eval loss in cp (non-negative)
 
 
 @dataclass
@@ -217,6 +217,7 @@ def analyze_game_positions(
 
         # Infer notation from the board diff
         from draughts.app.controller import _infer_pdn_move_from_boards
+
         played_pdn = _infer_pdn_move_from_boards(board_before, board_after_obj)
         played_notation = played_pdn if played_pdn else f"ход {ply + 1}"
 
@@ -314,8 +315,11 @@ def run_game_analysis(controller: GameController, parent=None) -> None:
 
 
 def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, thread, worker) -> None:
-    """Called when analysis thread finishes — show results."""
+    """Called when analysis thread finishes -- show results."""
     from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
+
+    from draughts.ui.theme_engine import apply_theme as _apply_engine_theme
+    from draughts.ui.theme_engine import get_theme_colors
 
     progress.close()
     thread.quit()
@@ -326,11 +330,15 @@ def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, 
     # Store annotations on controller for access by other UI elements
     controller._last_game_analysis = result
 
+    # Resolve theme colors
+    theme_name = getattr(controller.settings, "board_theme", "dark_wood")
+    tc = get_theme_colors(theme_name)
+
     # --- Build result dialog ---
     dlg = QDialog(parent)
     dlg.setWindowTitle("Результаты анализа")
     dlg.resize(560, 600)
-    dlg.setStyleSheet("background-color: #2a1a0a; color: #d4b483;")
+    _apply_engine_theme(dlg, theme_name)
 
     outer = QVBoxLayout(dlg)
     outer.setContentsMargins(12, 12, 12, 12)
@@ -338,13 +346,14 @@ def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, 
 
     # Summary line
     summary_lbl = QLabel(result.summary())
-    summary_lbl.setStyleSheet("font-size: 14px; font-weight: bold; color: #f0d090;")
+    summary_lbl.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {tc['fg_accent']};")
     summary_lbl.setWordWrap(True)
     outer.addWidget(summary_lbl)
 
     # Eval curve
     from draughts.ui.eval_curve import EvalCurveWidget
-    curve = EvalCurveWidget()
+
+    curve = EvalCurveWidget(theme_name=theme_name)
     curve.set_evals(result.evals)
     curve.setMinimumHeight(100)
     curve.setMaximumHeight(130)
@@ -353,20 +362,20 @@ def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, 
     # Move list with annotations
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
-    scroll.setStyleSheet("QScrollArea { border: none; background: #1a0e05; }")
+    scroll.setStyleSheet(f"QScrollArea {{ border: none; background: {tc['scroll_bg']}; }}")
     move_container = QWidget()
-    move_container.setStyleSheet("background: #1a0e05;")
+    move_container.setStyleSheet(f"background: {tc['scroll_bg']};")
     move_layout = QVBoxLayout(move_container)
     move_layout.setContentsMargins(8, 8, 8, 8)
     move_layout.setSpacing(2)
 
     annotation_colors = {
-        "!!": "#00cc44",
-        "!": "#44cc44",
-        "?!": "#ccaa00",
-        "?": "#cc6600",
-        "??": "#cc2222",
-        "": "#d4b483",
+        "!!": tc["ann_brilliant"],
+        "!": tc["ann_good"],
+        "?!": tc["ann_inaccuracy"],
+        "?": tc["ann_mistake"],
+        "??": tc["ann_blunder"],
+        "": tc["ann_normal"],
     }
 
     # Group into pairs (white + black per move number)
@@ -379,7 +388,7 @@ def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, 
 
         row = QHBoxLayout()
         num_lbl = QLabel(f"{move_num}.")
-        num_lbl.setStyleSheet("color: #806040; font-size: 12px; min-width: 28px;")
+        num_lbl.setStyleSheet(f"color: {tc['ann_move_num']}; font-size: 12px; min-width: 28px;")
         row.addWidget(num_lbl)
 
         for ann in (white_ann, black_ann):
@@ -387,7 +396,7 @@ def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, 
                 row.addStretch()
                 continue
             sym = ann.annotation
-            color = annotation_colors.get(sym, "#d4b483")
+            color = annotation_colors.get(sym, tc["ann_normal"])
             text = f"{ann.notation}{sym}"
             if sym in ("?", "?!", "??"):
                 tip = f"Потеря: {ann.delta_cp:.0f} ед.  Лучше: {ann.best_notation}"
@@ -410,13 +419,8 @@ def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, 
     scroll.setWidget(move_container)
     outer.addWidget(scroll)
 
-    # Close button
+    # Close button (styled by the dialog-level QSS from theme engine)
     btn_close = QPushButton("Закрыть")
-    btn_close.setStyleSheet(
-        "QPushButton { background: #3a2510; color: #d4b483; border: 1px solid #6a4520; "
-        "border-radius: 3px; padding: 6px 20px; }"
-        "QPushButton:hover { background: #4a3520; }"
-    )
     btn_close.clicked.connect(dlg.accept)
     btn_row = QHBoxLayout()
     btn_row.addStretch()
@@ -426,7 +430,7 @@ def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, 
     dlg.exec()
 
     # --- Puzzle mining ---
-    _offer_puzzle_mining(result, positions, parent)
+    _offer_puzzle_mining(result, list(controller._positions), parent)
 
 
 def _offer_puzzle_mining(result: GameAnalysisResult, positions: list[str], parent) -> None:
@@ -459,8 +463,7 @@ def _offer_puzzle_mining(result: GameAnalysisResult, positions: list[str], paren
         QMessageBox.information(
             parent,
             "Задачи добавлены",
-            f"Добавлено {added} {'задача' if added == 1 else 'задачи' if added < 5 else 'задач'} "
-            "в личную коллекцию.",
+            f"Добавлено {added} {'задача' if added == 1 else 'задачи' if added < 5 else 'задач'} в личную коллекцию.",
         )
     else:
         QMessageBox.information(

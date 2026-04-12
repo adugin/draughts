@@ -29,57 +29,19 @@ from PyQt6.QtWidgets import (
 from draughts.config import GameSettings
 from draughts.game.ai.elo import ELO_LEVELS
 
-# ---------------------------------------------------------------------------
-# Shared theme-aware styling for ALL dialogs
-# ---------------------------------------------------------------------------
-
-_DIALOG_PALETTES = {
-    "dark_wood": {
-        "bg": "#2a1a0a", "fg": "#d4b483",
-        "border": "#6a4520", "hover": "#5a3d20",
-        "input_bg": "#3a2a1a", "btn_bg": "#3a2510",
-    },
-    "classic_light": {
-        "bg": "#f5ead0", "fg": "#3a2a1a",
-        "border": "#b8a888", "hover": "#d4c4a4",
-        "input_bg": "#ffffff", "btn_bg": "#e0d4b8",
-    },
-}
-
-
-def _get_current_theme() -> str:
-    """Best-effort read of the active board theme for dialog styling."""
-    try:
-        # If a GameSettings instance is accessible, use it; otherwise default.
-        return "dark_wood"  # caller overrides via apply_dialog_theme
-    except Exception:
-        return "dark_wood"
-
-
 # Re-export from theme.py for backward compat
-from draughts.ui.theme import combobox_qss as combobox_qss  # noqa: F401
+from draughts.ui.theme import combobox_qss as combobox_qss
+from draughts.ui.theme_engine import apply_theme as _apply_engine_theme
 
 
 def apply_dialog_theme(dialog: QDialog, theme_name: str | None = None) -> None:
     """Apply the project's theme colors to any QDialog.
 
-    Keeps all dialogs (Options, About, GameOver, etc.) visually
-    consistent with the main window and puzzle trainer.
+    Uses the centralized theme engine for consistent styling.
     """
     if theme_name is None:
         theme_name = "dark_wood"
-    t = _DIALOG_PALETTES.get(theme_name, _DIALOG_PALETTES["dark_wood"])
-    dialog.setStyleSheet(
-        f"QDialog {{ background: {t['bg']}; color: {t['fg']}; }}"
-        f"QLabel {{ color: {t['fg']}; }}"
-        f"QTextEdit {{ background: {t['input_bg']}; color: {t['fg']};"
-        f"  border: 1px solid {t['border']}; }}"
-        f"QPushButton {{ background: {t['btn_bg']}; color: {t['fg']};"
-        f"  border: 1px solid {t['border']}; border-radius: 3px;"
-        f"  padding: 5px 16px; }}"
-        f"QPushButton:hover {{ background: {t['hover']}; }}"
-        f"QDialogButtonBox QPushButton {{ min-width: 70px; }}"
-    )
+    _apply_engine_theme(dialog, theme_name)
 
 
 # ---------------------------------------------------------------------------
@@ -88,33 +50,15 @@ def apply_dialog_theme(dialog: QDialog, theme_name: str | None = None) -> None:
 
 
 class OptionsDialog(QDialog):
-    """Settings dialog — tabbed layout (D15).
+    """Settings dialog -- tabbed layout (D15).
 
-    Tab 1: Игра      — side, Elo level, mandatory-capture hint
-    Tab 2: Движок    — hash size, threads (stub), opening book (stub),
+    Tab 1: Игра      -- side, Elo level, mandatory-capture hint
+    Tab 2: Движок    -- hash size, threads (stub), opening book (stub),
                        endgame bitbase (stub), depth override (dev)
-    Tab 3: Интерфейс — animation speed, coordinates, last-move highlight,
+    Tab 3: Интерфейс -- animation speed, coordinates, last-move highlight,
                        show legal moves on hover
-    Tab 4: Анализ    — stub placeholder for M3 analysis features
+    Tab 4: Анализ    -- stub placeholder for M3 analysis features
     """
-
-    # Theme palettes matching main_window._THEMES
-    _DIALOG_THEMES = {
-        "dark_wood": {
-            "bg": "#2a1a0a", "fg": "#d4b483",
-            "tab_bg": "#3a2510", "tab_sel": "#4a3520", "tab_border": "#6a4520",
-            "input_bg": "#3a2a1a", "input_border": "#5a4a3a",
-            "btn_bg": "#3a2510", "btn_hover": "#5a3d20", "btn_border": "#6a4520",
-            "hint_fg": "#a08a60", "check_accent": "#d4b483",
-        },
-        "classic_light": {
-            "bg": "#f5ead0", "fg": "#3a2a1a",
-            "tab_bg": "#e8dcc0", "tab_sel": "#d4c4a4", "tab_border": "#b8a888",
-            "input_bg": "#ffffff", "input_border": "#c8b898",
-            "btn_bg": "#e0d4b8", "btn_hover": "#d0c4a4", "btn_border": "#b0a080",
-            "hint_fg": "#7a6a4a", "check_accent": "#6a4a2a",
-        },
-    }
 
     def __init__(self, settings: GameSettings, parent: QWidget | None = None):
         super().__init__(parent)
@@ -124,7 +68,7 @@ class OptionsDialog(QDialog):
         self._settings = settings
         self._dev_mode: bool = getattr(settings, "dev_mode", False)
 
-        # Apply theme-aware stylesheet
+        # Apply theme-aware stylesheet via the theme engine
         theme = getattr(settings, "board_theme", "dark_wood")
         self._apply_dialog_theme(theme)
 
@@ -139,9 +83,7 @@ class OptionsDialog(QDialog):
         tabs.addTab(self._build_analysis_tab(), "Анализ")
 
         # OK / Cancel
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Ок")
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
         buttons.accepted.connect(self.accept)
@@ -151,32 +93,7 @@ class OptionsDialog(QDialog):
         self.setMinimumWidth(400)
 
     def _apply_dialog_theme(self, theme_name: str) -> None:
-        t = self._DIALOG_THEMES.get(theme_name, self._DIALOG_THEMES["dark_wood"])
-        from draughts.ui.theme import (
-            button_qss, checkbox_qss, combobox_qss as _cq,
-            radio_qss, spinbox_qss,
-        )
-        self.setStyleSheet(
-            f"QDialog {{ background: {t['bg']}; color: {t['fg']}; }}"
-            f"QTabWidget::pane {{ background: {t['bg']};"
-            f"  border: 1px solid {t['tab_border']}; }}"
-            f"QTabBar::tab {{ background: {t['tab_bg']}; color: {t['fg']};"
-            f"  padding: 6px 14px; border: 1px solid {t['tab_border']};"
-            f"  border-bottom: none; border-top-left-radius: 4px;"
-            f"  border-top-right-radius: 4px; margin-right: 2px; }}"
-            f"QTabBar::tab:selected {{ background: {t['tab_sel']};"
-            f"  font-weight: bold; }}"
-            + _cq(theme_name)
-            + spinbox_qss(theme_name)
-            + checkbox_qss(theme_name)
-            + radio_qss(theme_name)
-            + button_qss(theme_name) +
-            f"QLabel {{ color: {t['fg']}; }}"
-            f"QGroupBox {{ color: {t['fg']}; border: 1px solid {t['tab_border']};"
-            f"  border-radius: 4px; margin-top: 8px; padding-top: 12px; }}"
-            f"QGroupBox::title {{ color: {t['fg']}; }}"
-            f"QDialogButtonBox QPushButton {{ min-width: 70px; }}"
-        )
+        _apply_engine_theme(self, theme_name)
 
     # ------------------------------------------------------------------
     # Tab builders
@@ -210,8 +127,7 @@ class OptionsDialog(QDialog):
 
         # Informational note about mandatory-capture rule
         rule_label = QLabel(
-            "<i>По правилам русских шашек взятие обязательно.<br>"
-            "При нарушении шашка противника конфискуется.</i>"
+            "<i>По правилам русских шашек взятие обязательно.<br>При нарушении шашка противника конфискуется.</i>"
         )
         rule_label.setWordWrap(True)
         rule_label.setTextFormat(Qt.TextFormat.RichText)
@@ -229,10 +145,7 @@ class OptionsDialog(QDialog):
         self._hash_size.setRange(4, 1024)
         self._hash_size.setSuffix(" МБ")
         self._hash_size.setValue(getattr(s, "hash_size_mb", 32))
-        self._hash_size.setToolTip(
-            "Размер таблицы транспозиций. "
-            "Изменение вступит в силу в следующей партии."
-        )
+        self._hash_size.setToolTip("Размер таблицы транспозиций. Изменение вступит в силу в следующей партии.")
         form.addRow("Хэш-таблица:", self._hash_size)
 
         # Threads — stub, always 1, disabled
@@ -262,9 +175,7 @@ class OptionsDialog(QDialog):
         self._search_depth.setRange(0, 16)
         self._search_depth.setValue(s.search_depth)
         self._search_depth.setSpecialValueText("Авто")
-        self._search_depth.setToolTip(
-            "0 = автоматически из уровня, 1-16 = принудительная глубина (dev)"
-        )
+        self._search_depth.setToolTip("0 = автоматически из уровня, 1-16 = принудительная глубина (dev)")
         self._search_depth.setEnabled(self._dev_mode)
         lbl = QLabel("Глубина (dev):")
         lbl.setEnabled(self._dev_mode)
@@ -277,14 +188,27 @@ class OptionsDialog(QDialog):
         form = QFormLayout(page)
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
 
-        # Board theme selector (D18)
+        # Board theme selector (D18) — dynamically populated from theme files
+        from draughts.ui.theme_engine import get_theme as _get_theme
+        from draughts.ui.theme_engine import list_themes
+
         self._board_theme = QComboBox()
-        self._board_theme.addItem("Тёмное дерево", userData="dark_wood")
-        self._board_theme.addItem("Классическая светлая", userData="classic_light")
+        for theme_stem in list_themes():
+            try:
+                t = _get_theme(theme_stem)
+                self._board_theme.addItem(t.display_name, userData=theme_stem)
+            except Exception:
+                self._board_theme.addItem(theme_stem, userData=theme_stem)
+        # Fallback: ensure at least the two built-in themes are listed
+        if self._board_theme.count() == 0:
+            self._board_theme.addItem("Тёмное дерево", userData="dark_wood")
+            self._board_theme.addItem("Классическая светлая", userData="classic_light")
         current_theme = getattr(s, "board_theme", "dark_wood")
         theme_idx = self._board_theme.findData(current_theme)
         if theme_idx >= 0:
             self._board_theme.setCurrentIndex(theme_idx)
+        # Live preview: apply theme immediately on selection change
+        self._board_theme.currentIndexChanged.connect(self._on_theme_preview)
         form.addRow("Тема доски:", self._board_theme)
 
         # Animation speed slider (maps pause 0.0-2.0 to slider 0-8)
@@ -319,6 +243,15 @@ class OptionsDialog(QDialog):
         form.addRow(self._show_clock)
 
         return page
+
+    def _on_theme_preview(self, _index: int) -> None:
+        """Live-preview the selected theme on this dialog."""
+        theme_stem = self._board_theme.currentData() or "dark_wood"
+        self._apply_dialog_theme(theme_stem)
+        # Also propagate to the parent main window for instant feedback
+        parent = self.parent()
+        if parent is not None and hasattr(parent, "_apply_theme"):
+            parent._apply_theme(theme_stem)
 
     def _build_analysis_tab(self) -> QWidget:
         page = QWidget()
@@ -461,6 +394,7 @@ def show_save_dialog(parent: QWidget | None = None) -> str | None:
         return None
     # Ensure correct extension based on chosen filter
     from pathlib import Path as _Path
+
     p = _Path(filepath)
     if not p.suffix and "PDN" in selected_filter:
         filepath = filepath + ".pdn"

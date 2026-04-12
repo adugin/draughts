@@ -30,67 +30,11 @@ from PyQt6.QtWidgets import (
 from draughts.config import Color
 from draughts.ui.analysis_pane import AnalysisPane
 from draughts.ui.board_widget import BoardWidget
+from draughts.ui.theme_engine import apply_theme as _apply_engine_theme
+from draughts.ui.theme_engine import get_theme_colors
 
 if TYPE_CHECKING:
     from draughts.app.controller import GameController
-
-
-_THEMES = {
-    "dark_wood": {
-        "window_bg": "#2a1a0a",
-        "menu_bg": "#3a2510",
-        "menu_fg": "#d4b483",
-        "menu_hover": "#5a3d20",
-        "menu_border": "#6a4a2a",
-        "toolbar_bg": "#1e110a",
-        "toolbar_border": "#4a3a2a",
-        "btn_bg": "#3a2510",
-        "btn_hover": "#4a3520",
-        "btn_fg": "#d4b483",
-        "btn_border": "#6a4520",
-        "accent": "#f0d090",
-    },
-    "classic_light": {
-        "window_bg": "#f5ead0",
-        "menu_bg": "#e8dcc0",
-        "menu_fg": "#3a2a1a",
-        "menu_hover": "#d4c4a4",
-        "menu_border": "#b8a888",
-        "toolbar_bg": "#efe4cc",
-        "toolbar_border": "#c8b898",
-        "btn_bg": "#e0d4b8",
-        "btn_hover": "#d0c4a4",
-        "btn_fg": "#3a2a1a",
-        "btn_border": "#b0a080",
-        "accent": "#6a4a2a",
-    },
-}
-
-
-def _build_stylesheet(theme_name: str) -> str:
-    """Build a full-window QSS for the given board theme."""
-    t = _THEMES.get(theme_name, _THEMES["dark_wood"])
-    return (
-        f"QMainWindow {{ background-color: {t['window_bg']}; }}"
-        f"QMenuBar {{ background: {t['menu_bg']}; color: {t['menu_fg']};"
-        f"  border-bottom: 1px solid {t['menu_border']}; font-size: 13px; }}"
-        f"QMenuBar::item:selected {{ background: {t['menu_hover']}; }}"
-        f"QMenu {{ background: {t['menu_bg']}; color: {t['menu_fg']};"
-        f"  border: 1px solid {t['menu_border']}; }}"
-        f"QMenu::item:selected {{ background: {t['menu_hover']}; }}"
-        f"QMenu::separator {{ background: {t['menu_border']}; height: 1px; }}"
-        f"QToolBar {{ background: {t['toolbar_bg']};"
-        f"  border-top: 1px solid {t['toolbar_border']}; spacing: 12px; }}"
-        f"QLabel {{ color: {t['menu_fg']}; }}"
-        f"QPushButton {{ background: {t['btn_bg']}; color: {t['btn_fg']};"
-        f"  border: 1px solid {t['btn_border']}; border-radius: 3px;"
-        f"  padding: 4px 12px; }}"
-        f"QPushButton:hover {{ background: {t['btn_hover']}; }}"
-        f"QToolButton {{ background: {t['btn_bg']}; color: {t['btn_fg']};"
-        f"  border: 1px solid {t['btn_border']}; border-radius: 3px;"
-        f"  padding: 3px 8px; }}"
-        f"QToolButton:hover {{ background: {t['btn_hover']}; }}"
-    )
 
 
 class MainWindow(QMainWindow):
@@ -114,7 +58,7 @@ class MainWindow(QMainWindow):
     def _apply_theme(self, theme_name: str) -> None:
         """Apply the themed stylesheet to the entire window."""
         self._current_theme = theme_name
-        self.setStyleSheet(_build_stylesheet(theme_name))
+        _apply_engine_theme(self, theme_name)
 
     def _build_ui(self):
         """Board widget as the sole central content."""
@@ -294,9 +238,7 @@ class MainWindow(QMainWindow):
         # Auto-feed new position to analysis pane (only when pane is visible
         # and engine is not already thinking for the game).
         if self._analysis_pane.isVisible() and not self._controller.is_thinking:
-            self._analysis_pane.set_position(
-                self._controller.board, self._controller.current_turn
-            )
+            self._analysis_pane.set_position(self._controller.board, self._controller.current_turn)
 
     def _on_turn_changed(self, color: str):
         self.board_widget.set_turn_indicator(color)
@@ -341,10 +283,12 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"Шашки — {message}")
         # Restore plain title after 4 seconds
         from PyQt6.QtCore import QTimer
+
         QTimer.singleShot(4000, lambda: self.setWindowTitle("Шашки"))
 
     def _on_clock_updated(self, white_ms: int, black_ms: int):
         """Update clock labels (D19)."""
+
         def fmt(ms: int) -> str:
             total_s = ms // 1000
             m, s = divmod(total_s, 60)
@@ -400,7 +344,9 @@ class MainWindow(QMainWindow):
         dlg = OptionsDialog(self._controller.settings, self)
         if dlg.exec():
             self._controller.settings = dlg.get_settings()
-            self._controller._computer_color = Color.BLACK if not self._controller.settings.invert_color else Color.WHITE
+            self._controller._computer_color = (
+                Color.BLACK if not self._controller.settings.invert_color else Color.WHITE
+            )
             self._controller._player_color = Color.WHITE if not self._controller.settings.invert_color else Color.BLACK
             # Propagate updated settings to board widget (coordinates, hover, etc.)
             self.board_widget.set_settings(self._controller.settings)
@@ -415,6 +361,7 @@ class MainWindow(QMainWindow):
             self._clock_toolbar.setVisible(self._controller.settings.show_clock)
             # Apply tuned eval toggle immediately (BUG-004)
             from draughts.game.ai.eval import set_use_tuned_eval
+
             set_use_tuned_eval(self._controller.settings.use_tuned_eval)
 
     def _on_playback(self):
@@ -454,9 +401,7 @@ class MainWindow(QMainWindow):
             self._analysis_pane.show()
             # Prime the pane with the current position
             if not self._controller.is_thinking:
-                self._analysis_pane.set_position(
-                    self._controller.board, self._controller.current_turn
-                )
+                self._analysis_pane.set_position(self._controller.board, self._controller.current_turn)
         else:
             self._analysis_pane.stop_analysis()
             self._analysis_pane.hide()
@@ -512,16 +457,13 @@ class MainWindow(QMainWindow):
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._editor_toolbar)
 
         # Side-to-move radio buttons
+        _tc = get_theme_colors(self._current_theme)
         lbl = QLabel("Ход:")
-        lbl.setStyleSheet("color: #d4b483; font-weight: bold; padding: 0 4px;")
+        lbl.setStyleSheet(f"color: {_tc['fg']}; font-weight: bold; padding: 0 4px;")
         self._editor_toolbar.addWidget(lbl)
 
-        from draughts.ui.theme import radio_qss
-        _radio_qss = radio_qss(self._current_theme)
         self._editor_radio_white = QRadioButton("Белые")
-        self._editor_radio_white.setStyleSheet(_radio_qss)
         self._editor_radio_black = QRadioButton("Чёрные")
-        self._editor_radio_black.setStyleSheet(_radio_qss)
 
         self._editor_side_group = QButtonGroup(self)
         self._editor_side_group.addButton(self._editor_radio_white)
@@ -558,7 +500,7 @@ class MainWindow(QMainWindow):
         self._editor_toolbar.addSeparator()
 
         btn_play = QPushButton("▶ Играть отсюда")
-        btn_play.setStyleSheet("font-weight: bold; color: #2a8a2a;")
+        btn_play.setStyleSheet(f"font-weight: bold; color: {_tc['editor_play_fg']};")
         btn_play.clicked.connect(self._editor_play_from_here)
         self._editor_toolbar.addWidget(btn_play)
 
@@ -567,7 +509,7 @@ class MainWindow(QMainWindow):
         self._editor_toolbar.addWidget(btn_analyze)
 
         btn_cancel = QPushButton("Отмена")
-        btn_cancel.setStyleSheet("color: #a03030;")
+        btn_cancel.setStyleSheet(f"color: {_tc['editor_cancel_fg']};")
         btn_cancel.clicked.connect(self._editor_cancel)
         self._editor_toolbar.addWidget(btn_cancel)
 

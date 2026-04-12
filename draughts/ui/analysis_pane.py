@@ -27,24 +27,9 @@ if TYPE_CHECKING:
     from draughts.game.analysis import Analysis
     from draughts.game.board import Board
 
+from draughts.ui.theme_engine import get_theme_colors as _get_theme_colors
+
 logger = logging.getLogger("draughts.analysis_pane")
-
-_PANE_STYLE = """
-QDockWidget {
-    color: #d4b483;
-    font-size: 13px;
-}
-QDockWidget::title {
-    background: #3a2510;
-    padding: 4px 8px;
-    color: #d4b483;
-    font-weight: bold;
-}
-"""
-
-_LABEL_STYLE = "color: #d4b483; font-size: 12px;"
-_VALUE_STYLE = "color: #f0d090; font-size: 12px; font-weight: bold;"
-_CAPTION_STYLE = "color: #a08050; font-size: 11px;"
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +104,8 @@ class AnalysisPane(QDockWidget):
 
     def __init__(self, parent=None):
         super().__init__("Анализ позиции", parent)
-        self.setStyleSheet(_PANE_STYLE)
+        # Theme colors are applied via the parent window's QSS cascade
+        self._tc = _get_theme_colors("dark_wood")
         self.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable
             | QDockWidget.DockWidgetFeature.DockWidgetFloatable
@@ -139,8 +125,13 @@ class AnalysisPane(QDockWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
+        tc = self._tc
+        _label_style = f"color: {tc['fg']}; font-size: 12px;"
+        _value_style = f"color: {tc['fg_accent']}; font-size: 12px; font-weight: bold;"
+        _caption_style = f"color: {tc['caption_fg']}; font-size: 11px;"
+
         container = QWidget()
-        container.setStyleSheet("background-color: #2a1a0a;")
+        container.setStyleSheet(f"background-color: {tc['bg']};")
         self.setWidget(container)
 
         outer = QVBoxLayout(container)
@@ -150,10 +141,10 @@ class AnalysisPane(QDockWidget):
         # --- Score row ---
         score_row = QHBoxLayout()
         score_lbl = QLabel("Оценка:")
-        score_lbl.setStyleSheet(_LABEL_STYLE)
+        score_lbl.setStyleSheet(_label_style)
         score_row.addWidget(score_lbl)
         self._score_val = QLabel("—")
-        self._score_val.setStyleSheet(_VALUE_STYLE)
+        self._score_val.setStyleSheet(_value_style)
         bold = QFont()
         bold.setBold(True)
         bold.setPointSize(14)
@@ -165,10 +156,10 @@ class AnalysisPane(QDockWidget):
         # --- Best move row ---
         bm_row = QHBoxLayout()
         bm_lbl = QLabel("Лучший ход:")
-        bm_lbl.setStyleSheet(_LABEL_STYLE)
+        bm_lbl.setStyleSheet(_label_style)
         bm_row.addWidget(bm_lbl)
         self._bm_val = QLabel("—")
-        self._bm_val.setStyleSheet(_VALUE_STYLE)
+        self._bm_val.setStyleSheet(_value_style)
         bm_row.addWidget(self._bm_val)
         bm_row.addStretch()
         outer.addLayout(bm_row)
@@ -176,10 +167,10 @@ class AnalysisPane(QDockWidget):
         # --- Depth row ---
         depth_row = QHBoxLayout()
         depth_lbl = QLabel("Глубина:")
-        depth_lbl.setStyleSheet(_LABEL_STYLE)
+        depth_lbl.setStyleSheet(_label_style)
         depth_row.addWidget(depth_lbl)
         self._depth_val = QLabel("—")
-        self._depth_val.setStyleSheet(_VALUE_STYLE)
+        self._depth_val.setStyleSheet(_value_style)
         depth_row.addWidget(self._depth_val)
         depth_row.addStretch()
         outer.addLayout(depth_row)
@@ -187,10 +178,10 @@ class AnalysisPane(QDockWidget):
         # --- Time row ---
         time_row = QHBoxLayout()
         time_lbl = QLabel("Время:")
-        time_lbl.setStyleSheet(_LABEL_STYLE)
+        time_lbl.setStyleSheet(_label_style)
         time_row.addWidget(time_lbl)
         self._time_val = QLabel("—")
-        self._time_val.setStyleSheet(_VALUE_STYLE)
+        self._time_val.setStyleSheet(_value_style)
         time_row.addWidget(self._time_val)
         time_row.addStretch()
         outer.addLayout(time_row)
@@ -198,17 +189,17 @@ class AnalysisPane(QDockWidget):
         # --- Legal moves row ---
         lm_row = QHBoxLayout()
         lm_lbl = QLabel("Ходов:")
-        lm_lbl.setStyleSheet(_LABEL_STYLE)
+        lm_lbl.setStyleSheet(_label_style)
         lm_row.addWidget(lm_lbl)
         self._lm_val = QLabel("—")
-        self._lm_val.setStyleSheet(_VALUE_STYLE)
+        self._lm_val.setStyleSheet(_value_style)
         lm_row.addWidget(self._lm_val)
         lm_row.addStretch()
         outer.addLayout(lm_row)
 
         # --- Status label ---
         self._status_lbl = QLabel("Нажмите «Анализ» для запуска")
-        self._status_lbl.setStyleSheet(_CAPTION_STYLE)
+        self._status_lbl.setStyleSheet(_caption_style)
         self._status_lbl.setWordWrap(True)
         outer.addWidget(self._status_lbl)
 
@@ -218,10 +209,11 @@ class AnalysisPane(QDockWidget):
         btn_row = QHBoxLayout()
         self._btn_run = QPushButton("Анализ")
         self._btn_run.setStyleSheet(
-            "QPushButton { background: #3a5a3a; color: #d4b483; border: 1px solid #5a8a5a; "
-            "border-radius: 3px; padding: 4px 10px; }"
-            "QPushButton:hover { background: #4a6a4a; }"
-            "QPushButton:disabled { background: #2a2a2a; color: #666; }"
+            f"QPushButton {{ background: {tc['analysis_run_bg']}; color: {tc['fg']}; "
+            f"border: 1px solid {tc['analysis_run_border']}; "
+            f"border-radius: 3px; padding: 4px 10px; }}"
+            f"QPushButton:hover {{ background: {tc['analysis_run_hover']}; }}"
+            f"QPushButton:disabled {{ background: {tc['disabled_bg']}; color: {tc['disabled_fg']}; }}"
         )
         self._btn_run.clicked.connect(self._on_run_clicked)
         btn_row.addWidget(self._btn_run)
@@ -229,10 +221,11 @@ class AnalysisPane(QDockWidget):
         self._btn_stop = QPushButton("Стоп")
         self._btn_stop.setEnabled(False)
         self._btn_stop.setStyleSheet(
-            "QPushButton { background: #5a2a2a; color: #d4b483; border: 1px solid #8a4a4a; "
-            "border-radius: 3px; padding: 4px 10px; }"
-            "QPushButton:hover { background: #6a3a3a; }"
-            "QPushButton:disabled { background: #2a2a2a; color: #666; }"
+            f"QPushButton {{ background: {tc['analysis_stop_bg']}; color: {tc['fg']}; "
+            f"border: 1px solid {tc['analysis_stop_border']}; "
+            f"border-radius: 3px; padding: 4px 10px; }}"
+            f"QPushButton:hover {{ background: {tc['analysis_stop_hover']}; }}"
+            f"QPushButton:disabled {{ background: {tc['disabled_bg']}; color: {tc['disabled_fg']}; }}"
         )
         self._btn_stop.clicked.connect(self._on_stop_clicked)
         btn_row.addWidget(self._btn_stop)

@@ -1,0 +1,86 @@
+# Dark Wood theme for DRAUGHTS
+# Rich dark wood palette with warm amber accents.
+
+[meta]
+name = "Dark Wood"
+display_name = "Тёмное дерево"
+author = "DRAUGHTS Team"
+version = "1.0"
+
+[colors]
+bg = "#2a1a0a"
+bg_deep = "#1e140a"
+fg = "#d4b483"
+fg_muted = "#8a7060"
+fg_accent = "#f0d090"
+input_bg = "#3a2a1a"
+input_border = "#5a4a3a"
+btn_bg = "#3a2510"
+btn_hover = "#4a3a2a"
+btn_border = "#6a4520"
+btn_disabled_fg = "#5a4a3a"
+tab_bg = "#3a2510"
+tab_sel = "#4a3520"
+tab_border = "#6a4520"
+check_accent = "#d4b483"
+green = "#2ecc71"
+red = "#e74c3c"
+blue = "#3498db"
+
+# Main window specific
+menu_bg = "#3a2510"
+menu_hover = "#5a3d20"
+menu_border = "#6a4a2a"
+toolbar_bg = "#1e110a"
+toolbar_border = "#4a3a2a"
+
+# Analysis pane specific
+analysis_run_bg = "#3a5a3a"
+analysis_run_border = "#5a8a5a"
+analysis_run_hover = "#4a6a4a"
+analysis_stop_bg = "#5a2a2a"
+analysis_stop_border = "#8a4a4a"
+analysis_stop_hover = "#6a3a3a"
+disabled_bg = "#2a2a2a"
+disabled_fg = "#666666"
+caption_fg = "#a08050"
+
+# Editor specific
+editor_play_fg = "#2a8a2a"
+editor_cancel_fg = "#a03030"
+
+# Game analyzer annotation colors
+ann_brilliant = "#00cc44"
+ann_good = "#44cc44"
+ann_inaccuracy = "#ccaa00"
+ann_mistake = "#cc6600"
+ann_blunder = "#cc2222"
+ann_normal = "#d4b483"
+ann_move_num = "#806040"
+
+# Eval curve colors
+curve_zero_line = "#4a3520"
+curve_line = "#c8a050"
+curve_point = "#f0d090"
+curve_selected = "#ff8844"
+curve_bg = "#1a0e05"
+curve_axis = "#6a4520"
+curve_label = "#806040"
+
+# Scroll area / deep bg for lists
+scroll_bg = "#1a0e05"
+
+[icons]
+checkbox = """<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+  <path d="M3 8.5 L6.5 12 L13 4" stroke="{check_accent}" stroke-width="2.5"
+        fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+radio = """<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+  <circle cx="7" cy="7" r="4" fill="{check_accent}"/>
+</svg>"""
+
+arrow = """<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+  <path d="M2 3 L5 7 L8 3" stroke="{fg}" stroke-width="1.8"
+        fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""

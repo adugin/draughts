@@ -34,22 +34,13 @@ logger = logging.getLogger("draughts.puzzle_trainer")
 # Progress file lives in ~/.draughts/puzzle_progress.json
 _PROGRESS_PATH = Path.home() / ".draughts" / "puzzle_progress.json"
 
-# Style constants
-_DARK_BG = "#1e140a"
-_PANEL_BG = "#2a1a0a"
-_GOLD = "#d4b483"
-_GREEN = "#2ecc71"
-_RED = "#e74c3c"
-_BLUE = "#3498db"
-_MUTED = "#8a7060"
-from draughts.ui.theme import button_qss as _button_qss
-
-_BTN_STYLE = _button_qss("dark_wood")
-
+# Theme colors are loaded dynamically from the theme engine
+from draughts.ui.theme_engine import get_theme_colors as _get_theme_colors
 
 # ---------------------------------------------------------------------------
 # Session progress helpers
 # ---------------------------------------------------------------------------
+
 
 def _load_progress() -> dict:
     """Load progress from disk, returning defaults if file doesn't exist."""
@@ -83,6 +74,7 @@ def _save_progress(progress: dict) -> None:
 # ---------------------------------------------------------------------------
 # Move parsing helper
 # ---------------------------------------------------------------------------
+
 
 def _notation_to_path(move_str: str) -> list[tuple[int, int]]:
     """Convert 'c3:e5:g3' or 'c3-e5' to a list of (x, y) board positions."""
@@ -174,6 +166,7 @@ def _get_all_legal_paths(board: Board, turn: Color) -> list[list[tuple[int, int]
 # Puzzle Trainer dialog
 # ---------------------------------------------------------------------------
 
+
 class PuzzleTrainer(QDialog):
     """Puzzle trainer — user finds the best move on a given position."""
 
@@ -184,7 +177,12 @@ class PuzzleTrainer(QDialog):
         self.setWindowTitle("Тренировка — Решать задачи")
         self.setMinimumSize(560, 660)
         self.resize(660, 740)
-        self.setStyleSheet(f"background-color: {_DARK_BG}; color: {_GOLD};")
+
+        # Resolve theme colors once for this dialog
+        self._tc = _get_theme_colors("dark_wood")
+        from draughts.ui.theme_engine import apply_theme as _apply_engine_theme
+
+        _apply_engine_theme(self, "dark_wood")
 
         # Load puzzles and progress
         self._puzzles: PuzzleSet = load_bundled_puzzles()
@@ -194,12 +192,12 @@ class PuzzleTrainer(QDialog):
         self._current_puzzle: Puzzle | None = None
         self._current_board: Board | None = None
         self._attempts: int = 0
-        self._selected_sq: tuple[int, int] | None = None   # piece selected by user
+        self._selected_sq: tuple[int, int] | None = None  # piece selected by user
         self._capture_in_progress: list[tuple[int, int]] = []  # partial capture path
-        self._difficulty_filter: int | None = None          # None = all
+        self._difficulty_filter: int | None = None  # None = all
         self._hint_shown: bool = False
         self._solved_this_puzzle: bool = False
-        self._puzzle_index: int = 0                         # index in current filtered list
+        self._puzzle_index: int = 0  # index in current filtered list
 
         self._build_ui()
         self._load_next_puzzle(direction=0)  # load first puzzle
@@ -209,6 +207,7 @@ class PuzzleTrainer(QDialog):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
+        tc = self._tc
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(8)
@@ -216,18 +215,15 @@ class PuzzleTrainer(QDialog):
         # Top bar: title + difficulty filter
         top = QHBoxLayout()
         title_lbl = QLabel("Решать задачи")
-        title_lbl.setStyleSheet(f"color: {_GOLD}; font-size: 16px; font-weight: bold;")
+        title_lbl.setStyleSheet(f"color: {tc['fg']}; font-size: 16px; font-weight: bold;")
         top.addWidget(title_lbl)
         top.addStretch()
 
         diff_lbl = QLabel("Уровень:")
-        diff_lbl.setStyleSheet(f"color: {_MUTED}; font-size: 13px;")
+        diff_lbl.setStyleSheet(f"color: {tc['fg_muted']}; font-size: 13px;")
         top.addWidget(diff_lbl)
 
-        from draughts.ui.theme import combobox_qss
-
         self._diff_combo = QComboBox()
-        self._diff_combo.setStyleSheet(combobox_qss("dark_wood"))
         self._diff_combo.addItem("Все уровни", None)
         self._diff_combo.addItem("★☆☆☆ Начинающий", 1)
         self._diff_combo.addItem("★★☆☆ Средний", 2)
@@ -240,19 +236,19 @@ class PuzzleTrainer(QDialog):
 
         # Puzzle meta bar: id, category, difficulty, turn
         self._meta_lbl = QLabel()
-        self._meta_lbl.setStyleSheet(f"color: {_MUTED}; font-size: 12px;")
+        self._meta_lbl.setStyleSheet(f"color: {tc['fg_muted']}; font-size: 12px;")
         root.addWidget(self._meta_lbl)
 
         # Description label
         self._desc_lbl = QLabel()
         self._desc_lbl.setWordWrap(True)
-        self._desc_lbl.setStyleSheet(f"color: {_GOLD}; font-size: 13px; padding: 4px 0;")
+        self._desc_lbl.setStyleSheet(f"color: {tc['fg']}; font-size: 13px; padding: 4px 0;")
         root.addWidget(self._desc_lbl)
 
         # Status label (feedback to user)
         self._status_lbl = QLabel(" ")
         self._status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._status_lbl.setStyleSheet(f"font-size: 15px; font-weight: bold; color: {_GOLD}; padding: 4px;")
+        self._status_lbl.setStyleSheet(f"font-size: 15px; font-weight: bold; color: {tc['fg']}; padding: 4px;")
         root.addWidget(self._status_lbl)
 
         # Board widget
@@ -261,17 +257,15 @@ class PuzzleTrainer(QDialog):
         self._board_widget.cell_left_clicked.connect(self._on_cell_click)
         root.addWidget(self._board_widget)
 
-        # Buttons row
+        # Buttons row (styled by the app-level QSS from theme engine)
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
         self._btn_hint = QPushButton("Подсказка")
-        self._btn_hint.setStyleSheet(_BTN_STYLE)
         self._btn_hint.clicked.connect(self._on_hint)
         btn_row.addWidget(self._btn_hint)
 
         self._btn_show = QPushButton("Показать ответ")
-        self._btn_show.setStyleSheet(_BTN_STYLE)
         self._btn_show.setVisible(False)
         self._btn_show.clicked.connect(self._on_show_answer)
         btn_row.addWidget(self._btn_show)
@@ -279,12 +273,10 @@ class PuzzleTrainer(QDialog):
         btn_row.addStretch()
 
         self._btn_prev = QPushButton("← Предыдущая")
-        self._btn_prev.setStyleSheet(_BTN_STYLE)
         self._btn_prev.clicked.connect(lambda: self._load_next_puzzle(direction=-1))
         btn_row.addWidget(self._btn_prev)
 
         self._btn_next = QPushButton("Следующая →")
-        self._btn_next.setStyleSheet(_BTN_STYLE)
         self._btn_next.clicked.connect(lambda: self._load_next_puzzle(direction=1))
         btn_row.addWidget(self._btn_next)
 
@@ -293,12 +285,12 @@ class PuzzleTrainer(QDialog):
         # Separator
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {_MUTED};")
+        sep.setStyleSheet(f"color: {tc['fg_muted']};")
         root.addWidget(sep)
 
         # Stats footer
         self._stats_lbl = QLabel()
-        self._stats_lbl.setStyleSheet(f"color: {_MUTED}; font-size: 12px;")
+        self._stats_lbl.setStyleSheet(f"color: {tc['fg_muted']}; font-size: 12px;")
         self._stats_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._stats_lbl)
 
@@ -360,9 +352,7 @@ class PuzzleTrainer(QDialog):
             f"Лучшая серия: {best_streak}\n\n"
             f"Начать сначала?"
         )
-        msg.setStandardButtons(
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+        msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg.button(QMessageBox.StandardButton.Yes).setText("Заново")
         msg.button(QMessageBox.StandardButton.No).setText("Закрыть")
 
@@ -406,7 +396,7 @@ class PuzzleTrainer(QDialog):
         )
 
         self._desc_lbl.setText(puzzle.description)
-        self._status_lbl.setStyleSheet(f"font-size: 15px; font-weight: bold; color: {_GOLD}; padding: 4px;")
+        self._status_lbl.setStyleSheet(f"font-size: 15px; font-weight: bold; color: {self._tc['fg']}; padding: 4px;")
         self._status_lbl.setText("Найдите лучший ход")
 
         self._btn_hint.setEnabled(True)
@@ -440,9 +430,8 @@ class PuzzleTrainer(QDialog):
                 self._attempt_move(self._selected_sq, (x, y))
             return
 
-        is_correct_color = (
-            (turn == Color.WHITE and Board.is_white(piece)) or
-            (turn == Color.BLACK and Board.is_black(piece))
+        is_correct_color = (turn == Color.WHITE and Board.is_white(piece)) or (
+            turn == Color.BLACK and Board.is_black(piece)
         )
 
         if not is_correct_color:
@@ -483,8 +472,9 @@ class PuzzleTrainer(QDialog):
         # next step is (x, y)
         partial = path_so_far
         matching = [
-            fp for fp in full_paths
-            if fp[:len(partial)] == partial and len(fp) > len(partial) and fp[len(partial)] == (x, y)
+            fp
+            for fp in full_paths
+            if fp[: len(partial)] == partial and len(fp) > len(partial) and fp[len(partial)] == (x, y)
         ]
 
         if not matching:
@@ -501,14 +491,12 @@ class PuzzleTrainer(QDialog):
 
         # Check if any full legal path matches exactly
         exact = [fp for fp in full_paths if fp == extended]
-        still_going = [fp for fp in full_paths if fp[:len(extended)] == extended and len(fp) > len(extended)]
+        still_going = [fp for fp in full_paths if fp[: len(extended)] == extended and len(fp) > len(extended)]
 
         if exact and not still_going:
             # Completed capture — intermediates stay magenta, final
             # landing square gets green selection (same as start).
-            self._board_widget.set_capture_highlights(
-                list(extended[1:-1])
-            )
+            self._board_widget.set_capture_highlights(list(extended[1:-1]))
             self._board_widget.set_destination(*extended[-1])
             self._capture_in_progress = []
             self._validate_move_path(extended)
@@ -539,7 +527,7 @@ class PuzzleTrainer(QDialog):
                     # Start of capture path
                     partial = [from_sq, to_sq]
                     full_paths = _get_all_legal_paths(board, turn)
-                    still_going = [fp for fp in full_paths if fp[:len(partial)] == partial and len(fp) > len(partial)]
+                    still_going = [fp for fp in full_paths if fp[: len(partial)] == partial and len(fp) > len(partial)]
                     exact = [fp for fp in full_paths if fp == partial]
                     if still_going:
                         self._capture_in_progress = partial
@@ -647,7 +635,7 @@ class PuzzleTrainer(QDialog):
         self._progress["total_attempts"] += 1
         self._progress["total_correct"] += 1
 
-        first_attempt = (self._attempts == 0)
+        first_attempt = self._attempts == 0
         if first_attempt and not self._hint_shown:
             self._progress["streak"] += 1
             if self._progress["streak"] > self._progress["best_streak"]:
@@ -661,7 +649,7 @@ class PuzzleTrainer(QDialog):
         # user sees the full move chain (start = green, intermediates =
         # magenta, final landing = magenta) during the success flash.
         # They get cleared when the next puzzle loads.
-        self._flash_status("✓ Правильно!", _GREEN)
+        self._flash_status("✓ Правильно!", self._tc["green"])
 
         # Auto-advance after 1.5 s (highlights cleared by _load_puzzle)
         QTimer.singleShot(1500, lambda: self._load_next_puzzle(direction=1))
@@ -689,24 +677,20 @@ class PuzzleTrainer(QDialog):
 
     def _flash_wrong(self, text: str) -> None:
         """Show a red error message, then restore the neutral prompt."""
-        self._status_lbl.setStyleSheet(
-            f"font-size: 15px; font-weight: bold; color: {_RED}; padding: 4px;"
-        )
+        self._status_lbl.setStyleSheet(f"font-size: 15px; font-weight: bold; color: {self._tc['red']}; padding: 4px;")
         self._status_lbl.setText(text)
         QTimer.singleShot(2000, self._restore_status)
 
     def _flash_status(self, text: str, color: str) -> None:
         """Show a colored status message."""
-        self._status_lbl.setStyleSheet(
-            f"font-size: 15px; font-weight: bold; color: {color}; padding: 4px;"
-        )
+        self._status_lbl.setStyleSheet(f"font-size: 15px; font-weight: bold; color: {color}; padding: 4px;")
         self._status_lbl.setText(text)
 
     def _restore_status(self) -> None:
         """Restore the neutral 'find the best move' prompt."""
         if not self._solved_this_puzzle:
             self._status_lbl.setStyleSheet(
-                f"font-size: 15px; font-weight: bold; color: {_GOLD}; padding: 4px;"
+                f"font-size: 15px; font-weight: bold; color: {self._tc['fg']}; padding: 4px;"
             )
             self._status_lbl.setText("Найдите лучший ход")
 
@@ -739,9 +723,7 @@ class PuzzleTrainer(QDialog):
             sx, sy = best_path[0]
             self._board_widget.set_selection(sx, sy)
             self._board_widget.set_capture_highlights(best_path[1:])
-        self._flash_status(
-            f"Ответ: {self._current_puzzle.best_move}", _BLUE
-        )
+        self._flash_status(f"Ответ: {self._current_puzzle.best_move}", self._tc["blue"])
 
     def _on_difficulty_changed(self, idx: int) -> None:
         """Filter changed — reload from the beginning of the filtered list."""
