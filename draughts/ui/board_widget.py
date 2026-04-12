@@ -50,6 +50,8 @@ class BoardWidget(QWidget):
         self._theme: str = "dark_wood"
         self._textures = TextureCache(theme=self._theme)
         self._settings: GameSettings = GameSettings()
+        # Board orientation (D22): True = black at bottom (player plays black)
+        self._inverted: bool = False
 
         # Editor mode
         self._editor_mode: bool = False
@@ -76,6 +78,18 @@ class BoardWidget(QWidget):
 
         self.setMinimumSize(240, 240)
         self.setMouseTracking(False)
+
+    # --- Orientation (D22) ---
+
+    @property
+    def inverted(self) -> bool:
+        """True when the board is flipped so black is at the bottom."""
+        return self._inverted
+
+    @inverted.setter
+    def inverted(self, value: bool) -> None:
+        self._inverted = value
+        self.update()
 
     # --- Settings ---
 
@@ -256,9 +270,14 @@ class BoardWidget(QWidget):
         return margin, cell_size, bx, by
 
     def _cell_rect(self, x: int, y: int, cell_size: float, bx: float, by: float) -> QRectF:
-        """Return the rectangle for board cell (x, y) where x,y in 0..7."""
-        px = bx + x * cell_size
-        py = by + y * cell_size
+        """Return the rectangle for board cell (x, y) where x,y in 0..7.
+
+        When the board is inverted (black at bottom) both axes are mirrored.
+        """
+        vx = (BOARD_SIZE - 1 - x) if self._inverted else x
+        vy = (BOARD_SIZE - 1 - y) if self._inverted else y
+        px = bx + vx * cell_size
+        py = by + vy * cell_size
         return QRectF(px, py, cell_size, cell_size)
 
     def _cell_from_pos(self, pos) -> tuple[int, int] | None:
@@ -271,6 +290,9 @@ class BoardWidget(QWidget):
         col = int(mx / cell_size)
         row = int(my / cell_size)
         if 0 <= col < BOARD_SIZE and 0 <= row < BOARD_SIZE:
+            if self._inverted:
+                col = BOARD_SIZE - 1 - col
+                row = BOARD_SIZE - 1 - row
             return col, row
         return None
 
@@ -456,7 +478,8 @@ class BoardWidget(QWidget):
         for i in range(BOARD_SIZE):
             # Cell center X for column labels
             cell_cx = bx + (i + 0.5) * cell_size
-            letter = COLUMN_LETTERS[i]
+            # When inverted, visual column i corresponds to board column (7-i)
+            letter = COLUMN_LETTERS[BOARD_SIZE - 1 - i] if self._inverted else COLUMN_LETTERS[i]
 
             # Below board — centered in strip between board bottom and frame bottom
             r_bot = QRectF(cell_cx - cell_size / 2, by + board_side, cell_size, strip)
@@ -468,7 +491,8 @@ class BoardWidget(QWidget):
 
             # Cell center Y for row labels
             cell_cy = by + (i + 0.5) * cell_size
-            number = ROW_NUMBERS[i]
+            # When inverted, visual row i corresponds to board row (7-i); ROW_NUMBERS[0]="8", [7]="1"
+            number = ROW_NUMBERS[BOARD_SIZE - 1 - i] if self._inverted else ROW_NUMBERS[i]
 
             # Left of board
             r_left = QRectF(bx - strip, cell_cy - cell_size / 2, strip, cell_size)
