@@ -229,10 +229,10 @@ class PuzzleTrainer(QDialog):
         diff_lbl.setStyleSheet(f"color: {_MUTED}; font-size: 13px;")
         top.addWidget(diff_lbl)
 
+        from draughts.ui.dialogs import combobox_qss
+
         self._diff_combo = QComboBox()
-        self._diff_combo.setStyleSheet(
-            f"background: #3a2a1a; color: {_GOLD}; border: 1px solid #5a4a3a; padding: 4px; font-size: 13px;"
-        )
+        self._diff_combo.setStyleSheet(combobox_qss("dark_wood"))
         self._diff_combo.addItem("Все уровни", None)
         self._diff_combo.addItem("★☆☆☆ Начинающий", 1)
         self._diff_combo.addItem("★★☆☆ Средний", 2)

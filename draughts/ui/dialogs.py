@@ -56,6 +56,29 @@ def _get_current_theme() -> str:
         return "dark_wood"
 
 
+def combobox_qss(theme_name: str = "dark_wood") -> str:
+    """Return QSS for a themed combobox — shared across all dialogs.
+
+    Flat drop-down with SVG chevron arrow. Call this from any widget
+    that needs a styled combobox (OptionsDialog, PuzzleTrainer, etc.).
+    """
+    t = _DIALOG_PALETTES.get(theme_name, _DIALOG_PALETTES["dark_wood"])
+    res = Path(__file__).parent.parent / "resources"
+    suffix = "dark" if theme_name == "dark_wood" else "light"
+    arrow = (res / f"arrow_{suffix}.svg").as_posix()
+    return (
+        f"QComboBox {{ background: {t['input_bg']}; color: {t['fg']};"
+        f"  border: 1px solid {t['border']}; padding: 4px 8px;"
+        f"  border-radius: 3px; font-size: 13px; }}"
+        f"QComboBox::drop-down {{ background: transparent; border: none;"
+        f"  width: 20px; }}"
+        f"QComboBox::down-arrow {{ image: url({arrow});"
+        f"  width: 10px; height: 10px; }}"
+        f"QComboBox QAbstractItemView {{ background: {t['input_bg']};"
+        f"  color: {t['fg']}; }}"
+    )
+
+
 def apply_dialog_theme(dialog: QDialog, theme_name: str | None = None) -> None:
     """Apply the project's theme colors to any QDialog.
 
@@ -153,7 +176,6 @@ class OptionsDialog(QDialog):
         suffix = "dark" if theme_name == "dark_wood" else "light"
         check_svg = (res / f"check_{suffix}.svg").as_posix()
         radio_svg = (res / f"radio_{suffix}.svg").as_posix()
-        arrow_svg = (res / f"arrow_{suffix}.svg").as_posix()
         self.setStyleSheet(
             f"QDialog {{ background: {t['bg']}; color: {t['fg']}; }}"
             f"QTabWidget::pane {{ background: {t['bg']};"
@@ -164,15 +186,7 @@ class OptionsDialog(QDialog):
             f"  border-top-right-radius: 4px; margin-right: 2px; }}"
             f"QTabBar::tab:selected {{ background: {t['tab_sel']};"
             f"  font-weight: bold; }}"
-            f"QComboBox {{ background: {t['input_bg']}; color: {t['fg']};"
-            f"  border: 1px solid {t['input_border']}; padding: 4px 8px;"
-            f"  border-radius: 3px; }}"
-            f"QComboBox::drop-down {{ background: transparent; border: none;"
-            f"  width: 20px; }}"
-            f"QComboBox::down-arrow {{ image: url({arrow_svg});"
-            f"  width: 10px; height: 10px; }}"
-            f"QComboBox QAbstractItemView {{ background: {t['input_bg']};"
-            f"  color: {t['fg']}; selection-background-color: {t['tab_sel']}; }}"
+            + combobox_qss(theme_name) +
             f"QSpinBox {{ background: {t['input_bg']}; color: {t['fg']};"
             f"  border: 1px solid {t['input_border']}; padding: 3px;"
             f"  border-radius: 3px; }}"
