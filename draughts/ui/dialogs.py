@@ -166,6 +166,7 @@ class OptionsDialog(QDialog):
             f"QComboBox {{ background: {t['input_bg']}; color: {t['fg']};"
             f"  border: 1px solid {t['input_border']}; padding: 4px 8px;"
             f"  border-radius: 3px; }}"
+            f"QComboBox::drop-down {{ background: transparent; border: none; }}"
             f"QComboBox QAbstractItemView {{ background: {t['input_bg']};"
             f"  color: {t['fg']}; selection-background-color: {t['tab_sel']}; }}"
             f"QSpinBox {{ background: {t['input_bg']}; color: {t['fg']};"
