@@ -20,7 +20,7 @@ from draughts.config import Color
 from draughts.ui.board_widget import BoardWidget
 
 if TYPE_CHECKING:
-    from draughts.game.controller import GameController
+    from draughts.app.controller import GameController
 
 
 class MainWindow(QMainWindow):

@@ -15,8 +15,8 @@ import sys
 from pathlib import Path
 
 import draughts
+from draughts.app.controller import GameController
 from draughts.config import AUTOSAVE_FILENAME, get_data_dir
-from draughts.game.controller import GameController
 from draughts.ui.main_window import MainWindow
 from PyQt6.QtWidgets import QApplication
 
