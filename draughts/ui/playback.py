@@ -75,23 +75,23 @@ class PlaybackDialog(QDialog):
         # Control buttons
         btn_layout = QHBoxLayout()
 
-        self._btn_start = QPushButton("⏮ Начало")
+        self._btn_start = QPushButton("<< Начало")
         self._btn_start.clicked.connect(self._go_start)
         btn_layout.addWidget(self._btn_start)
 
-        self._btn_prev = QPushButton("◀ Назад")
+        self._btn_prev = QPushButton("< Назад")
         self._btn_prev.clicked.connect(self._step_back)
         btn_layout.addWidget(self._btn_prev)
 
-        self._btn_play = QPushButton("▶ Воспроизвести")
+        self._btn_play = QPushButton("> Воспроизвести")
         self._btn_play.clicked.connect(self._toggle_play)
         btn_layout.addWidget(self._btn_play)
 
-        self._btn_next = QPushButton("Вперёд ▶")
+        self._btn_next = QPushButton("Вперёд >")
         self._btn_next.clicked.connect(self._step_forward)
         btn_layout.addWidget(self._btn_next)
 
-        self._btn_end = QPushButton("Конец ⏭")
+        self._btn_end = QPushButton("Конец >>")
         self._btn_end.clicked.connect(self._go_end)
         btn_layout.addWidget(self._btn_end)
 
@@ -159,12 +159,12 @@ class PlaybackDialog(QDialog):
         if self._current >= len(self._positions) - 1:
             self._show_position(0)
         self._playing = True
-        self._btn_play.setText("⏸ Пауза")
+        self._btn_play.setText("|| Пауза")
         self._timer.start(self._play_interval)
 
     def _stop_play(self):
         self._playing = False
-        self._btn_play.setText("▶ Воспроизвести")
+        self._btn_play.setText("> Воспроизвести")
         self._timer.stop()
 
     def _on_slider_changed(self, value: int):
