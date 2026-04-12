@@ -91,11 +91,37 @@ class PuzzleSet:
         return list(self._puzzles)
 
 
+def _parse_puzzle_entry(entry: dict) -> Puzzle:
+    """Parse a single puzzle dict (from bundled or mined JSON) into a Puzzle."""
+    turn_str = entry["turn"]
+    if turn_str == "white":
+        turn = Color.WHITE
+    elif turn_str == "black":
+        turn = Color.BLACK
+    else:
+        raise ValueError(f"Unknown turn value {turn_str!r} in puzzle {entry.get('id')}")
+
+    return Puzzle(
+        id=entry["id"],
+        category=entry["category"],
+        position=entry["position"],
+        turn=turn,
+        best_move=entry["best_move"],
+        solution_sequence=list(entry["solution_sequence"]),
+        difficulty=int(entry["difficulty"]),
+        description=entry.get("description", ""),
+    )
+
+
 def load_bundled_puzzles() -> PuzzleSet:
-    """Load puzzles from the bundled JSON database.
+    """Load puzzles from the bundled JSON database AND any user-mined puzzles.
+
+    The two sets are merged and deduplicated by position string — if the same
+    board position appears in both the bundled set and the mined collection,
+    only the bundled entry is kept.
 
     Returns:
-        PuzzleSet with all bundled puzzles.
+        PuzzleSet with all bundled puzzles plus unique mined puzzles.
 
     Raises:
         FileNotFoundError: If the bundled database is missing.
@@ -108,26 +134,33 @@ def load_bundled_puzzles() -> PuzzleSet:
         raw: list[dict] = json.load(fh)
 
     puzzles: list[Puzzle] = []
-    for entry in raw:
-        turn_str = entry["turn"]
-        if turn_str == "white":
-            turn = Color.WHITE
-        elif turn_str == "black":
-            turn = Color.BLACK
-        else:
-            raise ValueError(f"Unknown turn value {turn_str!r} in puzzle {entry.get('id')}")
+    seen_positions: set[str] = set()
 
-        puzzles.append(
-            Puzzle(
-                id=entry["id"],
-                category=entry["category"],
-                position=entry["position"],
-                turn=turn,
-                best_move=entry["best_move"],
-                solution_sequence=list(entry["solution_sequence"]),
-                difficulty=int(entry["difficulty"]),
-                description=entry.get("description", ""),
-            )
+    for entry in raw:
+        p = _parse_puzzle_entry(entry)
+        puzzles.append(p)
+        seen_positions.add(p.position)
+
+    # Merge in user-mined puzzles (silently skip on any error).
+    try:
+        from draughts.game.puzzle_miner import MINED_PUZZLES_PATH, load_mined_puzzles
+
+        if MINED_PUZZLES_PATH.exists():
+            for entry in load_mined_puzzles():
+                try:
+                    p = _parse_puzzle_entry(entry)
+                    if p.position not in seen_positions:
+                        puzzles.append(p)
+                        seen_positions.add(p.position)
+                except (KeyError, ValueError):
+                    import logging
+                    logging.getLogger("draughts.puzzles").warning(
+                        "Skipping malformed mined puzzle entry: %r", entry.get("id")
+                    )
+    except Exception:
+        import logging
+        logging.getLogger("draughts.puzzles").exception(
+            "Failed to load mined puzzles; continuing with bundled only"
         )
 
     return PuzzleSet(puzzles)
