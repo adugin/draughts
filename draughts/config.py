@@ -74,18 +74,54 @@ COLORS: dict[str, tuple[int, int, int]] = {
 class GameSettings:
     """Mutable game settings."""
 
-    difficulty: int = 1  # 1=Amateur, 2=Normal, 3=Professional
+    difficulty: int = 4  # default: Сильный клубный (~1700) — old "normal"
     remind: bool = True  # hint for mandatory captures
     pause: float = 0.75  # animation delay multiplier
     invert_color: bool = False  # player plays black instead of white
     search_depth: int = 0  # 0=auto (from difficulty), 1-10=manual override
-
+    # UI extras (D15)
+    show_coordinates: bool = False
+    highlight_last_move: bool = True
+    show_legal_moves_hover: bool = False
+    # Engine stubs (D15 — wired to UI but TT resize / SMP not implemented yet)
+    hash_size_mb: int = 32
+    # NOTE: DIFFICULTY_NAMES is kept for backward compat; new code uses
+    # draughts.game.ai.elo.ELO_LEVELS directly.
     DIFFICULTY_NAMES: dict[int, str] = field(
-        default_factory=lambda: {1: "Любитель", 2: "Нормал", 3: "Профессионал"},
+        default_factory=lambda: {
+            1: "Новичок (~800)",
+            2: "Любитель (~1100)",
+            3: "Клубный (~1400)",
+            4: "Сильный клубный (~1700)",
+            5: "Кандидат (~2000)",
+            6: "Мастер (~2200+)",
+        },
         init=False,
         repr=False,
         compare=False,
     )
+
+
+# ---------------------------------------------------------------------------
+# Migration helper — called when loading settings saved with the old
+# three-level system (1=Любитель, 2=Нормал, 3=Профессионал).
+# ---------------------------------------------------------------------------
+
+_OLD_TO_NEW: dict[int, int] = {1: 3, 2: 4, 3: 5}
+
+
+def migrate_difficulty(old: int) -> int:
+    """Map a legacy 3-level difficulty to the new 6-level scale.
+
+    Old mapping:  1 (Любитель) → 3 (Клубный ~1400)
+                  2 (Нормал)   → 4 (Сильный клубный ~1700)
+                  3 (Профи)    → 5 (Кандидат ~2000)
+    Values already in the new range (1-6) are returned unchanged.
+    """
+    if old in _OLD_TO_NEW:
+        return _OLD_TO_NEW[old]
+    # Already a valid new-scale value, or unknown — clamp to [1, 6]
+    return max(1, min(6, old))
 
 
 # ---------------------------------------------------------------------------
