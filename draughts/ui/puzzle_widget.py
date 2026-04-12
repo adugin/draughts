@@ -175,7 +175,7 @@ class PuzzleTrainer(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Тренировка — Решать задачи")
-        self.setFixedSize(720, 860)
+        # Size is locked after _build_ui via adjustSize + setFixedSize
 
         # Resolve theme from parent window or default
         current_theme = "dark_wood"
@@ -203,6 +203,10 @@ class PuzzleTrainer(QDialog):
 
         self._build_ui()
         self._load_next_puzzle(direction=0)  # load first puzzle
+
+        # Lock: board dictates width, layout adds controls
+        self.adjustSize()
+        self.setFixedSize(self.size())
 
     # ------------------------------------------------------------------
     # UI construction
@@ -253,11 +257,12 @@ class PuzzleTrainer(QDialog):
         self._status_lbl.setStyleSheet(f"font-size: 15px; font-weight: bold; color: {tc['fg']}; padding: 4px;")
         root.addWidget(self._status_lbl)
 
-        # Board widget
+        # Board widget — same fixed size as main window board
+        _BOARD_PX = 640
         self._board_widget = BoardWidget()
-        self._board_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._board_widget.setFixedSize(_BOARD_PX, _BOARD_PX)
         self._board_widget.cell_left_clicked.connect(self._on_cell_click)
-        root.addWidget(self._board_widget)
+        root.addWidget(self._board_widget, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Buttons row (styled by the app-level QSS from theme engine)
         btn_row = QHBoxLayout()

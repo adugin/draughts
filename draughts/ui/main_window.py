@@ -43,7 +43,9 @@ class MainWindow(QMainWindow):
     def __init__(self, controller: GameController, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Шашки")
-        self.setFixedSize(720, 760)
+        # Window size is built FROM the board, not the other way around.
+        # Board widget gets a fixed square size; the window wraps tightly.
+        # setFixedSize is called AFTER _build_ui so the layout can compute.
 
         self._controller = controller
         self._current_theme = controller.settings.board_theme
@@ -53,6 +55,10 @@ class MainWindow(QMainWindow):
         self._build_analysis_pane()
         self._connect_controller()
         self._apply_theme(self._current_theme)
+
+        # Lock window size: board dictates width, layout adds menu/toolbar.
+        self.adjustSize()
+        self.setFixedSize(self.size())
 
     def _apply_theme(self, theme_name: str) -> None:
         """Apply the themed stylesheet to the entire window."""
@@ -68,9 +74,10 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        _BOARD_PX = 640  # fixed board square size in pixels
         self.board_widget = BoardWidget()
-        self.board_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        layout.addWidget(self.board_widget)
+        self.board_widget.setFixedSize(_BOARD_PX, _BOARD_PX)
+        layout.addWidget(self.board_widget, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # No status bar
         self.setStatusBar(None)

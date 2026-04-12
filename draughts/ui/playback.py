@@ -28,7 +28,7 @@ class PlaybackDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Просмотр партии")
         self.setModal(True)
-        self.setFixedSize(720, 820)
+        # Size is locked after _build_ui via adjustSize + setFixedSize
 
         # Apply theme from parent window
         current_theme = "dark_wood"
@@ -50,12 +50,17 @@ class PlaybackDialog(QDialog):
         self._timer.timeout.connect(self._step_forward)
         self._play_interval = 1000  # ms between moves
 
+        # Lock: board dictates width, layout adds controls
+        self.adjustSize()
+        self.setFixedSize(self.size())
+
     def _build_ui(self):
         layout = QVBoxLayout(self)
 
         # Board widget
+        _BOARD_PX = 640
         self._board_widget = BoardWidget()
-        self._board_widget.setMinimumSize(600, 600)
+        self._board_widget.setFixedSize(_BOARD_PX, _BOARD_PX)
         layout.addWidget(self._board_widget, stretch=1)
 
         # Position indicator
