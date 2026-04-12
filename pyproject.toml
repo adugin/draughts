@@ -47,6 +47,25 @@ markers = [
 python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = false       # постепенное внедрение типов
+disallow_untyped_defs = false       # global default is lenient
+
+[[tool.mypy.overrides]]
+module = [
+    "draughts.game.ai.*",
+    "draughts.game.board",
+    "draughts.game.analysis",
+    "draughts.game.headless",
+    "draughts.game.fen",
+    "draughts.game.pdn",
+    "draughts.game.save",
+    "draughts.game.puzzles",
+    "draughts.game.puzzle_miner",
+    "draughts.engine.*",
+]
+disallow_untyped_defs = true
+warn_unreachable = true
 check_untyped_defs = true
-ignore_missing_imports = true       # PyQt6 stubs могут отсутствовать
+
+[[tool.mypy.overrides]]
+module = ["numpy.*", "PyQt6.*"]
+ignore_missing_imports = true

@@ -106,6 +106,9 @@ python benchmark.py --depth 8 --profile
 # Тесты (запускать перед коммитом)
 python -m pytest tests/ -q
 
+# Проверка типов (strict на core + engine)
+mypy draughts/game/ draughts/engine/
+
 # Линтер + форматтер (ruff)
 ruff check draughts/ tests/
 ruff check --fix draughts/ tests/
