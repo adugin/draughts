@@ -349,11 +349,13 @@ class MainWindow(QMainWindow):
 
         dlg = OptionsDialog(self._controller.settings, self)
         if dlg.exec():
+            old_invert = self._controller.settings.invert_color
             self._controller.settings = dlg.get_settings()
+            new_invert = self._controller.settings.invert_color
             self._controller._computer_color = (
-                Color.BLACK if not self._controller.settings.invert_color else Color.WHITE
+                Color.BLACK if not new_invert else Color.WHITE
             )
-            self._controller._player_color = Color.WHITE if not self._controller.settings.invert_color else Color.BLACK
+            self._controller._player_color = Color.WHITE if not new_invert else Color.BLACK
             # Propagate updated settings to board widget (coordinates, hover, etc.)
             self.board_widget.set_settings(self._controller.settings)
             # Apply theme change to board AND entire window (D18)
@@ -369,6 +371,11 @@ class MainWindow(QMainWindow):
             from draughts.game.ai.eval import set_use_tuned_eval
 
             set_use_tuned_eval(self._controller.settings.use_tuned_eval)
+
+            # If player switched sides, start a new game so the
+            # computer moves first when it's now white.
+            if old_invert != new_invert:
+                self._controller.new_game()
 
     def _on_playback(self):
         from draughts.ui.playback import PlaybackDialog
