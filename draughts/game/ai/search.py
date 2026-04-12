@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import random
 import time
+from typing import TYPE_CHECKING
 
 import draughts.game.ai.state as _state
+
+if TYPE_CHECKING:
+    from draughts.game.ai.book import OpeningBook
 from draughts.config import Color
 from draughts.game.ai.eval import (
     _CONTEMPT,
@@ -416,14 +420,35 @@ class AIEngine:
     (backward compat for direct callers).
     """
 
-    def __init__(self, difficulty: int = 2, color: Color = Color.BLACK, search_depth: int = 0):
+    #: Sentinel that means "use DEFAULT_BOOK from the ai package".
+    _USE_DEFAULT_BOOK = object()
+
+    def __init__(
+        self,
+        difficulty: int = 2,
+        color: Color = Color.BLACK,
+        search_depth: int = 0,
+        book: "OpeningBook | None | object" = _USE_DEFAULT_BOOK,
+    ):
         self.difficulty = difficulty
         self.color = color
         self.search_depth = search_depth  # 0 = auto (derived from difficulty)
         self._ctx = SearchContext()
 
+        if book is AIEngine._USE_DEFAULT_BOOK:
+            # Lazy import to avoid circular dependency (ai.__init__ imports search)
+            import draughts.game.ai as _ai_pkg  # noqa: PLC0415
+            self._book: "OpeningBook | None" = _ai_pkg.DEFAULT_BOOK
+        else:
+            self._book = book  # type: ignore[assignment]
+
     def find_move(self, board: Board, deadline: float | None = None) -> AIMove | None:
         """Find the best move for the current board state.
+
+        Consults the opening book first (O(1) lookup); if a book move is
+        found it is returned immediately, bypassing iterative deepening and
+        quiescence search entirely.  Pass ``book=None`` to the constructor
+        to disable book lookups.
 
         The instance's SearchContext is cleared at the start of each call so
         that TT entries from previous moves do not bleed into the next game
@@ -438,6 +463,12 @@ class AIEngine:
                 sweep is always attempted, so a legal move is always returned
                 if any exists.
         """
+        # Opening book probe — O(1), no eval/search
+        if self._book is not None:
+            book_move = self._book.probe(board, self.color)
+            if book_move is not None:
+                return book_move
+
         self._ctx.clear()
         base = self.search_depth if self.search_depth > 0 else _DIFFICULTY_DEPTH.get(self.difficulty, 5)
         depth = adaptive_depth(base, board)

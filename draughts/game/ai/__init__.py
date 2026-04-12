@@ -12,7 +12,40 @@ previously imported from the flat module are still importable here.
 
 from __future__ import annotations
 
+import importlib.resources
+import logging
+
 import draughts.game.ai.state as _state_mod
+
+# --- Opening book (D8) ---
+# Loaded once at import time from the bundled resource file.
+# Stays None if the resource is absent (dev environment without built book).
+from draughts.game.ai.book import OpeningBook as OpeningBook
+
+DEFAULT_BOOK: OpeningBook | None = None
+
+def load_default_book() -> OpeningBook | None:
+    """Load the bundled opening book from draughts/resources/opening_book.json.
+
+    Returns the loaded book, or None if the file does not exist.
+    Sets the module-level DEFAULT_BOOK.
+    """
+    global DEFAULT_BOOK
+    try:
+        # importlib.resources handles both installed packages and editable installs
+        ref = importlib.resources.files("draughts.resources").joinpath("opening_book.json")
+        with importlib.resources.as_file(ref) as book_path:
+            if book_path.exists():
+                DEFAULT_BOOK = OpeningBook.load(book_path)
+                return DEFAULT_BOOK
+    except Exception as exc:
+        logging.getLogger(__name__).debug("Could not load default opening book: %s", exc)
+    DEFAULT_BOOK = None
+    return None
+
+
+# Attempt to load at import time; failures are silent (no book = normal search)
+load_default_book()
 
 # --- eval ---
 from draughts.game.ai.eval import (

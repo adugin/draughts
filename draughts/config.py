@@ -85,6 +85,8 @@ class GameSettings:
     show_legal_moves_hover: bool = False
     # Engine stubs (D15 — wired to UI but TT resize / SMP not implemented yet)
     hash_size_mb: int = 32
+    # Opening book (D8)
+    use_opening_book: bool = True
     # NOTE: DIFFICULTY_NAMES is kept for backward compat; new code uses
     # draughts.game.ai.elo.ELO_LEVELS directly.
     DIFFICULTY_NAMES: dict[int, str] = field(
