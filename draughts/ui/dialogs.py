@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -100,74 +99,7 @@ class OptionsDialog(QDialog):
 
 
 # ---------------------------------------------------------------------------
-# 2. DevelopmentDialog
-# ---------------------------------------------------------------------------
-
-
-class DevelopmentDialog(QDialog):
-    """Learning control dialog — choose which outcomes trigger DB updates."""
-
-    def __init__(self, settings: GameSettings, parent: QWidget | None = None):
-        super().__init__(parent)
-        self.setWindowTitle("Развитие")
-        self.setModal(True)
-
-        layout = QVBoxLayout(self)
-
-        group = QGroupBox("Предмет развития")
-        group_layout = QVBoxLayout(group)
-
-        self._black_win = QCheckBox("Победа чёрных")
-        self._black_win.setChecked(settings.black_win)
-        group_layout.addWidget(self._black_win)
-
-        self._white_win = QCheckBox("Победа белых")
-        self._white_win.setChecked(settings.white_win)
-        group_layout.addWidget(self._white_win)
-
-        self._black_lose = QCheckBox("Проигрыш чёрных")
-        self._black_lose.setChecked(settings.black_lose)
-        group_layout.addWidget(self._black_lose)
-
-        self._white_lose = QCheckBox("Проигрыш белых")
-        self._white_lose.setChecked(settings.white_lose)
-        group_layout.addWidget(self._white_lose)
-
-        layout.addWidget(group)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Ок")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    @property
-    def black_win(self) -> bool:
-        return self._black_win.isChecked()
-
-    @property
-    def white_win(self) -> bool:
-        return self._white_win.isChecked()
-
-    @property
-    def black_lose(self) -> bool:
-        return self._black_lose.isChecked()
-
-    @property
-    def white_lose(self) -> bool:
-        return self._white_lose.isChecked()
-
-    def apply_to(self, settings: GameSettings) -> None:
-        """Apply the dialog values to an existing GameSettings object."""
-        settings.black_win = self.black_win
-        settings.white_win = self.white_win
-        settings.black_lose = self.black_lose
-        settings.white_lose = self.white_lose
-
-
-# ---------------------------------------------------------------------------
-# 3. InfoDialog
+# 2. InfoDialog
 # ---------------------------------------------------------------------------
 
 
