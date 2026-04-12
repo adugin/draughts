@@ -153,6 +153,7 @@ class OptionsDialog(QDialog):
         suffix = "dark" if theme_name == "dark_wood" else "light"
         check_svg = (res / f"check_{suffix}.svg").as_posix()
         radio_svg = (res / f"radio_{suffix}.svg").as_posix()
+        arrow_svg = (res / f"arrow_{suffix}.svg").as_posix()
         self.setStyleSheet(
             f"QDialog {{ background: {t['bg']}; color: {t['fg']}; }}"
             f"QTabWidget::pane {{ background: {t['bg']};"
@@ -166,7 +167,10 @@ class OptionsDialog(QDialog):
             f"QComboBox {{ background: {t['input_bg']}; color: {t['fg']};"
             f"  border: 1px solid {t['input_border']}; padding: 4px 8px;"
             f"  border-radius: 3px; }}"
-            f"QComboBox::drop-down {{ background: transparent; border: none; }}"
+            f"QComboBox::drop-down {{ background: transparent; border: none;"
+            f"  width: 20px; }}"
+            f"QComboBox::down-arrow {{ image: url({arrow_svg});"
+            f"  width: 10px; height: 10px; }}"
             f"QComboBox QAbstractItemView {{ background: {t['input_bg']};"
             f"  color: {t['fg']}; selection-background-color: {t['tab_sel']}; }}"
             f"QSpinBox {{ background: {t['input_bg']}; color: {t['fg']};"
