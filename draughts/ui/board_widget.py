@@ -403,9 +403,13 @@ class BoardWidget(QWidget):
                 painter.drawRect(rect.adjusted(2, 2, -2, -2))
 
         # Draw legal-move hover dots (item 26, part 2)
+        # Dot color matches the player's piece color for visual consistency
         if self._hover_legal_moves and self._settings.show_legal_moves_hover:
             dot_r = max(4, cell_size * 0.13)
-            dot_color = QColor(255, 255, 255, 140)
+            if self._turn_color == Color.WHITE:
+                dot_color = QColor(255, 255, 255, 140)
+            else:
+                dot_color = QColor(30, 30, 30, 140)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(dot_color)
             for hx, hy in self._hover_legal_moves:
