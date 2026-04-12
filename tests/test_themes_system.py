@@ -182,20 +182,39 @@ class TestSvgTemplateRendering:
 
     def test_all_icons_rendered(self):
         theme = load_theme("dark_wood")
-        for name in ("checkbox", "radio", "arrow"):
+        for name in ("checkbox", "radio", "arrow", "arrow_up", "branch_open", "branch_closed", "close"):
             assert name in theme.icon_paths
             p = Path(theme.icon_paths[name])
             assert p.exists(), f"Rendered SVG not found: {p}"
 
     def test_classic_light_icons_rendered(self):
         theme = load_theme("classic_light")
-        for name in ("checkbox", "radio", "arrow"):
+        for name in ("checkbox", "radio", "arrow", "arrow_up", "branch_open", "branch_closed", "close"):
             assert name in theme.icon_paths
             p = Path(theme.icon_paths[name])
             assert p.exists()
             content = p.read_text(encoding="utf-8")
             # Should contain the light theme's check_accent, not dark
-            assert theme.colors["check_accent"] in content or theme.colors["fg"] in content
+            assert theme.colors["check_accent"] in content or theme.colors["fg"] in content or theme.colors["fg_muted"] in content
+
+    def test_arrow_up_points_opposite_direction(self):
+        """arrow_up SVG should differ from arrow (different polyline points)."""
+        theme = load_theme("dark_wood")
+        arrow_content = Path(theme.icon_paths["arrow"]).read_text(encoding="utf-8")
+        arrow_up_content = Path(theme.icon_paths["arrow_up"]).read_text(encoding="utf-8")
+        assert arrow_content != arrow_up_content
+
+    def test_branch_icons_use_fg_muted(self):
+        theme = load_theme("dark_wood")
+        for name in ("branch_open", "branch_closed"):
+            content = Path(theme.icon_paths[name]).read_text(encoding="utf-8")
+            assert "{fg_muted}" not in content
+            assert theme.colors["fg_muted"] in content
+
+    def test_close_icon_has_two_lines(self):
+        theme = load_theme("dark_wood")
+        content = Path(theme.icon_paths["close"]).read_text(encoding="utf-8")
+        assert content.count("<line") == 2
 
 
 # ---------------------------------------------------------------------------
@@ -352,10 +371,17 @@ class TestAllThemesLoadAndRender:
     @pytest.mark.parametrize("theme_name", _ALL_THEMES)
     def test_icons_rendered(self, theme_name: str):
         theme = load_theme(theme_name)
-        for icon in ("checkbox", "radio", "arrow"):
+        for icon in ("checkbox", "radio", "arrow", "arrow_up", "branch_open", "branch_closed", "close"):
             assert icon in theme.icon_paths
             p = Path(theme.icon_paths[icon])
             assert p.exists(), f"{theme_name}: icon {icon} not rendered at {p}"
+
+    @pytest.mark.parametrize("theme_name", _ALL_THEMES)
+    def test_spinbox_arrows_in_qss(self, theme_name: str):
+        theme = load_theme(theme_name)
+        qss = generate_qss(theme)
+        assert "QSpinBox::up-arrow" in qss
+        assert "QSpinBox::down-arrow" in qss
 
     @pytest.mark.parametrize("theme_name", _ALL_THEMES)
     def test_board_style_valid(self, theme_name: str):

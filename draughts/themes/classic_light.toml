@@ -72,16 +72,39 @@ curve_label = "#8a7a5a"
 scroll_bg = "#efe4cc"
 
 [icons]
-checkbox = """<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
-  <path d="M3 8.5 L6.5 12 L13 4" stroke="{check_accent}" stroke-width="2.5"
-        fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+# Breeze-style SVG icon templates — colors substituted at load time via {placeholder}
+# Inspired by KDE Breeze (MIT License). See draughts/themes/ATTRIBUTION.md
+
+checkbox = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <polyline points="3,8 6,11 13,4" stroke="{check_accent}" stroke-width="2"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>"""
 
-radio = """<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14">
-  <circle cx="7" cy="7" r="4" fill="{check_accent}"/>
+radio = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <circle cx="8" cy="8" r="3" fill="{check_accent}"/>
 </svg>"""
 
-arrow = """<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
-  <path d="M2 3 L5 7 L8 3" stroke="{fg}" stroke-width="1.8"
-        fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+arrow = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="2,4 6,8 10,4" stroke="{fg}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+arrow_up = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="2,8 6,4 10,8" stroke="{fg}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+branch_open = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="2,4 6,8 10,4" stroke="{fg_muted}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+branch_closed = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="4,2 8,6 4,10" stroke="{fg_muted}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+close = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <line x1="2" y1="2" x2="10" y2="10" stroke="{fg}" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="10" y1="2" x2="2" y2="10" stroke="{fg}" stroke-width="1.8" stroke-linecap="round"/>
 </svg>"""
