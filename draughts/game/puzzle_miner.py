@@ -1,0 +1,217 @@
+"""Puzzle auto-mining from analyzed games (ROADMAP #22).
+
+Scans a game's analysis annotations for blunders (??), then extracts
+each blunder position as a puzzle candidate for the opposite side to
+solve (find the refutation).
+
+Pure logic module — no Qt imports.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from pathlib import Path
+
+logger = logging.getLogger("draughts.puzzle_miner")
+
+# Path to the user-specific mined puzzle collection.
+MINED_PUZZLES_PATH = Path.home() / ".draughts" / "mined_puzzles.json"
+
+# Minimum eval-swing (cp) to qualify a position as a puzzle.
+_DEFAULT_MIN_DELTA = 400
+
+# Difficulty mapping by delta magnitude (lower-bound inclusive).
+# Ranges: 400-599 → d2, 600-999 → d3, 1000+ → d4
+_DIFF_THRESHOLDS = [
+    (1000, 4),   # delta ≥ 1000 → difficulty 4
+    (600, 3),    # delta ≥ 600  → difficulty 3
+]
+
+
+def _delta_to_difficulty(delta_cp: float) -> int:
+    """Map eval-swing magnitude to puzzle difficulty (2-4).
+
+    Boundaries are inclusive on the lower bound:
+      delta ≥ 1000 → 4
+      delta ≥ 600  → 3
+      delta ≥ 400  → 2  (minimum for any blunder)
+    """
+    for threshold, difficulty in _DIFF_THRESHOLDS:
+        if delta_cp >= threshold:
+            return difficulty
+    return 2  # minimum for any blunder (400 ≤ delta < 600)
+
+
+def _turn_string(ply: int) -> str:
+    """Return 'white' or 'black' for the side that moves on *ply*."""
+    # White moves on even plies (0, 2, 4, …), black on odd.
+    return "white" if ply % 2 == 0 else "black"
+
+
+def mine_puzzles_from_game(
+    positions: list[str],
+    annotations: list,  # list[MoveAnnotation] from game_analyzer
+    min_delta_cp: int = _DEFAULT_MIN_DELTA,
+) -> list[dict]:
+    """Extract puzzle candidates from an analyzed game.
+
+    For each blunder (annotation == "??") at ply N:
+    - The puzzle position is positions[N] (before the blunder).
+    - The side to SOLVE is the OPPONENT of whoever blundered.
+    - The best_move is the engine's recommended move stored in the
+      annotation's ``best_notation`` field.
+    - Difficulty is inferred from the delta magnitude.
+    - Category is "combination_2cap" when the best move is a capture
+      (contains ":"), otherwise "endgame".
+
+    Args:
+        positions: List of 32-char position strings; positions[i] is the
+            board state before ply i was played.
+        annotations: List of MoveAnnotation objects from
+            draughts.ui.game_analyzer.analyze_game_positions().
+        min_delta_cp: Minimum eval swing in centipawn units to qualify.
+
+    Returns:
+        List of puzzle dicts matching the russian_draughts_puzzles.json
+        schema (id, category, position, turn, best_move,
+        solution_sequence, difficulty, source, description).
+        Returns an empty list if there are no qualifying blunders.
+    """
+    if not positions or not annotations:
+        return []
+
+    puzzles: list[dict] = []
+    seen_positions: set[str] = set()  # avoid duplicate positions
+
+    for ann in annotations:
+        if ann.annotation != "??":
+            continue
+        if ann.delta_cp < min_delta_cp:
+            continue
+
+        ply = ann.ply
+        if ply >= len(positions):
+            logger.warning("Annotation ply %d out of range (positions len=%d)", ply, len(positions))
+            continue
+
+        pos_str = positions[ply]
+        if not pos_str or len(pos_str) != 32:
+            logger.warning("Invalid position string at ply %d: %r", ply, pos_str)
+            continue
+
+        if pos_str in seen_positions:
+            continue
+        seen_positions.add(pos_str)
+
+        # The blunderer is the side to move at ply N.
+        blunderer_turn = _turn_string(ply)
+        # The solver is the opponent.
+        solver_turn = "black" if blunderer_turn == "white" else "white"
+
+        best_move = ann.best_notation
+        if not best_move or best_move == "—":
+            # No engine suggestion recorded — skip.
+            logger.debug("Ply %d has no best_notation; skipping", ply)
+            continue
+
+        # Determine category: capture if ":" appears in the best move notation.
+        category = "combination_2cap" if ":" in best_move else "endgame"
+
+        difficulty = _delta_to_difficulty(ann.delta_cp)
+
+        puzzle_id = f"mined_{ply:03d}_{pos_str[:8]}"
+
+        description = (
+            f"{'Белые' if solver_turn == 'white' else 'Чёрные'} находят лучший ответ "
+            f"на ошибку соперника (потеря {ann.delta_cp:.0f} ед.)."
+        )
+
+        puzzle: dict = {
+            "id": puzzle_id,
+            "category": category,
+            "position": pos_str,
+            "turn": solver_turn,
+            "best_move": best_move,
+            "solution_sequence": [best_move],
+            "difficulty": difficulty,
+            "source": "auto_mined",
+            "description": description,
+        }
+        puzzles.append(puzzle)
+        logger.info(
+            "Mined puzzle from ply %d: solver=%s delta=%.0f difficulty=%d",
+            ply,
+            solver_turn,
+            ann.delta_cp,
+            difficulty,
+        )
+
+    return puzzles
+
+
+# ---------------------------------------------------------------------------
+# Persistence helpers (no Qt)
+# ---------------------------------------------------------------------------
+
+def load_mined_puzzles() -> list[dict]:
+    """Load mined puzzles from the user's personal collection.
+
+    Returns an empty list if the file does not exist or is malformed.
+    """
+    if not MINED_PUZZLES_PATH.exists():
+        return []
+    try:
+        with MINED_PUZZLES_PATH.open(encoding="utf-8") as fh:
+            data = json.load(fh)
+        if isinstance(data, list):
+            return data
+        logger.warning("Mined puzzles file has unexpected format; returning []")
+        return []
+    except Exception:
+        logger.exception("Failed to load mined puzzles from %s", MINED_PUZZLES_PATH)
+        return []
+
+
+def save_mined_puzzles(puzzles: list[dict]) -> None:
+    """Persist the full mined puzzle list to the user's personal collection.
+
+    Args:
+        puzzles: Complete list of puzzle dicts to write (overwrites existing).
+
+    Raises:
+        OSError: If the directory cannot be created or the file cannot be written.
+    """
+    MINED_PUZZLES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with MINED_PUZZLES_PATH.open("w", encoding="utf-8") as fh:
+        json.dump(puzzles, fh, ensure_ascii=False, indent=2)
+    logger.info("Saved %d mined puzzles to %s", len(puzzles), MINED_PUZZLES_PATH)
+
+
+def append_mined_puzzles(new_puzzles: list[dict]) -> int:
+    """Append new puzzles to the user's personal collection.
+
+    Deduplicates by position string — a position already in the collection
+    is not added again.
+
+    Args:
+        new_puzzles: Puzzle dicts to merge in.
+
+    Returns:
+        Number of puzzles actually added (after deduplication).
+    """
+    existing = load_mined_puzzles()
+    existing_positions: set[str] = {p.get("position", "") for p in existing}
+
+    added = 0
+    for puzzle in new_puzzles:
+        pos = puzzle.get("position", "")
+        if pos and pos not in existing_positions:
+            existing.append(puzzle)
+            existing_positions.add(pos)
+            added += 1
+
+    if added:
+        save_mined_puzzles(existing)
+
+    return added
