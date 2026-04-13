@@ -210,8 +210,6 @@ class MainWindow(QMainWindow):
         self._analysis_pane.hide()
         # Keep the menu checkbox in sync when user closes the dock with the X button
         self._analysis_pane.visibilityChanged.connect(self._on_pane_visibility_changed)
-        # Show best move on board when analysis completes
-        self._analysis_pane.analysis_done.connect(self._on_analysis_done)
 
     # --- Connect controller signals ---
 
@@ -243,7 +241,6 @@ class MainWindow(QMainWindow):
 
     def _on_board_changed(self):
         self.board_widget.set_board(self._controller.board)
-        self.board_widget.analysis_squares = None  # clear stale analysis overlay
         self._update_action_states()
         # Auto-feed new position to analysis pane (only when pane is visible
         # and engine is not already thinking for the game).
@@ -295,14 +292,6 @@ class MainWindow(QMainWindow):
         from PyQt6.QtCore import QTimer
 
         QTimer.singleShot(4000, lambda: self.setWindowTitle("Шашки"))
-
-    def _on_analysis_done(self, result) -> None:
-        """Highlight the best move from analysis on the board."""
-        if result is not None and result.best_move is not None:
-            path = result.best_move.path
-            self.board_widget.analysis_squares = [path[0], path[-1]]
-        else:
-            self.board_widget.analysis_squares = None
 
     def _on_clock_updated(self, white_ms: int, black_ms: int):
         """Update clock labels (D19)."""

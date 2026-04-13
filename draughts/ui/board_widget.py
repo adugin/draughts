@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPen
 from PyQt6.QtWidgets import QWidget
 
@@ -75,9 +75,6 @@ class BoardWidget(QWidget):
         self._hint_clear_timer.setSingleShot(True)
         self._hint_clear_timer.timeout.connect(self._clear_hint_squares)
 
-        # Analysis best-move overlay (from/to squares highlighted)
-        self._analysis_squares: list[tuple[int, int]] | None = None
-
         self.setMinimumSize(240, 240)
         self.setMouseTracking(False)
 
@@ -131,17 +128,6 @@ class BoardWidget(QWidget):
 
     def _clear_hint_squares(self) -> None:
         self._hint_squares = None
-        self.update()
-
-    # --- Analysis best-move overlay ---
-
-    @property
-    def analysis_squares(self) -> list[tuple[int, int]] | None:
-        return self._analysis_squares
-
-    @analysis_squares.setter
-    def analysis_squares(self, value: list[tuple[int, int]] | None) -> None:
-        self._analysis_squares = value
         self.update()
 
     # --- Editor mode ---
@@ -450,39 +436,6 @@ class BoardWidget(QWidget):
             for hx, hy in self._hint_squares:
                 rect = self._cell_rect(hx, hy, cell_size, bx, by)
                 painter.drawRect(rect.adjusted(2, 2, -2, -2))
-
-        # Draw analysis best-move overlay — blue highlight with arrow
-        if self._analysis_squares and len(self._analysis_squares) >= 2:
-            from_sq = self._analysis_squares[0]
-            to_sq = self._analysis_squares[-1]
-            # Semi-transparent blue fill on from/to cells
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(50, 120, 255, 70))
-            for sq in self._analysis_squares:
-                rect = self._cell_rect(sq[0], sq[1], cell_size, bx, by)
-                painter.drawRect(rect)
-            # Blue border on from and to
-            a_pen = QPen(QColor(50, 120, 255, 200), max(3, cell_size * 0.08))
-            painter.setPen(a_pen)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            for sq in (from_sq, to_sq):
-                rect = self._cell_rect(sq[0], sq[1], cell_size, bx, by)
-                painter.drawRect(rect.adjusted(2, 2, -2, -2))
-            # Arrow line from center of source to center of destination
-            r1 = self._cell_rect(from_sq[0], from_sq[1], cell_size, bx, by)
-            r2 = self._cell_rect(to_sq[0], to_sq[1], cell_size, bx, by)
-            arrow_pen = QPen(QColor(50, 120, 255, 220), max(3, cell_size * 0.06))
-            painter.setPen(arrow_pen)
-            painter.drawLine(r1.center(), r2.center())
-            # Arrowhead
-            dx = r2.center().x() - r1.center().x()
-            dy = r2.center().y() - r1.center().y()
-            angle = math.atan2(dy, dx)
-            head_len = cell_size * 0.3
-            for offset in (2.5, -2.5):
-                hx = r2.center().x() - head_len * math.cos(angle + offset * 0.3)
-                hy = r2.center().y() - head_len * math.sin(angle + offset * 0.3)
-                painter.drawLine(r2.center(), QPointF(hx, hy).toPoint())
 
         # Draw coordinate labels
         self._draw_labels(painter, cell_size, bx, by, board_side)
