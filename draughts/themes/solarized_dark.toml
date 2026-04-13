@@ -1,0 +1,112 @@
+# Solarized Dark theme for DRAUGHTS
+# Scientifically designed palette with precise CIELAB contrast ratios.
+# https://ethanschoonover.com/solarized/
+
+[meta]
+name = "Solarized Dark"
+display_name = "Solarized тёмная"
+author = "DRAUGHTS Team (palette: Ethan Schoonover)"
+version = "1.0"
+board_style = "dark_wood"
+
+[colors]
+# Base tones (Solarized monotones)
+bg = "#002b36"
+bg_deep = "#001f27"
+fg = "#93a1a1"
+fg_muted = "#586e75"
+fg_accent = "#b58900"
+input_bg = "#073642"
+input_border = "#2a4a52"
+btn_bg = "#073642"
+btn_hover = "#0a4f5c"
+btn_border = "#2a4a52"
+btn_disabled_fg = "#2a4a52"
+tab_bg = "#073642"
+tab_sel = "#0a4f5c"
+tab_border = "#2a4a52"
+check_accent = "#b58900"
+green = "#859900"
+red = "#dc322f"
+blue = "#268bd2"
+
+# Main window
+menu_bg = "#073642"
+menu_hover = "#0a4f5c"
+menu_border = "#2a4a52"
+toolbar_bg = "#001f27"
+toolbar_border = "#073642"
+
+# Analysis pane
+analysis_run_bg = "#073642"
+analysis_run_border = "#859900"
+analysis_run_hover = "#0a4f5c"
+analysis_stop_bg = "#073642"
+analysis_stop_border = "#dc322f"
+analysis_stop_hover = "#0a4f5c"
+disabled_bg = "#001f27"
+disabled_fg = "#2a4a52"
+caption_fg = "#839496"
+
+# Editor
+editor_play_fg = "#859900"
+editor_cancel_fg = "#dc322f"
+
+# Game analyzer annotations
+ann_brilliant = "#859900"
+ann_good = "#2aa198"
+ann_inaccuracy = "#b58900"
+ann_mistake = "#cb4b16"
+ann_blunder = "#dc322f"
+ann_normal = "#93a1a1"
+ann_move_num = "#586e75"
+
+# Eval curve
+curve_zero_line = "#073642"
+curve_line = "#268bd2"
+curve_point = "#2aa198"
+curve_selected = "#cb4b16"
+curve_bg = "#001f27"
+curve_axis = "#2a4a52"
+curve_label = "#586e75"
+
+# Scroll area
+scroll_bg = "#001f27"
+
+[icons]
+# Breeze-style SVG icon templates — colors substituted at load time via {placeholder}
+# Inspired by KDE Breeze (MIT License). See draughts/themes/ATTRIBUTION.md
+
+checkbox = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <polyline points="3,8 6,11 13,4" stroke="{check_accent}" stroke-width="2"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+radio = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <circle cx="8" cy="8" r="3" fill="{check_accent}"/>
+</svg>"""
+
+arrow = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="2,4 6,8 10,4" stroke="{fg}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+arrow_up = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="2,8 6,4 10,8" stroke="{fg}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+branch_open = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="2,4 6,8 10,4" stroke="{fg_muted}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+branch_closed = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="4,2 8,6 4,10" stroke="{fg_muted}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+close = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <line x1="2" y1="2" x2="10" y2="10" stroke="{fg}" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="10" y1="2" x2="2" y2="10" stroke="{fg}" stroke-width="1.8" stroke-linecap="round"/>
+</svg>"""

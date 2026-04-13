@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from draughts.config import BOARD_PX
 from draughts.game.board import Board
 from draughts.ui.board_widget import BoardWidget
 
@@ -28,7 +29,15 @@ class PlaybackDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Просмотр партии")
         self.setModal(True)
-        self.resize(600, 520)
+        # Size is locked after _build_ui via adjustSize + setFixedSize
+
+        # Apply theme from parent window
+        current_theme = "dark_wood"
+        if parent is not None and hasattr(parent, "_current_theme"):
+            current_theme = parent._current_theme
+        from draughts.ui.theme_engine import apply_theme as _apply_engine_theme
+
+        _apply_engine_theme(self, current_theme)
 
         self._positions = positions
         self._current = 0
@@ -42,12 +51,16 @@ class PlaybackDialog(QDialog):
         self._timer.timeout.connect(self._step_forward)
         self._play_interval = 1000  # ms between moves
 
+        # Lock: board dictates width, layout adds controls
+        self.adjustSize()
+        self.setFixedSize(self.size())
+
     def _build_ui(self):
         layout = QVBoxLayout(self)
 
         # Board widget
         self._board_widget = BoardWidget()
-        self._board_widget.setMinimumSize(400, 400)
+        self._board_widget.setFixedSize(BOARD_PX, BOARD_PX)
         layout.addWidget(self._board_widget, stretch=1)
 
         # Position indicator
@@ -67,23 +80,23 @@ class PlaybackDialog(QDialog):
         # Control buttons
         btn_layout = QHBoxLayout()
 
-        self._btn_start = QPushButton("⏮ Начало")
+        self._btn_start = QPushButton("<< Начало")
         self._btn_start.clicked.connect(self._go_start)
         btn_layout.addWidget(self._btn_start)
 
-        self._btn_prev = QPushButton("◀ Назад")
+        self._btn_prev = QPushButton("< Назад")
         self._btn_prev.clicked.connect(self._step_back)
         btn_layout.addWidget(self._btn_prev)
 
-        self._btn_play = QPushButton("▶ Воспроизвести")
+        self._btn_play = QPushButton("> Воспроизвести")
         self._btn_play.clicked.connect(self._toggle_play)
         btn_layout.addWidget(self._btn_play)
 
-        self._btn_next = QPushButton("Вперёд ▶")
+        self._btn_next = QPushButton("Вперёд >")
         self._btn_next.clicked.connect(self._step_forward)
         btn_layout.addWidget(self._btn_next)
 
-        self._btn_end = QPushButton("Конец ⏭")
+        self._btn_end = QPushButton("Конец >>")
         self._btn_end.clicked.connect(self._go_end)
         btn_layout.addWidget(self._btn_end)
 
@@ -151,12 +164,12 @@ class PlaybackDialog(QDialog):
         if self._current >= len(self._positions) - 1:
             self._show_position(0)
         self._playing = True
-        self._btn_play.setText("⏸ Пауза")
+        self._btn_play.setText("|| Пауза")
         self._timer.start(self._play_interval)
 
     def _stop_play(self):
         self._playing = False
-        self._btn_play.setText("▶ Воспроизвести")
+        self._btn_play.setText("> Воспроизвести")
         self._timer.stop()
 
     def _on_slider_changed(self, value: int):

@@ -6,7 +6,6 @@ Usage:
     python main.py --resume            # Continue from autosave
     python main.py --difficulty 3      # Start at Professional level
     python main.py --black             # Play as black
-    python main.py --depth 8           # Manual AI search depth
     python main.py --version           # Show version and exit
 """
 
@@ -15,8 +14,8 @@ import sys
 from pathlib import Path
 
 import draughts
+from draughts.app.controller import GameController
 from draughts.config import AUTOSAVE_FILENAME, get_data_dir
-from draughts.game.controller import GameController
 from draughts.ui.main_window import MainWindow
 from PyQt6.QtWidgets import QApplication
 
@@ -40,15 +39,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--difficulty",
         type=int,
-        choices=[1, 2, 3],
+        choices=[1, 2, 3, 4, 5, 6],
         default=None,
-        help="уровень сложности: 1=Любитель, 2=Нормал, 3=Профессионал",
-    )
-    parser.add_argument(
-        "--depth",
-        type=int,
-        default=None,
-        help="глубина поиска AI (1-10, 0=авто из сложности)",
+        help=(
+            "уровень сложности: "
+            "1=Новичок (~800), 2=Любитель (~1100), 3=Клубный (~1400), "
+            "4=Сильный клубный (~1700), 5=Кандидат (~2000), 6=Мастер (~2200+)"
+        ),
     )
     parser.add_argument(
         "--black",
@@ -67,10 +64,6 @@ def main():
     parser = _build_parser()
     args = parser.parse_args()
 
-    # Validate --depth range
-    if args.depth is not None and not 0 <= args.depth <= 10:
-        parser.error("--depth должен быть от 0 до 10")
-
     # Resolve save file: explicit file > --resume > none
     load_path: str | None = None
     if args.savefile:
@@ -84,16 +77,19 @@ def main():
             load_path = str(autosave_path)
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Шашки")
+    from draughts.config import APP_NAME
+    app.setApplicationName(APP_NAME)
     app.setApplicationVersion(draughts.__version__)
 
     controller = GameController()
 
-    # Apply CLI settings before starting the game
+    # Load saved user preferences (or defaults if no settings file)
+    from draughts.config import load_settings
+    controller.settings = load_settings()
+
+    # CLI flags override saved settings
     if args.difficulty is not None:
         controller.settings.difficulty = args.difficulty
-    if args.depth is not None:
-        controller.settings.search_depth = args.depth
     if args.black:
         controller.settings.invert_color = True
 

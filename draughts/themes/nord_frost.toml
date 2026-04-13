@@ -1,0 +1,112 @@
+# Nord Frost theme for DRAUGHTS
+# Arctic-inspired blue-gray dark palette — based on the Nord project.
+# https://www.nordtheme.com/
+
+[meta]
+name = "Nord Frost"
+display_name = "Северное сияние"
+author = "DRAUGHTS Team (palette: Nord)"
+version = "1.0"
+board_style = "dark_wood"
+
+[colors]
+# Polar Night (backgrounds)
+bg = "#2e3440"
+bg_deep = "#242933"
+fg = "#eceff4"
+fg_muted = "#7b88a1"
+fg_accent = "#88c0d0"
+input_bg = "#3b4252"
+input_border = "#4c566a"
+btn_bg = "#3b4252"
+btn_hover = "#434c5e"
+btn_border = "#4c566a"
+btn_disabled_fg = "#4c566a"
+tab_bg = "#3b4252"
+tab_sel = "#434c5e"
+tab_border = "#4c566a"
+check_accent = "#88c0d0"
+green = "#a3be8c"
+red = "#bf616a"
+blue = "#5e81ac"
+
+# Main window
+menu_bg = "#2e3440"
+menu_hover = "#3b4252"
+menu_border = "#4c566a"
+toolbar_bg = "#242933"
+toolbar_border = "#3b4252"
+
+# Analysis pane
+analysis_run_bg = "#3b4252"
+analysis_run_border = "#a3be8c"
+analysis_run_hover = "#434c5e"
+analysis_stop_bg = "#3b4252"
+analysis_stop_border = "#bf616a"
+analysis_stop_hover = "#434c5e"
+disabled_bg = "#242933"
+disabled_fg = "#4c566a"
+caption_fg = "#d8dee9"
+
+# Editor
+editor_play_fg = "#a3be8c"
+editor_cancel_fg = "#bf616a"
+
+# Game analyzer annotations
+ann_brilliant = "#a3be8c"
+ann_good = "#8fbcbb"
+ann_inaccuracy = "#ebcb8b"
+ann_mistake = "#d08770"
+ann_blunder = "#bf616a"
+ann_normal = "#eceff4"
+ann_move_num = "#7b88a1"
+
+# Eval curve
+curve_zero_line = "#434c5e"
+curve_line = "#88c0d0"
+curve_point = "#8fbcbb"
+curve_selected = "#d08770"
+curve_bg = "#242933"
+curve_axis = "#4c566a"
+curve_label = "#7b88a1"
+
+# Scroll area
+scroll_bg = "#242933"
+
+[icons]
+# Breeze-style SVG icon templates — colors substituted at load time via {placeholder}
+# Inspired by KDE Breeze (MIT License). See draughts/themes/ATTRIBUTION.md
+
+checkbox = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <polyline points="3,8 6,11 13,4" stroke="{check_accent}" stroke-width="2"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+radio = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <circle cx="8" cy="8" r="3" fill="{check_accent}"/>
+</svg>"""
+
+arrow = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="2,4 6,8 10,4" stroke="{fg}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+arrow_up = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="2,8 6,4 10,8" stroke="{fg}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+branch_open = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="2,4 6,8 10,4" stroke="{fg_muted}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+branch_closed = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="4,2 8,6 4,10" stroke="{fg_muted}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+close = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <line x1="2" y1="2" x2="10" y2="10" stroke="{fg}" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="10" y1="2" x2="2" y2="10" stroke="{fg}" stroke-width="1.8" stroke-linecap="round"/>
+</svg>"""

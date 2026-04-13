@@ -15,17 +15,18 @@ from pathlib import Path
 class GameSave:
     """Represents a saved game state."""
 
-    difficulty: int = 1  # 1-3
+    difficulty: int = 1  # 1-6 (was 1-3 in legacy saves)
     speed: int = 1  # 1-3
     remind: bool = True  # hint for mandatory captures
     sound_effect: bool = False
     pause: float = 0.75  # animation delay multiplier (0.0-5.0)
+    invert_color: bool = False  # True = player was playing as black
     positions: list[str] = field(default_factory=list)  # history of 32-char board states
     replay_positions: list[str] = field(default_factory=list)  # same positions for playback
 
-    def __post_init__(self):
-        if not 1 <= self.difficulty <= 3:
-            raise ValueError(f"difficulty must be 1-3, got {self.difficulty}")
+    def __post_init__(self) -> None:
+        if not 1 <= self.difficulty <= 6:
+            raise ValueError(f"difficulty must be 1-6, got {self.difficulty}")
         if not 1 <= self.speed <= 3:
             raise ValueError(f"speed must be 1-3, got {self.speed}")
         if not 0.0 <= self.pause <= 5.0:
@@ -59,6 +60,8 @@ def load_game(filepath: str | Path) -> GameSave:
     # Backward compatibility: old saves used "movie" key
     if "movie" in data and "replay_positions" not in data:
         data["replay_positions"] = data.pop("movie")
+    # Old saves don't have invert_color — default to False
+    data.setdefault("invert_color", False)
     return GameSave(**data)
 
 

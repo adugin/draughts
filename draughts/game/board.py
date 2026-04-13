@@ -77,8 +77,8 @@ class Board:
     def piece_at(self, x: int, y: int) -> int:
         """Get piece at position (x, y). Returns EMPTY for out-of-bounds."""
         if not self._in_bounds(x, y):
-            return EMPTY
-        return int(self.grid[y, x])
+            return int(EMPTY)
+        return int(self.grid[y, x])  # type: ignore[return-value]
 
     def place_piece(self, x: int, y: int, piece: int | str) -> None:
         """Place a piece at position (x, y). Accepts int or legacy char."""
@@ -229,7 +229,7 @@ class Board:
 
                 if promoted:
                     # Russian draughts: promoted pawn MUST continue capturing as king
-                    king_piece = WHITE_KING if self.is_white(piece) else BLACK_KING
+                    king_piece = int(WHITE_KING if self.is_white(piece) else BLACK_KING)
                     self._find_king_captures(lx, ly, king_piece, new_path, new_captured, results)
                 else:
                     self._find_pawn_captures(lx, ly, piece, new_path, new_captured, results)
@@ -364,6 +364,71 @@ class Board:
             cx += dx
             cy += dy
         return True
+
+    def check_game_over(
+        self,
+        position_counts: dict[str, int] | None = None,
+        quiet_plies: int = 0,
+        kings_only_plies: int = 0,
+    ) -> tuple[Color | None, str] | None:
+        """Check if the game is over.
+
+        Returns ``(winner, reason)`` if the game ended, or ``None`` if
+        play continues.  ``winner`` is ``None`` for draws.
+
+        Reasons: ``"no_pieces"``, ``"no_moves"``, ``"draw_repetition"``,
+        ``"draw_kings_only"``, ``"draw_no_progress"``, ``"draw_endgame"``.
+
+        Args:
+            position_counts: position → count dict for 3-fold repetition.
+            quiet_plies: consecutive half-moves without captures or pawn
+                advances (for the 30-move no-progress rule: 60 half-moves).
+            kings_only_plies: consecutive half-moves where ALL pieces on
+                the board are kings (for the 15-move rule: 30 half-moves).
+
+        This is the single source of truth for game-over detection,
+        used by both ``GameController`` (GUI) and ``HeadlessGame``.
+        """
+        w = self.count_pieces(Color.WHITE)
+        b = self.count_pieces(Color.BLACK)
+
+        if w == 0:
+            return (Color.BLACK, "no_pieces")
+        if b == 0:
+            return (Color.WHITE, "no_pieces")
+
+        if not self.has_any_move(Color.WHITE):
+            return (Color.BLACK, "no_moves")
+        if not self.has_any_move(Color.BLACK):
+            return (Color.WHITE, "no_moves")
+
+        # 3-fold repetition
+        if position_counts is not None:
+            pos = self.to_position_string()
+            if position_counts.get(pos, 0) >= 3:
+                return (None, "draw_repetition")
+
+        # 2K vs 1K — theoretical draw (Petrov triangle), declare immediately
+        flat = self.grid.ravel()
+        has_pawns = bool(np.any(np.abs(flat) == 1))
+        if not has_pawns:
+            bk = int(np.count_nonzero(flat == 2))
+            wk = int(np.count_nonzero(flat == -2))
+            if (bk == 1 and wk == 1) or (bk == 2 and wk == 1) or (bk == 1 and wk == 2):
+                return (None, "draw_endgame")
+
+        # 15-move all-kings rule (FMJD): 15 moves = 30 half-moves
+        # by both sides with only kings on the board → draw.
+        # Also covers 3K vs 1K (must win within 15 moves).
+        if kings_only_plies >= 30:
+            return (None, "draw_kings_only")
+
+        # 30-move no-progress rule: 30 moves = 60 half-moves
+        # without any capture or pawn advance → draw.
+        if quiet_plies >= 60:
+            return (None, "draw_no_progress")
+
+        return None
 
     def __repr__(self) -> str:
         lines = []

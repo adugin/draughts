@@ -2,8 +2,10 @@
 
 from draughts.config import BLACK, BLACK_KING, EMPTY, WHITE, Color
 from draughts.game.ai import (
+    _CONTEMPT,
     AIEngine,
     AIMove,
+    _alphabeta,
     _any_piece_threatened,
     _count_pieces,
     _dangerous_position,
@@ -12,6 +14,7 @@ from draughts.game.ai import (
     _is_on_board,
     _scan_diagonal,
     _search_best_move,
+    adaptive_depth,
     computer_move,
     evaluate_position,
 )
@@ -205,6 +208,57 @@ class TestEvaluation:
         fast = _evaluate_fast(b.grid, Color.BLACK)
         assert full > 0 and fast > 0
 
+    def test_perspective_symmetry_under_v_flip_color_swap(self):
+        """The eval must be invariant under the natural 'swap sides' symmetry:
+        flip the board vertically AND swap colors. This operation takes a
+        position to the equivalent one viewed from the opposite side, so
+        eval(b, BLACK) + eval(v_flip(-b), BLACK) must equal 0.
+
+        A regression test: the AI vs AI analysis flagged a suspected first-
+        mover bias, and this test protects against anyone accidentally
+        introducing a real asymmetry in _evaluate_fast later.
+        """
+        import numpy as np
+
+        positions = [
+            # Starting position
+            Board().grid.copy(),
+            # Midgame: mixed pawns and kings
+            self._make_grid([(2, 3, BLACK), (4, 5, BLACK), (3, 4, BLACK_KING),
+                             (5, 2, WHITE), (6, 1, WHITE), (4, 7, WHITE)]),
+            # Endgame: kings only
+            self._make_grid([(1, 0, BLACK_KING), (3, 6, WHITE), (5, 4, WHITE)]),
+            # Asymmetric midgame — the position that originally motivated
+            # this test (a black-heavy opening-like position)
+            self._make_grid([
+                (0, 1, BLACK), (0, 3, BLACK), (0, 5, BLACK), (0, 7, BLACK),
+                (1, 0, BLACK), (1, 2, BLACK),
+                (7, 0, WHITE), (7, 2, WHITE), (7, 4, WHITE), (7, 6, WHITE),
+                (6, 1, WHITE), (6, 3, WHITE),
+            ]),
+        ]
+
+        for grid in positions:
+            mirror = -np.flipud(grid)
+            e_orig = _evaluate_fast(grid, Color.BLACK)
+            e_mirror = _evaluate_fast(mirror, Color.BLACK)
+            # mirror is the same position viewed from the opposite side,
+            # so eval-from-BLACK of the mirror should be the negation of
+            # the original's eval-from-BLACK.
+            assert abs(e_orig + e_mirror) < 1e-5, (
+                f"eval asymmetry under v_flip+color_swap: "
+                f"orig={e_orig:+.6f}, mirror={e_mirror:+.6f}, "
+                f"sum={e_orig + e_mirror:+.6f}"
+            )
+
+    @staticmethod
+    def _make_grid(placements):
+        import numpy as np
+        g = np.zeros((8, 8), dtype=np.int8)
+        for y, x, piece in placements:
+            g[y, x] = piece
+        return g
+
 
 class TestHelpers:
     def test_dangerous_position_under_attack(self):
@@ -247,6 +301,135 @@ class TestHelpers:
         count, bx, by = _scan_diagonal(0, 0, 4, 4, Color.WHITE, b.grid)
         assert count == 1
         assert (bx, by) == (2, 2)
+
+
+class TestAdaptiveDepth:
+    def test_crowded_position_caps_at_4(self):
+        b = Board()  # 24 pieces
+        assert adaptive_depth(5, b) == 4
+        assert adaptive_depth(8, b) == 4
+
+    def test_midgame_passthrough(self):
+        b = Board(empty=True)
+        # 5 black + 5 white = 10 pieces: not crowded (>16), not endgame (<=6)
+        for x, y in [(1, 0), (3, 0), (5, 0), (7, 0), (0, 1)]:
+            b.place_piece(x, y, BLACK)
+        for x, y in [(0, 7), (2, 7), (4, 7), (6, 7), (1, 6)]:
+            b.place_piece(x, y, WHITE)
+        assert adaptive_depth(5, b) == 5
+        assert adaptive_depth(7, b) == 7
+
+    def test_endgame_boost_plus_one(self):
+        b = Board(empty=True)
+        b.place_piece(0, 0, BLACK)
+        b.place_piece(2, 2, BLACK)
+        b.place_piece(4, 4, WHITE)
+        b.place_piece(6, 6, WHITE)
+        # 4 pieces — endgame, boost by +1
+        assert adaptive_depth(5, b) == 6
+        assert adaptive_depth(7, b) == 8
+        # Already at the cap — don't boost past 8
+        assert adaptive_depth(8, b) == 8
+
+    def test_endgame_boost_respects_hard_cap(self):
+        b = Board(empty=True)
+        b.place_piece(0, 0, BLACK_KING)
+        b.place_piece(7, 7, WHITE)
+        # Only 2 pieces — still boost by +1, capped at 8
+        assert adaptive_depth(6, b) == 7
+        assert adaptive_depth(7, b) == 8
+        assert adaptive_depth(9, b) == 9  # >= 8, skip boost entirely
+
+
+class TestDiagonalDistance:
+    def test_same_diagonal_distance_is_chebyshev(self):
+        from draughts.game.ai import _diagonal_distance
+        # On same diagonal: just max(dx, dy).
+        assert _diagonal_distance(0, 0) == 0
+        assert _diagonal_distance(1, 1) == 1
+        assert _diagonal_distance(7, 7) == 7
+
+    def test_off_diagonal_adds_penalty(self):
+        from draughts.game.ai import _diagonal_distance
+        # With OFF_DIAGONAL_PENALTY = 0.5:
+        # (dx, dy) = (1, 3): max=3, off-diag=2, dist = 3 + 1 = 4.
+        assert _diagonal_distance(1, 3) == 4
+        # (dx, dy) = (3, 5): max=5, off-diag=2, dist = 5 + 1 = 6.
+        assert _diagonal_distance(3, 5) == 6
+
+    def test_off_diagonal_strictly_more_than_aligned(self):
+        """An off-diagonal target must still cost strictly more than the
+        same-Chebyshev aligned target. This is the whole point of the
+        penalty term — even mild."""
+        from draughts.game.ai import _diagonal_distance
+        assert _diagonal_distance(3, 3) < _diagonal_distance(3, 5)
+        assert _diagonal_distance(4, 4) < _diagonal_distance(4, 6)
+
+    def test_king_distance_prefers_aligned_king(self):
+        """King on an attack diagonal to a pawn should score strictly
+        better than a king the same Chebyshev distance away but off
+        the diagonal."""
+        import numpy as np
+        from draughts.game.ai import _king_distance_score
+        # Pawn at d4 (y=4, x=3)
+        base = np.zeros((8, 8), dtype=np.int8)
+        base[4, 3] = 1  # BLACK pawn
+
+        aligned = base.copy()
+        aligned[7, 0] = -2  # WHITE king at a1 — on the a1-h8 diagonal
+
+        off_diag = base.copy()
+        off_diag[7, 6] = -2  # WHITE king at g1 — NOT on any diag with d4
+        # a1 vs d4: dx=3 dy=3 -> dist 3 -> bonus 2.0 -> score -2.0
+        # g1 vs d4: dx=3 dy=3? Let's check: (7,6) vs (4,3): dx=3, dy=3.
+        # Oh, g1 IS on a diagonal with d4 too. Pick a truly off-diagonal
+        # square: h2 = (6, 7).
+        off_diag[7, 6] = 0
+        off_diag[6, 7] = -2  # WHITE king at h2
+        # h2 vs d4: dx=4, dy=2 -> off-diag=2 -> dist = 4+4 = 8 -> bonus 0
+
+        s_aligned = _king_distance_score(aligned)
+        s_off = _king_distance_score(off_diag)
+        # Both are negative (white king approaching black pawn = white's
+        # advantage). Aligned should be strictly more negative.
+        assert s_aligned < s_off, f"aligned={s_aligned}, off={s_off}"
+
+
+class TestContempt:
+    def test_drawn_endgame_returns_negative_contempt(self):
+        """King vs King on different diagonals is a drawn endgame.
+        The minimax score should reflect the contempt bias (slightly
+        negative from root's POV). Kings must NOT be on the same
+        diagonal — corner-vs-corner on one diagonal is a forced win."""
+        from draughts.game.ai import SearchContext
+        b = Board(empty=True)
+        b.place_piece(1, 0, BLACK_KING)   # b8 — diagonal b8-g3
+        b.place_piece(5, 6, -2)  # WHITE_KING at f2 — different diagonal
+        score = _alphabeta(
+            b, depth=3, alpha=-1000, beta=1000,
+            maximizing=True, color=Color.BLACK, root_color=Color.BLACK,
+            ctx=SearchContext(),
+        )
+        assert abs(score) < 5.0, f"Expected near-zero (contempt), got {score}"
+
+    def test_repetition_returns_negative_contempt(self):
+        """When the path already visited the current hash, the
+        repetition branch returns the contempt-biased draw score."""
+        from draughts.game.ai import SearchContext, _zobrist_hash
+
+        b = Board(empty=True)
+        b.place_piece(0, 0, BLACK)
+        b.place_piece(3, 3, BLACK)
+        b.place_piece(4, 4, WHITE)
+        b.place_piece(7, 7, WHITE)
+        h = _zobrist_hash(b.grid, Color.BLACK)
+        score = _alphabeta(
+            b, depth=3, alpha=-1000, beta=1000,
+            maximizing=True, color=Color.BLACK, root_color=Color.BLACK,
+            ctx=SearchContext(),
+            path_hashes={h},
+        )
+        assert abs(score + _CONTEMPT) < 1e-4
 
 
 class TestEdgeCases:

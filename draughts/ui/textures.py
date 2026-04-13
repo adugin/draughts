@@ -203,15 +203,89 @@ def _draw_elegant_crown(painter: QPainter, cx: float, cy: float, size: float, is
         painter.drawEllipse(QPointF(gx, top + size * 0.15), gem_r, gem_r)
 
 
-class TextureCache:
-    """Caches generated textures at specific sizes to avoid regeneration."""
+def generate_flat_tile(size: int, color: tuple[int, int, int]) -> QPixmap:
+    """Generate a flat-color tile for the classic light theme.
 
-    def __init__(self):
+    A very subtle noise is added so the board doesn't look completely
+    computer-generated; the effect is barely visible at normal board sizes.
+    """
+    rng = np.random.RandomState(42)
+    arr = np.zeros((size, size, 3), dtype=np.uint8)
+    r, g, b = color
+    for y in range(size):
+        for x in range(size):
+            noise = rng.random() * 0.04 - 0.02  # ±2% jitter
+            arr[y, x, 0] = max(0, min(255, int(r * (1 + noise))))
+            arr[y, x, 1] = max(0, min(255, int(g * (1 + noise))))
+            arr[y, x, 2] = max(0, min(255, int(b * (1 + noise))))
+    img = QImage(arr.data, size, size, size * 3, QImage.Format.Format_RGB888)
+    return QPixmap.fromImage(img.copy())
+
+
+# Classic light theme colors — chess.com / lichess palette (well-known)
+_CLASSIC_LIGHT_SQUARE: tuple[int, int, int] = (0xF0, 0xD9, 0xB5)  # cream
+_CLASSIC_DARK_SQUARE: tuple[int, int, int] = (0xB5, 0x88, 0x63)   # brown
+_CLASSIC_FRAME: tuple[int, int, int] = (0x8B, 0x67, 0x4E)         # warm medium brown
+
+
+class TextureCache:
+    """Caches generated textures at specific sizes to avoid regeneration.
+
+    The active *theme* determines which cell textures are used:
+      - ``"dark_wood"`` (default): procedural dark walnut + maple grain
+      - ``"classic_light"``: flat cream + brown (chess.com / lichess palette)
+    """
+
+    #: Supported theme names.
+    THEMES: tuple[str, ...] = ("dark_wood", "classic_light")
+
+    def __init__(self, theme: str = "dark_wood"):
+        self._theme: str = theme if theme in self.THEMES else "dark_wood"
         self._light_wood: dict[int, QPixmap] = {}
         self._dark_wood: dict[int, QPixmap] = {}
+        # classic_light caches
+        self._classic_light_sq: dict[int, QPixmap] = {}
+        self._classic_dark_sq: dict[int, QPixmap] = {}
+        self._classic_frame: dict[int, QPixmap] = {}
         self._felt: QPixmap | None = None
         self._felt_size: tuple[int, int] = (0, 0)
         self._frame_wood: dict[int, QPixmap] = {}
+
+    @property
+    def theme(self) -> str:
+        return self._theme
+
+    @theme.setter
+    def theme(self, value: str) -> None:
+        if value not in self.THEMES:
+            raise ValueError(f"Unknown theme {value!r}; choose from {self.THEMES}")
+        self._theme = value
+
+    # ------------------------------------------------------------------
+    # Public cell-texture accessors — theme-aware
+    # ------------------------------------------------------------------
+
+    def get_light_cell(self, cell_size: int) -> QPixmap:
+        """Return the light-square texture for the current theme."""
+        if self._theme == "classic_light":
+            return self._get_classic_light_sq(cell_size)
+        return self.get_light_wood(cell_size)
+
+    def get_dark_cell(self, cell_size: int) -> QPixmap:
+        """Return the dark-square texture for the current theme."""
+        if self._theme == "classic_light":
+            return self._get_classic_dark_sq(cell_size)
+        return self.get_dark_wood(cell_size)
+
+    def get_frame(self, size: int) -> QPixmap:
+        """Return the frame texture for the current theme."""
+        if self._theme == "classic_light":
+            return self._get_classic_frame(size)
+        return self.get_frame_wood(size)
+
+    # ------------------------------------------------------------------
+    # Dark-wood theme (unchanged — do not alter appearance)
+    # ------------------------------------------------------------------
 
     def get_light_wood(self, cell_size: int) -> QPixmap:
         if cell_size not in self._light_wood:
@@ -249,8 +323,32 @@ class TextureCache:
             )
         return self._frame_wood[size]
 
+    # ------------------------------------------------------------------
+    # Classic-light theme helpers
+    # ------------------------------------------------------------------
+
+    def _get_classic_light_sq(self, cell_size: int) -> QPixmap:
+        if cell_size not in self._classic_light_sq:
+            self._classic_light_sq[cell_size] = generate_flat_tile(cell_size, _CLASSIC_LIGHT_SQUARE)
+        return self._classic_light_sq[cell_size]
+
+    def _get_classic_dark_sq(self, cell_size: int) -> QPixmap:
+        if cell_size not in self._classic_dark_sq:
+            self._classic_dark_sq[cell_size] = generate_flat_tile(cell_size, _CLASSIC_DARK_SQUARE)
+        return self._classic_dark_sq[cell_size]
+
+    def _get_classic_frame(self, size: int) -> QPixmap:
+        if size not in self._classic_frame:
+            self._classic_frame[size] = generate_flat_tile(size, _CLASSIC_FRAME)
+        return self._classic_frame[size]
+
+    # ------------------------------------------------------------------
+
     def clear(self):
         self._light_wood.clear()
         self._dark_wood.clear()
+        self._classic_light_sq.clear()
+        self._classic_dark_sq.clear()
+        self._classic_frame.clear()
         self._felt = None
         self._frame_wood.clear()

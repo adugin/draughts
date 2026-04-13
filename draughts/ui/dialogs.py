@@ -13,20 +13,36 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
-    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSlider,
     QSpinBox,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
 from draughts.config import GameSettings
+from draughts.game.ai.elo import ELO_LEVELS
+
+# Re-export from theme.py for backward compat
+from draughts.ui.theme import combobox_qss as combobox_qss
+from draughts.ui.theme_engine import apply_theme as _apply_engine_theme
+
+
+def apply_dialog_theme(dialog: QDialog, theme_name: str | None = None) -> None:
+    """Apply the project's theme colors to any QDialog.
+
+    Uses the centralized theme engine for consistent styling.
+    """
+    if theme_name is None:
+        theme_name = "dark_wood"
+    _apply_engine_theme(dialog, theme_name)
+
 
 # ---------------------------------------------------------------------------
 # 1. OptionsDialog
@@ -34,7 +50,15 @@ from draughts.config import GameSettings
 
 
 class OptionsDialog(QDialog):
-    """Settings dialog — difficulty, speed, hints, sound, delay, etc."""
+    """Settings dialog -- tabbed layout (D15).
+
+    Tab 1: Игра      -- side, Elo level, mandatory-capture hint
+    Tab 2: Движок    -- hash size, threads (stub), opening book (stub),
+                       endgame bitbase (stub), depth override (dev)
+    Tab 3: Интерфейс -- animation speed, coordinates, last-move highlight,
+                       show legal moves on hover
+    Tab 4: Анализ    -- stub placeholder for M3 analysis features
+    """
 
     def __init__(self, settings: GameSettings, parent: QWidget | None = None):
         super().__init__(parent)
@@ -42,142 +66,241 @@ class OptionsDialog(QDialog):
         self.setModal(True)
 
         self._settings = settings
+        self._dev_mode: bool = getattr(settings, "dev_mode", False)
 
-        layout = QFormLayout(self)
+        # Apply theme-aware stylesheet via the theme engine
+        theme = getattr(settings, "board_theme", "dark_wood")
+        self._apply_dialog_theme(theme)
 
-        # Difficulty
-        self._difficulty = QComboBox()
-        self._difficulty.addItems(["Любитель", "Нормал", "Профессионал"])
-        self._difficulty.setCurrentIndex(settings.difficulty - 1)
-        layout.addRow("Сложность:", self._difficulty)
+        outer = QVBoxLayout(self)
 
-        # Remind
-        self._remind = QCheckBox("Подсказка взятия")
-        self._remind.setChecked(settings.remind)
-        layout.addRow(self._remind)
+        tabs = QTabWidget()
+        outer.addWidget(tabs)
 
-        # Pause (delay multiplier)
-        self._pause = QDoubleSpinBox()
-        self._pause.setRange(0.0, 5.0)
-        self._pause.setSingleStep(0.25)
-        self._pause.setDecimals(2)
-        self._pause.setValue(settings.pause)
-        layout.addRow("Задержка:", self._pause)
+        tabs.addTab(self._build_game_tab(settings), "Игра")
+        tabs.addTab(self._build_engine_tab(settings), "Движок")
+        tabs.addTab(self._build_ui_tab(settings), "Интерфейс")
+        tabs.addTab(self._build_analysis_tab(), "Анализ")
 
-        # Search depth
-        self._search_depth = QSpinBox()
-        self._search_depth.setRange(0, 10)
-        self._search_depth.setValue(settings.search_depth)
-        self._search_depth.setSpecialValueText("Авто")
-        self._search_depth.setToolTip("0 = автоматически из сложности, 1-10 = ручная глубина")
-        layout.addRow("Глубина поиска:", self._search_depth)
-
-        # Invert color
-        self._invert_color = QCheckBox("Играть чёрными")
-        self._invert_color.setChecked(settings.invert_color)
-        layout.addRow(self._invert_color)
-
-        # Buttons
+        # OK / Cancel
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Ок")
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        layout.addRow(buttons)
+        outer.addWidget(buttons)
 
-        self.setMinimumWidth(280)
+        self.setMinimumWidth(400)
+
+    def _apply_dialog_theme(self, theme_name: str) -> None:
+        _apply_engine_theme(self, theme_name)
+
+    # ------------------------------------------------------------------
+    # Tab builders
+    # ------------------------------------------------------------------
+
+    def _build_game_tab(self, s: GameSettings) -> QWidget:
+        page = QWidget()
+        form = QFormLayout(page)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+
+        # Side — radio-style via combobox (keeps layout compact)
+        self._side = QComboBox()
+        self._side.addItem("Белые")
+        self._side.addItem("Чёрные")
+        self._side.setCurrentIndex(1 if s.invert_color else 0)
+        form.addRow("Сторона:", self._side)
+
+        # Elo level — combobox populated from ELO_LEVELS
+        self._difficulty = QComboBox()
+        for lvl in sorted(ELO_LEVELS):
+            self._difficulty.addItem(ELO_LEVELS[lvl]["label"])
+        # clamp to valid range
+        idx = max(0, min(len(ELO_LEVELS) - 1, s.difficulty - 1))
+        self._difficulty.setCurrentIndex(idx)
+        form.addRow("Уровень:", self._difficulty)
+
+        # Mandatory-capture hint
+        self._remind = QCheckBox("Подсказывать обязательное взятие")
+        self._remind.setChecked(s.remind)
+        form.addRow(self._remind)
+
+        # Informational note about mandatory-capture rule
+        rule_label = QLabel(
+            "<i>По правилам русских шашек взятие обязательно.<br>При нарушении шашка противника конфискуется.</i>"
+        )
+        rule_label.setWordWrap(True)
+        rule_label.setTextFormat(Qt.TextFormat.RichText)
+        form.addRow(rule_label)
+
+        return page
+
+    def _build_engine_tab(self, s: GameSettings) -> QWidget:
+        page = QWidget()
+        form = QFormLayout(page)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+
+        # Hash size (MB) — wired to settings, TT resize not yet implemented
+        self._hash_size = QSpinBox()
+        self._hash_size.setRange(4, 1024)
+        self._hash_size.setSuffix(" МБ")
+        self._hash_size.setValue(getattr(s, "hash_size_mb", 32))
+        self._hash_size.setToolTip("Размер таблицы транспозиций. Изменение вступит в силу в следующей партии.")
+        form.addRow("Хэш-таблица:", self._hash_size)
+
+        # Threads — stub, always 1, disabled
+        self._threads = QSpinBox()
+        self._threads.setRange(1, 1)
+        self._threads.setValue(1)
+        # STUB(M5): SMP не реализовано, включить при реализации многопоточного поиска
+        self._threads.setEnabled(False)
+        self._threads.setToolTip("Многопоточный поиск (планируется в будущих версиях)")
+        form.addRow("Потоки:", self._threads)
+
+        # Opening book (D8)
+        self._opening_book = QCheckBox("Дебютная книга")
+        self._opening_book.setChecked(s.use_opening_book)
+        self._opening_book.setToolTip("Использовать книгу дебютов для первых ходов")
+        form.addRow(self._opening_book)
+
+        # Endgame bitbase (D9)
+        self._bitbase = QCheckBox("Эндшпильная база")
+        self._bitbase.setChecked(s.use_endgame_bitbase)
+        self._bitbase.setToolTip("Использовать базу эндшпилей для точной игры в окончаниях")
+        form.addRow(self._bitbase)
+
+        # Depth override — only enabled in dev mode
+        self._search_depth = QSpinBox()
+        self._search_depth.setRange(0, 16)
+        self._search_depth.setValue(s.search_depth)
+        self._search_depth.setSpecialValueText("Авто")
+        self._search_depth.setToolTip("0 = автоматически из уровня, 1-16 = принудительная глубина (dev)")
+        self._search_depth.setEnabled(self._dev_mode)
+        lbl = QLabel("Глубина (dev):")
+        lbl.setEnabled(self._dev_mode)
+        form.addRow(lbl, self._search_depth)
+
+        return page
+
+    def _build_ui_tab(self, s: GameSettings) -> QWidget:
+        page = QWidget()
+        form = QFormLayout(page)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+
+        # Board theme selector (D18) — dynamically populated from theme files
+        from draughts.ui.theme_engine import get_theme as _get_theme
+        from draughts.ui.theme_engine import list_themes
+
+        self._board_theme = QComboBox()
+        for theme_stem in list_themes():
+            try:
+                t = _get_theme(theme_stem)
+                self._board_theme.addItem(t.display_name, userData=theme_stem)
+            except Exception:
+                self._board_theme.addItem(theme_stem, userData=theme_stem)
+        # Fallback: ensure at least the two built-in themes are listed
+        if self._board_theme.count() == 0:
+            self._board_theme.addItem("Тёмное дерево", userData="dark_wood")
+            self._board_theme.addItem("Классическая светлая", userData="classic_light")
+        current_theme = getattr(s, "board_theme", "dark_wood")
+        theme_idx = self._board_theme.findData(current_theme)
+        if theme_idx >= 0:
+            self._board_theme.setCurrentIndex(theme_idx)
+        # Live preview: apply theme immediately on selection change
+        self._board_theme.currentIndexChanged.connect(self._on_theme_preview)
+        form.addRow("Тема доски:", self._board_theme)
+
+        # Animation speed slider (maps pause 0.0-2.0 to slider 0-8)
+        self._anim_slider = QSlider(Qt.Orientation.Horizontal)
+        self._anim_slider.setRange(0, 8)
+        self._anim_slider.setTickInterval(1)
+        self._anim_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        slider_val = round(s.pause / 0.25)
+        self._anim_slider.setValue(max(0, min(8, slider_val)))
+        self._anim_slider.setToolTip("0 = без анимации, 8 = медленно (пауза 2 с)")
+        form.addRow("Скорость анимации:", self._anim_slider)
+
+        # Show coordinates
+        self._show_coords = QCheckBox("Показывать координаты")
+        self._show_coords.setChecked(getattr(s, "show_coordinates", False))
+        form.addRow(self._show_coords)
+
+        # Highlight last move
+        self._highlight_last = QCheckBox("Подсвечивать последний ход")
+        self._highlight_last.setChecked(getattr(s, "highlight_last_move", True))
+        form.addRow(self._highlight_last)
+
+        # Show legal moves on hover
+        self._show_legal = QCheckBox("Показывать возможные ходы при наведении")
+        self._show_legal.setChecked(getattr(s, "show_legal_moves_hover", False))
+        form.addRow(self._show_legal)
+
+        return page
+
+    def _on_theme_preview(self, _index: int) -> None:
+        """Live-preview the selected theme on this dialog."""
+        theme_stem = self._board_theme.currentData() or "dark_wood"
+        self._apply_dialog_theme(theme_stem)
+        # Also propagate to the parent main window for instant feedback
+        parent = self.parent()
+        if parent is not None and hasattr(parent, "_apply_theme"):
+            parent._apply_theme(theme_stem)
+
+    def _build_analysis_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        info = QLabel(
+            "<b>Панель анализа</b> — F3 или меню Анализ<br>"
+            "<b>Анализ партии</b> — меню Анализ → Проанализировать партию<br><br>"
+            "Настройки анализа будут добавлены в будущих версиях."
+        )
+        info.setTextFormat(Qt.TextFormat.RichText)
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        return page
+
+    # ------------------------------------------------------------------
+    # Result
+    # ------------------------------------------------------------------
 
     def get_settings(self) -> GameSettings:
-        """Return a new GameSettings with values from the dialog controls."""
+        """Return a new GameSettings populated from all tab controls."""
+        pause_val = round(self._anim_slider.value() * 0.25, 2)
+        board_theme = self._board_theme.currentData() or "dark_wood"
         s = GameSettings(
             difficulty=self._difficulty.currentIndex() + 1,
             remind=self._remind.isChecked(),
-            pause=self._pause.value(),
-            invert_color=self._invert_color.isChecked(),
+            pause=pause_val,
+            invert_color=(self._side.currentIndex() == 1),
             search_depth=self._search_depth.value(),
+            board_theme=board_theme,
+            show_coordinates=self._show_coords.isChecked(),
+            highlight_last_move=self._highlight_last.isChecked(),
+            show_legal_moves_hover=self._show_legal.isChecked(),
+            hash_size_mb=self._hash_size.value(),
+            use_opening_book=self._opening_book.isChecked(),
+            use_endgame_bitbase=self._bitbase.isChecked(),
+            use_tuned_eval=self._settings.use_tuned_eval,
         )
         return s
 
 
 # ---------------------------------------------------------------------------
-# 2. DevelopmentDialog
-# ---------------------------------------------------------------------------
-
-
-class DevelopmentDialog(QDialog):
-    """Learning control dialog — choose which outcomes trigger DB updates."""
-
-    def __init__(self, settings: GameSettings, parent: QWidget | None = None):
-        super().__init__(parent)
-        self.setWindowTitle("Развитие")
-        self.setModal(True)
-
-        layout = QVBoxLayout(self)
-
-        group = QGroupBox("Предмет развития")
-        group_layout = QVBoxLayout(group)
-
-        self._black_win = QCheckBox("Победа чёрных")
-        self._black_win.setChecked(settings.black_win)
-        group_layout.addWidget(self._black_win)
-
-        self._white_win = QCheckBox("Победа белых")
-        self._white_win.setChecked(settings.white_win)
-        group_layout.addWidget(self._white_win)
-
-        self._black_lose = QCheckBox("Проигрыш чёрных")
-        self._black_lose.setChecked(settings.black_lose)
-        group_layout.addWidget(self._black_lose)
-
-        self._white_lose = QCheckBox("Проигрыш белых")
-        self._white_lose.setChecked(settings.white_lose)
-        group_layout.addWidget(self._white_lose)
-
-        layout.addWidget(group)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Ок")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    @property
-    def black_win(self) -> bool:
-        return self._black_win.isChecked()
-
-    @property
-    def white_win(self) -> bool:
-        return self._white_win.isChecked()
-
-    @property
-    def black_lose(self) -> bool:
-        return self._black_lose.isChecked()
-
-    @property
-    def white_lose(self) -> bool:
-        return self._white_lose.isChecked()
-
-    def apply_to(self, settings: GameSettings) -> None:
-        """Apply the dialog values to an existing GameSettings object."""
-        settings.black_win = self.black_win
-        settings.white_win = self.white_win
-        settings.black_lose = self.black_lose
-        settings.white_lose = self.white_lose
-
-
-# ---------------------------------------------------------------------------
-# 3. InfoDialog
+# 2. InfoDialog
 # ---------------------------------------------------------------------------
 
 
 class InfoDialog(QDialog):
     """Scrollable help text dialog loaded from resources/help.txt."""
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, parent: QWidget | None = None, theme: str = "dark_wood"):
         super().__init__(parent)
         self.setWindowTitle("Информация")
         self.setModal(True)
+        apply_dialog_theme(self, theme)
 
         layout = QVBoxLayout(self)
 
@@ -219,16 +342,20 @@ class InfoDialog(QDialog):
 class AboutDialog(QDialog):
     """About the author / program dialog."""
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, parent: QWidget | None = None, theme: str = "dark_wood"):
         super().__init__(parent)
         self.setWindowTitle("Об авторе")
         self.setModal(True)
+        apply_dialog_theme(self, theme)
 
         layout = QVBoxLayout(self)
 
+        import draughts
+        from draughts.config import APP_NAME
+
         info = QLabel(
-            "<h3>Шашки</h3>"
-            "<p>Based on original by <b>Andrey Dugin</b> (1998–2000)</p>"
+            f"<h3>{APP_NAME} v{draughts.__version__}</h3>"
+            f"<p>Based on original by <b>{draughts.__author__}</b> (1998–2000)</p>"
             "<p>Borland Pascal 7.0 → Python / PyQt6</p>"
             "<p>Русские шашки 8×8 с ИИ-противником</p>"
         )
@@ -249,17 +376,28 @@ class AboutDialog(QDialog):
 
 
 def show_save_dialog(parent: QWidget | None = None) -> str | None:
-    """Show a native file-save dialog for JSON game files.
+    """Show a native file-save dialog.
 
-    Returns the selected file path, or None if cancelled.
+    PDN is the default format; JSON is offered for backward compatibility.
+    Returns the selected file path (with extension), or None if cancelled.
     """
-    filepath, _ = QFileDialog.getSaveFileName(
+    filepath, selected_filter = QFileDialog.getSaveFileName(
         parent,
         "Сохранить партию",
         "",
-        "JSON файлы (*.json);;Все файлы (*)",
+        "PDN файлы (*.pdn);;JSON файлы (*.json);;Все файлы (*)",
     )
-    return filepath if filepath else None
+    if not filepath:
+        return None
+    # Ensure correct extension based on chosen filter
+    from pathlib import Path as _Path
+
+    p = _Path(filepath)
+    if not p.suffix and "PDN" in selected_filter:
+        filepath = filepath + ".pdn"
+    elif not p.suffix and "JSON" in selected_filter:
+        filepath = filepath + ".json"
+    return filepath
 
 
 # ---------------------------------------------------------------------------
@@ -268,15 +406,16 @@ def show_save_dialog(parent: QWidget | None = None) -> str | None:
 
 
 def show_load_dialog(parent: QWidget | None = None) -> str | None:
-    """Show a native file-open dialog for JSON game files.
+    """Show a native file-open dialog.
 
+    PDN is the primary format; JSON legacy saves are also accepted.
     Returns the selected file path, or None if cancelled.
     """
     filepath, _ = QFileDialog.getOpenFileName(
         parent,
         "Открыть партию",
         "",
-        "JSON файлы (*.json);;Все файлы (*)",
+        "Файлы партий (*.pdn *.json);;PDN файлы (*.pdn);;JSON файлы (*.json);;Все файлы (*)",
     )
     return filepath if filepath else None
 
@@ -296,16 +435,19 @@ class GameOverDialog(QDialog):
         self,
         message: str,
         parent: QWidget | None = None,
+        theme: str = "dark_wood",
     ):
         """Create the game-over dialog.
 
         Args:
             message: Display text, e.g. "Вы выиграли!", "Вы проиграли!", "Ничья!"
             parent: Parent widget.
+            theme: Board theme name for consistent dialog styling.
         """
         super().__init__(parent)
         self.setWindowTitle("Конец игры")
         self.setModal(True)
+        apply_dialog_theme(self, theme)
 
         self._result_action = self.RESULT_EXIT
 
@@ -355,10 +497,11 @@ class GameOverDialog(QDialog):
 class ConfirmExitDialog(QDialog):
     """Exit confirmation dialog — 'Are you sure you want to quit?'"""
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, parent: QWidget | None = None, theme: str = "dark_wood"):
         super().__init__(parent)
         self.setWindowTitle("Выход")
         self.setModal(True)
+        apply_dialog_theme(self, theme)
 
         layout = QVBoxLayout(self)
 
@@ -389,14 +532,17 @@ class ConfiscateWarningDialog(QDialog):
         self,
         piece_position: str,
         parent: QWidget | None = None,
+        theme: str = "dark_wood",
     ):
         """Create the confiscation warning.
 
         Args:
             piece_position: Human-readable position string, e.g. "c3".
             parent: Parent widget.
+            theme: Board theme name for styling.
         """
         super().__init__(parent)
+        apply_dialog_theme(self, theme)
         self.setWindowTitle("Предупреждение")
         self.setModal(True)
 

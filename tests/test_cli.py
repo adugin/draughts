@@ -24,7 +24,6 @@ class TestArgParser:
         assert args.savefile is None
         assert args.resume is False
         assert args.difficulty is None
-        assert args.depth is None
         assert args.black is False
 
     def test_savefile(self):
@@ -40,24 +39,20 @@ class TestArgParser:
             args = _build_parser().parse_args(["--difficulty", str(d)])
             assert args.difficulty == d
 
-    def test_depth(self):
-        args = _build_parser().parse_args(["--depth", "8"])
-        assert args.depth == 8
-
     def test_black(self):
         args = _build_parser().parse_args(["--black"])
         assert args.black is True
 
     def test_combined(self):
-        args = _build_parser().parse_args(["save.json", "--difficulty", "3", "--black", "--depth", "6"])
+        args = _build_parser().parse_args(["save.json", "--difficulty", "3", "--black"])
         assert args.savefile == "save.json"
         assert args.difficulty == 3
         assert args.black is True
-        assert args.depth == 6
 
-    def test_invalid_difficulty_rejected(self):
+    def test_depth_not_accepted(self):
+        """--depth is a dev-only flag (D23) and must not be accepted by main.py."""
         result = subprocess.run(
-            [sys.executable, "main.py", "--difficulty", "5"],
+            [sys.executable, "main.py", "--depth", "8"],
             capture_output=True,
             text=True,
         )
@@ -66,14 +61,6 @@ class TestArgParser:
     def test_missing_file_rejected(self):
         result = subprocess.run(
             [sys.executable, "main.py", "no_such_file_12345.json"],
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode == 2
-
-    def test_depth_out_of_range_rejected(self):
-        result = subprocess.run(
-            [sys.executable, "main.py", "--depth", "99"],
             capture_output=True,
             text=True,
         )

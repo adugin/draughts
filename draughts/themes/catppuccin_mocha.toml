@@ -1,0 +1,112 @@
+# Catppuccin Mocha theme for DRAUGHTS
+# Warm dark palette with pastel accents — based on the Catppuccin project.
+# https://catppuccin.com/palette/
+
+[meta]
+name = "Catppuccin Mocha"
+display_name = "Catppuccin Мокко"
+author = "DRAUGHTS Team (palette: Catppuccin)"
+version = "1.0"
+board_style = "dark_wood"
+
+[colors]
+# Base tones
+bg = "#1e1e2e"
+bg_deep = "#11111b"
+fg = "#cdd6f4"
+fg_muted = "#6c7086"
+fg_accent = "#b4befe"
+input_bg = "#313244"
+input_border = "#45475a"
+btn_bg = "#313244"
+btn_hover = "#45475a"
+btn_border = "#585b70"
+btn_disabled_fg = "#45475a"
+tab_bg = "#313244"
+tab_sel = "#45475a"
+tab_border = "#585b70"
+check_accent = "#b4befe"
+green = "#a6e3a1"
+red = "#f38ba8"
+blue = "#89b4fa"
+
+# Main window
+menu_bg = "#181825"
+menu_hover = "#313244"
+menu_border = "#45475a"
+toolbar_bg = "#11111b"
+toolbar_border = "#313244"
+
+# Analysis pane
+analysis_run_bg = "#313244"
+analysis_run_border = "#a6e3a1"
+analysis_run_hover = "#45475a"
+analysis_stop_bg = "#313244"
+analysis_stop_border = "#f38ba8"
+analysis_stop_hover = "#45475a"
+disabled_bg = "#181825"
+disabled_fg = "#45475a"
+caption_fg = "#a6adc8"
+
+# Editor
+editor_play_fg = "#a6e3a1"
+editor_cancel_fg = "#f38ba8"
+
+# Game analyzer annotations
+ann_brilliant = "#a6e3a1"
+ann_good = "#94e2d5"
+ann_inaccuracy = "#f9e2af"
+ann_mistake = "#fab387"
+ann_blunder = "#f38ba8"
+ann_normal = "#cdd6f4"
+ann_move_num = "#6c7086"
+
+# Eval curve
+curve_zero_line = "#45475a"
+curve_line = "#b4befe"
+curve_point = "#cba6f7"
+curve_selected = "#fab387"
+curve_bg = "#11111b"
+curve_axis = "#585b70"
+curve_label = "#6c7086"
+
+# Scroll area
+scroll_bg = "#11111b"
+
+[icons]
+# Breeze-style SVG icon templates — colors substituted at load time via {placeholder}
+# Inspired by KDE Breeze (MIT License). See draughts/themes/ATTRIBUTION.md
+
+checkbox = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <polyline points="3,8 6,11 13,4" stroke="{check_accent}" stroke-width="2"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+radio = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <circle cx="8" cy="8" r="3" fill="{check_accent}"/>
+</svg>"""
+
+arrow = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="2,4 6,8 10,4" stroke="{fg}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+arrow_up = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="2,8 6,4 10,8" stroke="{fg}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+branch_open = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="2,4 6,8 10,4" stroke="{fg_muted}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+branch_closed = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <polyline points="4,2 8,6 4,10" stroke="{fg_muted}" stroke-width="1.8"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+close = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12">
+  <line x1="2" y1="2" x2="10" y2="10" stroke="{fg}" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="10" y1="2" x2="2" y2="10" stroke="{fg}" stroke-width="1.8" stroke-linecap="round"/>
+</svg>"""

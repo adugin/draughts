@@ -1,0 +1,19 @@
+{
+  "pawn_value": 1.9018,
+  "king_value": 5.7053,
+  "advance_bonus": 0.4321,
+  "center_bonus": -0.0752,
+  "safety_bonus": 0.0436,
+  "connected_bonus": 0.0014,
+  "golden_corner": 0.1121,
+  "king_center_weight": -0.9321,
+  "king_distance_weight": 0.0792,
+  "_meta": {
+    "mse_before": 0.1258143,
+    "mse_after": 0.0937814,
+    "improvement": 0.03203291,
+    "n_samples": 2780,
+    "k": 0.2,
+    "optimizer": "CONVERGENCE: RELATIVE REDUCTION OF F <= FACTR*EPSMCH"
+  }
+}
