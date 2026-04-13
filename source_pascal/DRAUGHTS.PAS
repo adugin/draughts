@@ -1,25 +1,92 @@
+{ ============================================================================ }
+{ DRAUGHTS.PAS -- Main program for Russian Draughts (Checkers) game             }
+{                                                                              }
+{ Written in Borland Pascal 7.0, circa 1998-2000, by Andrey Dugin.            }
+{                                                                              }
+{ This single file contains the ENTIRE application:                            }
+{   - Board drawing and UI (buttons, windows, dialogs)                         }
+{   - Game rules and move validation                                           }
+{   - AI engine (Monte Carlo random-trial search, tactical sacrifices)         }
+{   - File I/O (save, load, autosave, replay)                                 }
+{   - Splash screen, animations, and sound effects                            }
+{   - Main game loop with mouse-driven interaction                            }
+{                                                                              }
+{ Board encoding:                                                              }
+{   'b' = black regular piece    'B' = black king                              }
+{   'w' = white regular piece    'W' = white king                              }
+{   'n' = empty dark square                                                    }
+{ Black = AI (top of board), White = human player (bottom of board).           }
+{ Board coordinates: (1,1)=top-left .. (x0,y0)=bottom-right, y grows down.    }
+{ Dark squares satisfy: x mod 2 <> y mod 2                                    }
+{ ============================================================================ }
 {$A+,B-,D+,E+,F-,G-,I-,L+,N-,O-,P-,Q-,R-,S+,T-,V+,X+}
 {$M 65520,0,655360}
 uses crt,graph,mouse,comander,dos;
+
+{ --- Type and constant declarations --- }
+{ alphabet: helper set type for character range checks }
 type alphabet=set of 'A'..'z';
+
+{ Piece character sets for quick membership tests:
+  whites = regular white 'w' and white king 'W'
+  blacks = regular black 'b' and black king 'B'
+  damkas = all kings (both colors) }
 const whites:alphabet=['w','W'];
       blacks:alphabet=['b','B'];
       damkas:alphabet=['W','B'];
+
+      { Board dimensions: 8x8 for Russian draughts (8 columns, 8 rows) }
       x0=8;
       y0=8;
+
+      { width  = pixel size of one board square (40x40 pixels)
+        border = pixel width of the border around each square }
       width=40;
       border=2;
+
+      { NeedToSave = material difference threshold for saving position to database
+        depth0     = default lookahead depth for AI virtual beat analysis
+        maxrnd     = number of random trials in Monte Carlo move search }
       NeedToSave=1;
       depth0=1;
       maxrnd=1000;
+
+      { Algebraic notation arrays:
+        digits maps row index 1..8 to rank labels '8'..'1' (top-to-bottom)
+        abc maps column index 1..8 to file labels 'a'..'h' }
       digits:array[1..y0] of char='87654321';
       abc:array[1..x0] of char='abcdefgh';
+
+      { cursor color for highlighting the currently selected piece }
       cursor=lightmagenta;
+
+      { The four diagonal directions as (dx, dy) pairs:
+        dir[1] = up-left    (-1,+1)   dir[2] = up-right   (+1,+1)
+        dir[3] = down-right (+1,-1)   dir[4] = down-left  (-1,-1)
+        Note: y increases downward on screen, so +1 = down visually }
       dir:array [1..4,1..2] of shortint=((-1,1),(1,1),(1,-1),(-1,-1));
+
+      { stroka0 = starting text row for the move notation display panel }
       stroka0=9;
+
+{ Game data types:
+  chessboard = 8x8 character array representing the board state
+  variants   = array of move steps: [0] = start position, [1..6] = (direction, distance) pairs
+  memory     = ring buffer of 3 serialized board states for opening book learning }
 type chessboard=array[1..y0,1..x0] of char;
      variants=array[0..6,1..2] of shortint;
      memory=array[1..3] of string[32];
+
+{ Global game state variables:
+  field      = the current actual board state
+  model      = temporary copy for AI calculations and move validation
+  whitefield = board snapshot before human's move (for learning database)
+  blackfield = board snapshot before AI's move (for learning database)
+  score, maxscore = AI evaluation accumulators
+  try, optimum    = current and best move sequences during AI search
+  whitestr, blackstr, helpstr = 3-position history for opening book learning
+  place      = coordinates of intermediate capture positions (multi-jump)
+  Various integer/boolean/string variables for UI state, counters, flags }
 var model,field,whitefield,blackfield:chessboard;
     score,maxscore:shortint;
     try,optimum:variants;
@@ -40,15 +107,22 @@ var model,field,whitefield,blackfield:chessboard;
     difficulty,speed,language:byte;
     pause:real;
     hour,minute,second,sec100:word;
-{---------------------------------------------------------------------------}
+
+{ Forward declaration for the keyboard handler function.
+  Defined later; needed because it's called by procedures declared before it. }
 function commander:boolean;forward;
-{---------------------------------------------------------------------------}
+
+{ Returns the color constant (black or white) of the piece at board position (x,y).
+  Looks up the character in the board array and checks membership in blacks/whites sets. }
 function dcolor(x,y:byte;mas:chessboard):byte;
 begin
   if mas[y,x] in blacks then dcolor:=black else
   if mas[y,x] in whites then dcolor:=white;
 end;
-{---------------------------------------------------------------------------}
+
+{ Translates a logical color to a display color, accounting for board inversion.
+  When invertcolor=true (human plays black), swaps black<=>white for rendering.
+  When invertcolor=false (normal), returns the color unchanged. }
 function getcolor(color:byte):byte;
 begin
   if invertcolor=true then
@@ -59,7 +133,12 @@ begin
   end else
   getcolor:=color;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Serializes a board state into a 32-character string.
+  Iterates over all dark squares (x mod 2 <> y mod 2) in row-major order,
+  concatenating the character at each position ('b','B','w','W','n').
+  The resulting string uniquely identifies the board position.
+  Used for opening book database lookups and move history tracking. }
 function GetString(mas:chessboard):string;
 var x,y:byte;
     st:string;
@@ -71,14 +150,23 @@ begin
     st:=st+mas[y,x];
   getstring:=st;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Shifts a 3-element position history buffer (FIFO queue):
+  Slot 1 gets slot 2's value, slot 2 gets slot 3's value, slot 3 gets the new string.
+  Maintains a sliding window of the last 3 board states for the learning database. }
 procedure roll(var memorystr:memory;newstr:string);
 begin
   memorystr[1]:=memorystr[2];
   memorystr[2]:=memorystr[3];
   memorystr[3]:=newstr;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Saves board position history to a text-based learning database file.
+  Parameters:
+    mas  = 3-element array of serialized board states to save
+    name = filename ('goodbase.dat' for winning positions, 'badbase.dat' for losing)
+  First checks which states already exist in the file to avoid duplicates,
+  then appends any new (non-empty, non-duplicate) states. }
 procedure SaveCombination(mas:memory;name:string);
 var f:text;
     n:byte;
@@ -107,7 +195,11 @@ begin
   end;
   close(f);
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Evaluates the material difference between two board states from a given color's perspective.
+  Counts pieces on both boards: regular piece = 1 point, king = 2 points.
+  Returns positive if 'color' gained material from mas1 to mas2, negative if lost.
+  The sign multiplier k is +1 for white's perspective, -1 for black's. }
 function appreciate(mas1,mas2:chessboard;color:byte):shortint;
 var x,y:integer;
     score,k:shortint;
@@ -132,8 +224,8 @@ begin
   end;
   appreciate:=score;
 end; {ok}
-{---------------------------------------------------------------------------}
-Procedure VertWait;far;Assembler; {возврат луча}
+
+Procedure VertWait;far;Assembler;
 Asm
    mov dx,03dah
 @@vwl1:
@@ -145,8 +237,8 @@ Asm
    test al,8
    jnz @@vwl2
 End; {ok}
-{---------------------------------------------------------------------------}
-procedure disappear; {подготовка "ширмы" для доски}
+
+procedure disappear;
 var size:integer;
     x,y:integer;
 begin
@@ -161,8 +253,8 @@ begin
   getimage(0,0,x0*width,y0*width,shirm^);
   setactivepage(0);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure BoardOff; {скрытие доски}
+
+procedure BoardOff;
 const colors:array[0..2] of word=(darkgray,lightgray,white);
 var size:integer;
 begin
@@ -173,8 +265,8 @@ begin
   if shirm<>nil then putimage(width,width,shirm^,xorput);
   mouseon;
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure BoardOn; {открытие доски}
+
+procedure BoardOn;
 var size:integer;
 begin
   size:=imagesize(width,width,(x0+1)*width,(y0+1)*width);
@@ -183,8 +275,8 @@ begin
   mouseon;
   freemem(boardview,size);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure ButtonPress(x1,y1,x2,y2:integer;text:string); {нажатие кнопки}
+
+procedure ButtonPress(x1,y1,x2,y2:integer;text:string);
 var n:integer;
 begin
   if (abs(x2-x1)>textwidth(text))and(abs(y2-y1)>textheight(text))then
@@ -225,8 +317,8 @@ begin
   end;
   gettime(hour,minute,second,sec100);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure window(x,y,width,height:integer;text:string;off:boolean); {диалоговое окно}
+
+procedure window(x,y,width,height:integer;text:string;off:boolean);
 const border=3;
       d=16;
 var dx,dy:integer;
@@ -253,7 +345,9 @@ begin
   outtextxy(x+border+5,y+border+d div 2,text);
   mouseon;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Closes a popup window by restoring the saved background image.
+  If 'off' is true, also restores the board (BoardOn). Frees the saved image memory. }
 procedure WindowOff(x,y:integer;off:boolean);
 begin
   mouseoff;
@@ -262,7 +356,11 @@ begin
   mouseon;
   freemem(wp,wsize);
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Displays a centered message popup at the bottom of the screen.
+  Uses the global 'msg' variable as the message text.
+  Creates a small window titled 'Message' (in Russian) with the text centered inside.
+  Used to show random AI "thinking" messages loaded from message.txt. }
 procedure Message;
 var x,y:integer;
 begin
@@ -275,8 +373,8 @@ begin
   outtextxy(274,443-4,msg);
   mouseon;
 end; {ok}
-{---------------------------------------------------------------------------}
-function OnceAgain(score:byte):boolean; {сообщение об исходе игры}
+
+function OnceAgain(score:byte):boolean;
 const width=200;
       height=85;
       border=3;
@@ -347,8 +445,8 @@ begin
   delay(round(3000*pause));
   windowoff(dx,dy,true);
 end; {ok}
-{---------------------------------------------------------------------------}
-function Escape:boolean; {подтверждение выхода из игры}
+
+function Escape:boolean;
 const width=150;
       height=65;
       border=3;
@@ -409,7 +507,16 @@ begin
   until permission=true;
   windowoff(dx,dy,true);
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ AI learning settings dialog (note: original misspelling of "Development").
+  Shows 4 toggle checkboxes controlling which game outcomes get saved
+  to the position learning database:
+    1. "Win as black"  (blackwin)  ? learn winning positions when AI wins
+    2. "Win as white"  (whitewin)  ? learn winning positions when human wins
+    3. "Lose as black" (blacklose) ? learn losing positions for AI
+    4. "Lose as white" (whitelose) ? learn losing positions for human
+  Each checkbox toggles the corresponding boolean flag.
+  Coordinates x0,y0 are used to position the window near the mouse cursor. }
 procedure Developement(x0,y0:word);
 const width=180;
       height=86;
@@ -558,8 +665,8 @@ begin
   buttonpress(dx+width-border-15,dy+border+2,dx+width-border-1,dy+border+15,'X');
   windowoff(dx,dy,true);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure Options(x0,y0:word); {вызов меню опций}
+
+procedure Options(x0,y0:word);
 label lb;
 const width=212{225};
       buttonheight=17;
@@ -874,8 +981,8 @@ begin
     end;
   until false;
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure information(x0,y0:word); {информация (бегущей строкой)}
+
+procedure information(x0,y0:word);
 const width=300;
       height=55;
       border=3;
@@ -940,8 +1047,8 @@ begin
       end;
   until false;
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure Authorship(x0,y0:word); {справка об авторе}
+
+procedure Authorship(x0,y0:word);
 const width=240;
       height=85;
       d=16;
@@ -985,8 +1092,8 @@ begin
   ym0:=ym;
   exit;
 end; {ok}
-{---------------------------------------------------------------------------}
-function FileWindow(st:string;x,y:word):boolean; {окно смены файла}
+
+function FileWindow(st:string;x,y:word):boolean;
 const width=165;
       height=74;
       border=3;
@@ -1137,8 +1244,8 @@ begin
   until permission=true;
   windowoff(dx,dy,true);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure Save; {сохранение игры}
+
+procedure Save;
 var f,c:text;
 begin
   if commander=false then getmouseinfo(xm,ym,l,r,m);
@@ -1172,8 +1279,8 @@ begin
   close(f);
   close(c);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure AutoSave; {автосохранение для возможности возврата хода}
+
+procedure AutoSave;
 var f:text;
 begin
   assign(f,'autosave.sav');
@@ -1197,8 +1304,8 @@ begin
   end;
   close(f);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure movie; {сохранение позиций для возможного просмотра}
+
+procedure movie;
 var f:text;
     x,y:byte;
 begin
@@ -1221,8 +1328,8 @@ begin
   end;
   close(f);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure WriteAction(x1,y1,x2,y2:byte;color:word); {действие в координатах}
+
+procedure WriteAction(x1,y1,x2,y2:byte;color:word);
 const d=0;
       delta=2;
       limit=44;
@@ -1271,7 +1378,9 @@ begin
              end;
   lastcolor:=color;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Plays a short beep sound effect (500 Hz, 1 second) if sound effects are enabled.
+  Called after each move to provide audio feedback. }
 procedure Effect;
 begin
   if soundeffect=true then
@@ -1282,8 +1391,8 @@ begin
   end;
   delay(200);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure Away(x,y:byte); {удаление шашки с экрана и с доски}
+
+procedure Away(x,y:byte);
 var l:longint;
     r:byte;
     x1,y1,xx,yy:integer;
@@ -1380,8 +1489,8 @@ begin
   field[y,x]:='n';
   mouseon;
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure DraughtBeat(color:word); {изображение сбитой шашки}
+
+procedure DraughtBeat(color:word);
 begin
   if color=white then inc(beat_w) else
   if color=black then
@@ -1392,8 +1501,8 @@ begin
   if color=white then draughtsman(beat_w*width+width div 2-7,(y0+2)*width+12+1,false,getcolor(white));
   if color=black then draughtsman(beat_b*width+width div 2-7,(y0+3)*width+11-1,false,getcolor(black));
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure BackSpace; {отмена хода}
+
+procedure BackSpace;
 var st:string;
     f,c:text;
     n,x,y:integer;
@@ -1454,8 +1563,8 @@ begin
   if b<12 then while beat_b<(12-b) do draughtbeat(black);
   setlinestyle(solidln,0,1);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure date; {вывод даты}
+
+procedure date;
 var year,month,day,DayOfWeek:word;
     s,st:string;
 begin
@@ -1471,8 +1580,8 @@ begin
   setcolor(black);
   outtextxy((520+getmaxx) div 2,(437+469) div 2,st);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure ShowTime; {текущее время}
+
+procedure ShowTime;
 var hour,minute,second,sec:word;
     st,s:string;
 begin
@@ -1494,8 +1603,8 @@ begin
   end;
   timestring:=st
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure Board(special:boolean); {подготовка к игре}
+
+procedure Board(special:boolean);
 var x,y:integer;
 label here;
 begin
@@ -1595,8 +1704,8 @@ begin
       end;
     end
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure Load(ok:boolean); {загрузка игры из файла}
+
+procedure Load(ok:boolean);
 var st:string;
     x,y,n:integer;
     code:integer;
@@ -1696,8 +1805,8 @@ begin
   if (situation>=3)and(difficulty=1) then button(530,10,getmaxx-10,40,'Отмена хода',true) else
                                           button(530,10,getmaxx-10,40,'Отмена хода',false);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure play; {просмотр последовательности действий в файле}
+
+procedure play;
 var f:text;
     lst:string;
     x,y:integer;
@@ -1740,8 +1849,8 @@ begin
   close(f);
   gettime(hour,minute,second,sec100);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure cancel; {отмена выделений}
+
+procedure cancel;
 var x,y:byte;
 begin
   setcolor(black);
@@ -1753,8 +1862,8 @@ begin
     mouseon;
   end;
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure BeatWindow; {сообщение об истечении времени и сбитой шашке}
+
+procedure BeatWindow;
 const width=250;
       height=65;
       border=3;
@@ -1790,8 +1899,8 @@ begin
   until permission=true;
   windowoff(dx,dy,true);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure confiscate(special:boolean); {изъятие шашки}
+
+procedure confiscate(special:boolean);
 var x,y,d,n:byte;
 begin
   for y:=1 to y0 do
@@ -1822,8 +1931,8 @@ begin
   end;
   if special=true then beatwindow;
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure TVSetOff; {"выключение" экрана}
+
+procedure TVSetOff;
 var s:integer;
 begin
   mouseoff;
@@ -1857,8 +1966,8 @@ begin
     delay(round(pause));
   end;
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure Quit; {выход из игры}
+
+procedure Quit;
 var f,c:text;
 begin
   if filename<>'' then
@@ -1876,7 +1985,12 @@ begin
   eraseall;
   halt(0);
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Keyboard command handler (implementation of the forward-declared function).
+  Originally provided full keyboard control: arrow keys moved the mouse cursor,
+  Enter = left click, Space = right click, Home/End/PgUp/PgDn for fast movement.
+  In the final version, the keyboard code is commented out ? the game is
+  mouse-only. Always returns false (no keyboard event processed). }
 function commander:boolean;
 const step=5;
 var ch:char;
@@ -1938,8 +2052,8 @@ begin
   end;}
   commander:=false;
 end; {ok}
-{---------------------------------------------------------------------------}
-function Wait(var hour,minute,second:word):boolean; {счетчик времени}
+
+function Wait(var hour,minute,second:word):boolean;
 var h,min,s,s100:word;
     b,w,x,y:byte;
 begin
@@ -1984,9 +2098,15 @@ begin
   end;
   if timenow>=period then beatwindow;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Checks whether a piece at position (x,y) is under threat of capture.
+  Scans all 4 diagonal directions for enemy pieces that could jump over it:
+  - At distance 1: checks for adjacent enemy pieces with an empty square behind
+  - At distance >1: checks for enemy kings along the diagonal (flying captures)
+  A piece is "blocked" in a direction if a same-color piece is found first.
+  Returns true if the piece can be captured by the opponent. }
 function DangerousPosition(x,y:byte;mas:chessboard;color:word):boolean;
-         {проверка опасной позиции}
+
 var r,d:byte;
     close:array [1..4] of boolean;
 begin
@@ -2025,7 +2145,11 @@ begin
             end;
         end;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Checks if landing at (x2,y2) after a capture would leave the piece in danger.
+  Similar to DangerousPosition but accounts for the captured piece at (bx,by)
+  being removed ? treats that square as empty during the threat check.
+  Used by the AI to choose safe landing squares during multi-jump captures. }
 function DangerousBeat(x1,y1,x2,y2,bx,by:byte;mas:chessboard;color:word):boolean;
 var r,d:byte;
     close:array [1..4] of boolean;
@@ -2065,8 +2189,8 @@ begin
             end;
         end;
 end;
-{---------------------------------------------------------------------------}
-function DamkaOnLine(x,y,d:byte):boolean; {присутствие вражеской дамки}
+
+function DamkaOnLine(x,y,d:byte):boolean;
 var x1,y1:byte;
 begin
   x1:=x;
@@ -2090,9 +2214,12 @@ begin
       end;
   until between(x1,y1)=false;
 end;
-{---------------------------------------------------------------------------}
+
+{ Checks if the diagonal path between (x1,y1) and (x2,y2) is clear.
+  Returns true if all intermediate squares are empty ('n').
+  Used for validating king moves and captures along diagonals. }
 function freeway(x1,y1,x2,y2:byte;mas:chessboard):boolean;
-                {путь между точками свободен}
+
 var ok:boolean;
     n,x,y:byte;
 begin
@@ -2109,9 +2236,15 @@ begin
     end;
   until (abs(x-x2)=1)and(abs(y-y2)=1);
 end;
-{---------------------------------------------------------------------------}
+
+{ Examines the diagonal path between (x1,y1) and (x2,y2) for pieces.
+  Returns:
+    0 = path is completely clear (no pieces at all) ? valid king move
+    1 = exactly one enemy piece found ? valid capture; sets bx,by to its position
+    2 = path is blocked (multiple pieces, or friendly piece in the way)
+  Parameters bx,by are output: the position of the single capturable enemy piece. }
 function exist(x1,y1,x2,y2:byte;var bx,by:byte;color:word;mas:chessboard):byte;
-         {есть ли между точками шашка?}
+
 var ok:boolean;
     n,x,y:byte;
     dx,dy:shortint;
@@ -2145,7 +2278,15 @@ begin
       exist:=2;
   end;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Tests and executes a capture for the piece at (x1,y1) in direction d at distance r.
+  If the capture is valid (correct distance, empty landing square, one enemy in between):
+    - Performs the capture on the 'mas' board array (removes pieces, moves piece)
+    - Updates x1,y1 to the new landing position
+    - Handles promotion to king when reaching the back rank
+    - Returns true
+  If invalid, returns false without modifying anything.
+  Used during multi-capture sequence validation. }
 function canbeat(var x1,y1:byte;d,r:byte;var mas:chessboard):boolean;
 var bx,by,x2,y2:byte;
     ch:char;
@@ -2190,7 +2331,14 @@ begin
   end;
   canbeat:=false;
 end;
-{---------------------------------------------------------------------------}
+
+{ Positional evaluation comparing two board states.
+  Considers:
+    - Material count (regular=1, king=2) for each color
+    - Piece safety bonus/penalty (dangerousposition check for each piece)
+    - Advancement bonus (pieces near promotion row get extra score)
+  Returns positive if the change from mas1 to mas2 favors white,
+  negative if it favors black. Used for heuristic position assessment. }
 function compare(mas1,mas2:chessboard):shortint;
 var x,y,score1,score2:shortint;
     b0,w0,db0,dw0,b,w,db,dw:byte;
@@ -2245,7 +2393,19 @@ begin
   end;
   compare:=(w0-w+2*(dw0-dw))-(b0-b+2*(db0-db))+score2-score1;
 end;
-{---------------------------------------------------------------------------}
+
+{ AI CORE: Finds and executes the best capture sequence for black (AI).
+  Uses Monte Carlo random-trial search with 'maxrnd' (1000) iterations:
+  For each black piece that can capture:
+    1. Randomly picks a capture direction and executes it on a temporary board
+    2. Continues chaining captures until no more are available
+    3. Scores the resulting position: +1 per capture, +2 for kings/promotions,
+       +3/-3 for opening book database matches, +1 for safe landing
+    4. Keeps the highest-scoring sequence as 'optimum'
+  Handles both regular pieces (distance-2 jumps) and kings (long-range captures).
+  After finding the best sequence, executes it on the real board with animations.
+  Returns true (via 'ok') if any capture was found and executed.
+  For king captures, also checks DangerousBeat to prefer safe landing squares. }
 function SeeBeat:boolean;
 var x,y,x1,y1,d,count,d1,r,r1,bx,by:byte;
     optimum,try:array [0..10,1..2] of byte;
@@ -2469,7 +2629,12 @@ begin
     until optimum[count+1,1]=0;
   end;
 end;
-{---------------------------------------------------------------------------}
+
+{ Simulated capture analysis for black -- operates on the 'model' array (not the real board).
+  Same algorithm as SeeBeat but without animations or UI updates.
+  Finds the best capture sequence for black pieces, executes it on 'model',
+  and returns the score of the best capture found (0 if none).
+  Used for lookahead: predicting what captures black could make after a move. }
 function VirtualBlackBeat:shortint;
 var x,y,x1,y1,d,count,d1,r:byte;
     mas:chessboard;
@@ -2592,7 +2757,11 @@ begin
   end else maxscore:=0;
   virtualblackbeat:=maxscore;
 end;
-{---------------------------------------------------------------------------}
+
+{ Simulated capture analysis for white -- mirror of VirtualBlackBeat.
+  Operates on 'model', finds best capture sequence for white pieces.
+  Returns the score (0 if no captures available).
+  Used for lookahead: predicting what captures white could make in response. }
 function VirtualWhiteBeat:shortint;
 var x,y,x1,y1,d,count,d1,r:byte;
     mas:chessboard;
@@ -2706,7 +2875,11 @@ begin
   end else maxscore:=0;
   virtualwhitebeat:=maxscore;
 end;
-{---------------------------------------------------------------------------}
+
+{ Checks if there is exactly ONE capture possibility for black on the given board.
+  Returns true if only a single capture move exists (forced move).
+  Used by the Combination procedure to detect situations where sacrificing
+  a piece forces the opponent into a single predictable response. }
 function OneBeat(mas:chessboard):boolean;
 var x,y,d,r,bx,by:byte;
     first:boolean;
@@ -2738,7 +2911,9 @@ begin
                     end;
       end;
 end;
-{---------------------------------------------------------------------------}
+
+{ Counts the total number of pieces of the given color on the board.
+  Includes both regular pieces and kings. }
 function Number(color:word;mas:chessboard):byte;
 var x,y,b,w:byte;
 begin
@@ -2753,7 +2928,14 @@ begin
                 white:number:=w;
              end;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ AI tactical sacrifice detector: looks for moves that sacrifice a black piece
+  to set up a favorable capture sequence.
+  For each black piece, tries moving it to a square where white can capture it,
+  then checks (via OneBeat) if white's response is forced. If so, runs
+  VirtualWhiteBeat/VirtualBlackBeat lookahead to evaluate the resulting position.
+  If the net score exceeds 2 and black has more than one piece, executes the
+  sacrifice move. This enables the AI to find simple combinations and traps. }
 procedure Combination;
 var x,y,d,sx,sy,sd:byte;
     score,maxscore,delta:shortint;
@@ -2805,7 +2987,10 @@ begin
     end;
   end;
 end;
-{---------------------------------------------------------------------------}
+
+{ Returns true if ANY piece of the given color is in a capturable position.
+  Scans all dark squares for pieces of the specified color and checks each
+  with DangerousPosition. Used as a quick "is anyone under attack?" test. }
 function danger(color:word;mas:chessboard):boolean;
 var x,y:byte;
 begin
@@ -2821,7 +3006,10 @@ begin
       exit;
     end;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Checks if a piece at (x,y) has friendly black pieces nearby or is on the board edge.
+  Returns true if the position has tactical support or natural edge protection.
+  Used as a minor scoring factor in the AI's move evaluation. }
 function neighbour(x,y:byte;mas:chessboard):boolean;
 var d:byte;
 begin
@@ -2831,7 +3019,10 @@ begin
      (mas[y+dir[d,2],x+dir[d,1]]='n')and((mas[y+2*dir[d,2],x+2*dir[d,1]] in blacks)or(mas[y-2,x] in blacks))or
      (x in [1,x0])or(y in [1,y0]) then neighbour:=true;
 end;
-{---------------------------------------------------------------------------}
+
+{ Checks for a specific vulnerable side position: a white piece in column 2 or x0-1
+  with an empty corner square behind it, making it susceptible to a side attack.
+  Returns true if such a vulnerability exists. }
 function side(x,y:byte;mas:chessboard):boolean;
 begin
   side:=false;
@@ -2851,7 +3042,20 @@ begin
     end;
   end;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ AI regular move selection (non-capture moves).
+  For regular black pieces ('b'): evaluates each possible forward diagonal step.
+  For black kings ('B'): uses Monte Carlo random trials to evaluate all possible
+  king moves in any direction and distance.
+  Scoring factors for each candidate move:
+    - Neighbour proximity bonus (+0.5)
+    - Escaping a side vulnerability (+1)
+    - Reaching the back rank / promotion (+2)
+    - Escaping danger (+1) or avoiding new danger (+1.5 / -2)
+    - Opening book database match (+3 / -3)
+    - Lookahead via VirtualWhiteBeat/VirtualBlackBeat
+  Picks the highest-scoring move; random tiebreaking prevents predictability.
+  Executes the chosen move with animation and sound effects. }
 procedure Action;
 var x,y,x1,y1,x2,y2,bx,by,r,d:byte;
     score,maxscore:real;
@@ -2975,7 +3179,17 @@ begin
     effect;
   end;
 end;
-{---------------------------------------------------------------------------}
+
+{ AI main entry point -- called once per AI turn.
+  1. Loads and displays a random "thinking" message from message.txt
+  2. Saves current board state for learning analysis
+  3. Calls SeeBeat to look for captures (mandatory in Russian draughts)
+  4. If no capture: calls Combination to look for tactical sacrifices
+  5. If no sacrifice: calls Action to make a regular move
+  6. Updates position history (roll) for the learning database
+  7. If the AI gained material, saves the winning sequence to goodbase.dat
+  8. If the opponent is losing, saves their position to badbase.dat
+  9. If no move was possible, the AI is stuck ? player wins (OnceAgain dialog) }
 procedure Computer;
 const max=38;
 var score:shortint;
@@ -3015,7 +3229,15 @@ begin
   if (hod=false)and(number(black,field)>0) then
   if onceagain(1)=false then quit;
 end;
-{---------------------------------------------------------------------------}
+
+{ Processes and executes the human player's validated move.
+  Handles two cases:
+  - Single move (num0=1): simple step forward or single capture (with animation)
+  - Multi-capture (num0>1): chain of captures through intermediate positions
+  For each sub-move: clears the source square, draws the piece at destination,
+  animates the removal of any captured piece (Away), updates the move notation
+  (WriteAction), and plays the sound effect.
+  After the move: updates the position history and learning database. }
 procedure Player(x1,y1,x2,y2:integer;damka:boolean);
 var bx,by,n:byte;
     score:shortint;
@@ -3139,7 +3361,16 @@ begin
     savecombination(blackstr,'badbase.dat');
   end;
 end;
-{---------------------------------------------------------------------------}
+
+{ Validates whether the selected piece at (x,y) is allowed to move.
+  In Russian draughts, captures are mandatory. If any white piece has an
+  available capture, the player MUST capture (they can't make a regular move).
+  This function checks if the selected piece has a capture available.
+  If a mandatory capture exists elsewhere (mustbeat=true):
+    - If remind=true: flashes the board border red with descending sound
+      to warn the player they must capture
+    - Returns false (piece selection rejected)
+  If no mandatory capture exists: returns true (piece can move freely). }
 function GreenLight(x,y:byte):boolean;
 var x1,y1,d,r,bx,by:byte;
     MaxR:byte;
@@ -3185,7 +3416,16 @@ begin
     nosound;
   end;
 end;
-{---------------------------------------------------------------------------}
+
+{ Splash screen text animation: "explosion" effect.
+  1. Draws st1 text at screen center, captures pixel positions of all red pixels
+  2. Waits 5 seconds
+  3. Explodes the pixels outward: each pixel drifts away from center with
+     random velocity, creating a scattering/explosion effect
+  4. If st2 is non-empty: implodes the scattered pixels back toward center
+     and then displays st2 as the new text
+  Can be skipped by pressing any key (sets next1=true).
+  Uses direct pixel manipulation (getpixel/putpixel) for the particle effect. }
 procedure breaking(st1,st2:string);
 const color=red;
 var n,n0,x0,y0:integer;
@@ -3256,7 +3496,15 @@ begin
   setrgbpalette(color,63,63,63);
   outtextxy(x0 div 2,y0 div 2-10,st2);
 end;
-{---------------------------------------------------------------------------}
+
+{ Full intro/splash screen sequence:
+  1. "Dugin" text explodes into "Andrew" (breaking animation)
+  2. "Andrew" explodes into "presents" (breaking animation)
+  3. "presents" explodes and dissolves
+  4. "Draughts" title appears in gray, then lightning strike (thunder effect)
+  5. Title redrawn in red with blue/lightblue glow border effect
+  6. Random pixel sparkle animation on the title text (500000 random pixels)
+  The entire sequence can be skipped by pressing any key. }
 procedure screen;
 const st1='Dugin';
       st2='Andrew';
@@ -3322,7 +3570,12 @@ begin
     end;
   end;
 end;
-{---------------------------------------------------------------------------}
+
+{ Checks if the human player (white) has any legal move available.
+  Scans all white pieces and checks:
+  - Regular pieces ('w'): can step forward diagonally, or jump over adjacent black piece
+  - Kings ('W'): can move any distance diagonally if path is clear, or capture
+  Returns true if at least one legal move exists, false if player is stuck (game over). }
 function Continue:boolean;
 var x,y,d,r,bx,by:byte;
 begin
@@ -3356,7 +3609,19 @@ begin
 
              end;
 end;
-{---------------------------------------------------------------------------}
+
+{ ============================================================================ }
+{ MAIN PROGRAM BLOCK                                                           }
+{ The game loop uses labels and goto for flow control -- this was typical of     }
+{ late-1990s Pascal game programming. The labels serve as jump targets:         }
+{   start    = beginning of main turn cycle (check timer, wait for input)       }
+{   again    = retry destination selection (after invalid click)                }
+{   next     = move validation passed, proceed with the move                    }
+{   new      = reset for a new game                                             }
+{   draught  = piece selected, waiting for destination                          }
+{   restart  = re-check if player can continue                                  }
+{   functions= toolbar button handling                                          }
+{ ============================================================================ }
 label start,again,next,new,draught,restart,functions;
 begin
   difficulty:=1;

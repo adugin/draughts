@@ -1,3 +1,11 @@
+{ ============================================================================ }
+{ COMANDER.PAS -- Shared utility and drawing routines for the Draughts game    }
+{                                                                              }
+{ Provides: board square/piece drawing, GUI buttons with 3D bevels,            }
+{ file operations, board geometry helpers, position serialization for the       }
+{ opening book, and a lightning visual effect.                                  }
+{ ============================================================================ }
+
 unit comander;
 interface
   const x0=8;
@@ -6,24 +14,51 @@ interface
         border=2;
   type chessboard=array[1..y0,1..x0] of char;
        {memory=array[1..3] of string[32];}
+
+{ Delete temporary files: autosave.sav and movie.sav. }
   procedure eraseall;
+
+{ Return max distance from (x,y) to any board edge (for king movement range). }
   function Maximum(x,y:byte):byte;
+
+{ Check if coordinates are within board bounds [1..x0, 1..y0]. }
   function between(x,y:shortint):boolean;
+
+{ Check if file exists. If new=true and missing, creates it. Returns true if existed. }
   function FileExist(name:string;new:boolean):boolean;
+
+{ Search text file line-by-line for exact match. Used for opening book lookups. }
   function search(name,searchtext:string):boolean;
+
+{ Invert board: swap black<=>white pieces, reverse order. For database lookups. }
   function invert(mas:chessboard):string;
+
+{ Same as invert() but on a pre-serialized string. Reverses and swaps colors. }
   function invertstr(st:string):string;
+
+{ Draw a raised 3D button. permission=true: enabled (black text), false: grayed out. }
   procedure Button(x1,y1,x2,y2:integer;text:string;permission:boolean);
+
+{ Draw a sunken/inset panel (inverted bevel of Button), filled with color. }
   procedure InButton(x1,y1,x2,y2:integer;color:word);
+
+{ Draw a small checkmark glyph at (x,y) for checkbox UI elements. }
   procedure mark(x,y:integer;color:byte);
+
+{ Draw one board square at grid (x,y) with black border, filled with color. }
   procedure Square(x,y:integer;color:word);
+
+{ Draw a checker piece at pixel (x,y). damka=false: regular (rings), true: king (crown). }
   procedure Draughtsman(x,y:integer;damka:boolean;color:word);
+
+{ Lightning bolt effect: descending zigzag line with falling pitch, then screen flash. }
   procedure thunder;
 implementation
   uses crt,mouse,graph,dos;
   var xm,ym:word;
       l,r,m:boolean;
-{---------------------------------------------------------------------------}
+
+{ Lightning bolt effect: descending zigzag line with falling pitch, then screen flash. }
 procedure thunder;
 var x,y:integer;
 begin
@@ -43,8 +78,9 @@ begin
   setbkcolor(black);
   cleardevice;
 end;
-{---------------------------------------------------------------------------}
-procedure Draughtsman(x,y:integer;damka:boolean;color:word); {рисование шашки}
+
+{ Draw a checker piece at pixel (x,y). damka=false: regular (rings), true: king (crown). }
+procedure Draughtsman(x,y:integer;damka:boolean;color:word);
 var r:byte;
 begin
   r:=(width-4-border) div 2;
@@ -81,8 +117,9 @@ begin
   setlinestyle(0,0,3);
   mouseon;
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure Square(x,y:integer;color:word); {рисование клетки поля}
+
+{ Draw one board square at grid (x,y) with black border, filled with color. }
+procedure Square(x,y:integer;color:word);
 begin
   setlinestyle(solidln,0,3);
   setcolor(black);
@@ -92,7 +129,8 @@ begin
   bar(x*width+border,y*width+border,(x+1)*width-border,(y+1)*width-border);
   mouseon;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Draw a small checkmark glyph at (x,y) for checkbox UI elements. }
 procedure mark(x,y:integer;color:byte);
 begin
   setlinestyle(solidln,0,1);
@@ -104,9 +142,10 @@ begin
   line(x-1,y+2,x+3,y-3);
   mouseon;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Draw a raised 3D button. permission=true: enabled (black text), false: grayed out. }
 procedure Button(x1,y1,x2,y2:integer;text:string;permission:boolean);
-          {прорисовка кнопки с надписью}
+
 var n:integer;
 begin
   if (abs(x2-x1)>textwidth(text))and(abs(y2-y1)>textheight(text))then
@@ -149,8 +188,9 @@ begin
   mouseon;
   settextjustify(0,1);
 end; {ok}
-{---------------------------------------------------------------------------}
-procedure InButton(x1,y1,x2,y2:integer;color:word); {вдавленность}
+
+{ Draw a sunken/inset panel (inverted bevel of Button), filled with color. }
+procedure InButton(x1,y1,x2,y2:integer;color:word);
 begin
   setlinestyle(solidln,0,1);
   setcolor(darkgray);
@@ -163,8 +203,8 @@ begin
   bar(x1+1,y1+1,x2-1,y2-1);
 end; {ok}
 
-{---------------------------------------------------------------------------}
-procedure eraseall; {удаление ненужных файлов}
+{ Delete temporary files: autosave.sav and movie.sav. }
+procedure eraseall;
 var f:text;
 begin
   {$I-}
@@ -178,8 +218,9 @@ begin
   erase(f);
   {$I+}
 end; {ok}
-{---------------------------------------------------------------------------}
-function Maximum(x,y:byte):byte; {поиск максимального радиуса внутри доски}
+
+{ Return max distance from (x,y) to any board edge (for king movement range). }
+function Maximum(x,y:byte):byte;
 var max:byte;
     h:shortint;
 begin
@@ -193,8 +234,8 @@ begin
   maximum:=max;
 end; {ok}
 
-{---------------------------------------------------------------------------}
-function between(x,y:shortint):boolean; {проверка диапазона}
+{ Check if coordinates are within board bounds [1..x0, 1..y0]. }
+function between(x,y:shortint):boolean;
 begin
   between:=false;
   if x>=1 then
@@ -202,7 +243,8 @@ begin
   if y>=1 then
   if y<=y0 then between:=true;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Check if file exists. If new=true and missing, creates it. Returns true if existed. }
 function FileExist(name:string;new:boolean):boolean;
 var f:text;
 begin
@@ -218,7 +260,8 @@ begin
   close(f);
   {$I+}
 end;
-{---------------------------------------------------------------------------}
+
+{ Search text file line-by-line for exact match. Used for opening book lookups. }
 function search(name,searchtext:string):boolean;
 var f:text;
     st:string;
@@ -239,7 +282,8 @@ begin
   end;
   close(f);
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Invert board: swap black<=>white pieces, reverse order. For database lookups. }
 function invert(mas:chessboard):string;
 var x,y:byte;
     st:string;
@@ -258,7 +302,8 @@ begin
   end;
   invert:=st;
 end; {ok}
-{---------------------------------------------------------------------------}
+
+{ Same as invert() but on a pre-serialized string. Reverses and swaps colors. }
 function invertstr(st:string):string;
 var n:byte;
     s:string;
