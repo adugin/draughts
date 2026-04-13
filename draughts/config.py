@@ -82,7 +82,7 @@ class GameSettings:
     search_depth: int = 0  # 0=auto (from difficulty), 1-10=manual override
     # UI extras (D15)
     board_theme: str = "dark_wood"  # "dark_wood" | "classic_light" (D18)
-    show_coordinates: bool = False
+    show_coordinates: bool = True
     highlight_last_move: bool = False
     show_legal_moves_hover: bool = False
     # Engine stubs (D15 — wired to UI but TT resize / SMP not implemented yet)

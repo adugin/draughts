@@ -497,33 +497,38 @@ class BoardWidget(QWidget):
             self._label_shadow = shadow_color
 
         # --- Geometry ---
-        strip = cell_size * 0.65
+        # The margin (bx/by) is the distance from widget edge to board.
+        # Labels sit in this margin, biased toward the board (40% from
+        # board edge, 60% from widget edge) for visual balance.
+        margin = bx  # symmetric — bx == by for a square widget
         shadow_off = max(1.0, cell_size * 0.015)
-        # Use full font height for the rect so text is never clipped.
-        # capHeight was too small — descenders/antialiasing got cut off.
         text_h = fm.height()
+        # Label center offset from board edge: 50% of margin = exact center
+        label_offset = margin * 0.50
 
         for i in range(BOARD_SIZE):
             # --- Column labels (a-h): above and below ---
             cell_cx = bx + (i + 0.5) * cell_size
             letter = COLUMN_LETTERS[BOARD_SIZE - 1 - i] if self._inverted else COLUMN_LETTERS[i]
 
-            # Rect centered on cell horizontally, centered in strip vertically
-            rect_w = cell_size  # full cell width — plenty of room
+            rect_w = cell_size
             lx = cell_cx - rect_w / 2
-            bot_cy = by + board_side + strip / 2 - text_h / 2
-            top_cy = by - strip / 2 - text_h / 2
+            # Top: board edge minus label_offset (nudged 2px away from board
+            # to compensate for baseline optical illusion — descender-free
+            # letters like a-h visually sit lower than their geometric center)
+            top_cy = by - label_offset - text_h / 2 - 2
+            # Bottom: board edge plus label_offset
+            bot_cy = by + board_side + label_offset - text_h / 2
 
-            # Shadow then label
             painter.setPen(shadow_color)
-            painter.drawText(QRectF(lx + shadow_off, bot_cy + shadow_off, rect_w, text_h),
-                             Qt.AlignmentFlag.AlignCenter, letter)
             painter.drawText(QRectF(lx + shadow_off, top_cy + shadow_off, rect_w, text_h),
                              Qt.AlignmentFlag.AlignCenter, letter)
-            painter.setPen(label_color)
-            painter.drawText(QRectF(lx, bot_cy, rect_w, text_h),
+            painter.drawText(QRectF(lx + shadow_off, bot_cy + shadow_off, rect_w, text_h),
                              Qt.AlignmentFlag.AlignCenter, letter)
+            painter.setPen(label_color)
             painter.drawText(QRectF(lx, top_cy, rect_w, text_h),
+                             Qt.AlignmentFlag.AlignCenter, letter)
+            painter.drawText(QRectF(lx, bot_cy, rect_w, text_h),
                              Qt.AlignmentFlag.AlignCenter, letter)
 
             # --- Row labels (1-8): left and right ---
@@ -531,18 +536,20 @@ class BoardWidget(QWidget):
             number = ROW_NUMBERS[BOARD_SIZE - 1 - i] if self._inverted else ROW_NUMBERS[i]
 
             ny = cell_cy - text_h / 2
-            left_x = bx - strip
-            right_x = bx + board_side
+            # Left: board edge minus label_offset, rect width = margin
+            left_x = bx - label_offset - margin / 2
+            # Right: board edge plus label_offset minus half-rect centering
+            right_x = bx + board_side + label_offset - margin / 2
 
             painter.setPen(shadow_color)
-            painter.drawText(QRectF(left_x + shadow_off, ny + shadow_off, strip, text_h),
+            painter.drawText(QRectF(left_x + shadow_off, ny + shadow_off, margin, text_h),
                              Qt.AlignmentFlag.AlignCenter, number)
-            painter.drawText(QRectF(right_x + shadow_off, ny + shadow_off, strip, text_h),
+            painter.drawText(QRectF(right_x + shadow_off, ny + shadow_off, margin, text_h),
                              Qt.AlignmentFlag.AlignCenter, number)
             painter.setPen(label_color)
-            painter.drawText(QRectF(left_x, ny, strip, text_h),
+            painter.drawText(QRectF(left_x, ny, margin, text_h),
                              Qt.AlignmentFlag.AlignCenter, number)
-            painter.drawText(QRectF(right_x, ny, strip, text_h),
+            painter.drawText(QRectF(right_x, ny, margin, text_h),
                              Qt.AlignmentFlag.AlignCenter, number)
 
     # --- Mouse events ---

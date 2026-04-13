@@ -171,14 +171,14 @@ class TestLegalMovesForPiece:
 # ---------------------------------------------------------------------------
 
 class TestCoordinatesDrawFlag:
-    def test_default_false(self):
+    def test_default_true(self):
         s = GameSettings()
-        assert s.show_coordinates is False
-
-    def test_can_enable(self):
-        s = GameSettings()
-        s.show_coordinates = True
         assert s.show_coordinates is True
+
+    def test_can_disable(self):
+        s = GameSettings()
+        s.show_coordinates = False
+        assert s.show_coordinates is False
 
     def test_toggle_round_trip(self):
         s = GameSettings()
