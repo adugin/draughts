@@ -723,10 +723,10 @@ class MainWindow(QMainWindow):
         side = self._editor_side()
         self.exit_editor_mode()
         self._start_game_from_position(board, side)
-        # Open the analysis pane and prime it with the new position
-        self._analysis_pane.show()
+        # Open the analysis pane via the proper toggle path so window
+        # size is unlocked and _pane_saved_size is captured correctly.
         self._act_toggle_pane.setChecked(True)
-        self._analysis_pane.set_position(board, side)
+        self._on_toggle_analysis_pane(True)
 
     def _editor_cancel(self):
         """Cancel editing and restore the previous game state."""

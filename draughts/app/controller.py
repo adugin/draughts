@@ -555,6 +555,9 @@ class GameController(QObject):
         self._current_turn = Color.WHITE if self._ply_count % 2 == 0 else Color.BLACK
         self._selected = None
         self._capture_path = []
+        self._quiet_plies = 0
+        self._kings_only_plies = 0
+        self._game_started = self._ply_count > 0
 
         self.board_changed.emit()
         self.turn_changed.emit(self._current_turn)
@@ -658,6 +661,9 @@ class GameController(QObject):
         self._current_turn = start_color if self._ply_count % 2 == 0 else start_color.opponent
         self._selected = None
         self._capture_path = []
+        self._quiet_plies = 0
+        self._kings_only_plies = 0
+        self._game_started = self._ply_count > 0
 
         self.board_changed.emit()
         self.turn_changed.emit(self._current_turn)

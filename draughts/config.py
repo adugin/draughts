@@ -176,6 +176,7 @@ def load_settings() -> GameSettings:
 
     Unknown keys are silently ignored (forward compatibility).
     Missing keys use the dataclass defaults (backward compatibility).
+    Type mismatches are silently skipped (corrupt or hand-edited file).
     """
     import json
 
@@ -183,11 +184,25 @@ def load_settings() -> GameSettings:
     settings = GameSettings()
     if not path.exists():
         return settings
+
+    # Expected types for type-safe validation
+    _FIELD_TYPES: dict[str, type] = {
+        "difficulty": int, "remind": bool, "pause": (int, float),
+        "board_theme": str, "show_coordinates": bool,
+        "highlight_last_move": bool, "show_legal_moves_hover": bool,
+        "hash_size_mb": int, "use_opening_book": bool,
+        "use_endgame_bitbase": bool, "use_tuned_eval": bool,
+    }
+
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         for key in _PERSISTENT_FIELDS:
             if key in data:
-                setattr(settings, key, data[key])
+                val = data[key]
+                expected = _FIELD_TYPES.get(key)
+                if expected is not None and not isinstance(val, expected):
+                    continue  # skip type-mismatched values
+                setattr(settings, key, val)
     except Exception:
         pass  # corrupted file — use defaults
     return settings

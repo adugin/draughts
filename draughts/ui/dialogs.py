@@ -283,6 +283,7 @@ class OptionsDialog(QDialog):
             hash_size_mb=self._hash_size.value(),
             use_opening_book=self._opening_book.isChecked(),
             use_endgame_bitbase=self._bitbase.isChecked(),
+            use_tuned_eval=self._settings.use_tuned_eval,
         )
         return s
 
