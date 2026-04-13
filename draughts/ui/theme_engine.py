@@ -313,6 +313,7 @@ def generate_qss(theme: Theme) -> str:
     menu_border = c["menu_border"]
     toolbar_bg = c["toolbar_bg"]
     toolbar_border = c["toolbar_border"]
+    disabled_fg = c.get("disabled_fg", "#666666")
     scroll_bg = c.get("scroll_bg", bg_deep)
 
     # Icon paths (with fallbacks)
@@ -353,6 +354,9 @@ QMenu {{
 }}
 QMenu::item:selected {{
     background: {menu_hover};
+}}
+QMenu::item:disabled {{
+    color: {disabled_fg};
 }}
 QMenu::separator {{
     background: {menu_border};
