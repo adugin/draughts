@@ -542,13 +542,12 @@ def _evaluate_fast(grid: np.ndarray, color: str | Color) -> float:
     if white_total == 0:
         return 1000.0 if color == Color.BLACK else -1000.0
 
-    # Drawn endgames (FMJD): 1K vs 1K, 2K vs 1K (Petrov triangle).
-    # Return contempt so the searching side prefers decisive play.
-    if black_pawns == 0 and white_pawns == 0:
-        if (black_kings == 1 and white_kings == 1) or \
-           (black_kings == 2 and white_kings == 1) or \
-           (black_kings == 1 and white_kings == 2):
-            return -_CONTEMPT if color == Color.BLACK else _CONTEMPT
+    # 1K vs 1K with no pawns: true dead position — return contempt.
+    # 2K vs 1K is a theoretical draw (Petrov triangle) but the weaker
+    # side must PLAY correctly to hold it. Full eval with king distance
+    # guides the AI to safe squares instead of walking into captures.
+    if black_pawns == 0 and white_pawns == 0 and black_kings == 1 and white_kings == 1:
+        return -_CONTEMPT if color == Color.BLACK else _CONTEMPT
 
     # Material
     total = (black_pawns * _PAWN_VALUE + black_kings * _KING_VALUE) - (
