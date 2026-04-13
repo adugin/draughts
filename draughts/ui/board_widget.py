@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 
 from PyQt6.QtCore import QRectF, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPen
+from PyQt6.QtGui import QColor, QFont, QFontMetricsF, QMouseEvent, QPainter, QPen
 from PyQt6.QtWidgets import QWidget
 
 from draughts.config import (
@@ -456,45 +456,113 @@ class BoardWidget(QWidget):
         """Draw column letters (a-h) and row numbers (8-1) around the board.
 
         Labels are drawn only when settings.show_coordinates is True.
-        Labels are centered in the frame margin between the board edge and frame edge.
+        Labels are pixel-perfectly centered in the frame margin using
+        QFontMetricsF for baseline-aware positioning.
+
+        Design references: lichess.org, chess.com, DGT wooden boards.
+        Font: clean humanist sans-serif (Segoe UI on Windows, Noto Sans
+        on Linux, Helvetica Neue on macOS) at DemiBold weight for
+        legibility against the textured wood frame.
         """
         if not self._settings.show_coordinates:
             return
 
-        font_size = max(8, int(cell_size * 0.32))
-        font = QFont("Georgia", font_size)
+        # --- Font setup ---
+        # Proportional size: ~24% of cell — refined, not cramped.
+        # Minimum 7pt so labels remain readable at small window sizes.
+        font_size_pt = max(7, int(cell_size * 0.24))
+        font = QFont()
+        font.setFamilies(["Segoe UI", "Noto Sans", "Helvetica Neue", "Arial"])
+        font.setPointSize(font_size_pt)
+        font.setWeight(QFont.Weight.DemiBold)
+        # Disable kerning — we want every character to occupy identical
+        # horizontal space so columns of labels align perfectly.
+        font.setKerning(False)
         painter.setFont(font)
-        painter.setPen(QColor(190, 165, 120))
 
-        # Label strip matches frame margin
+        fm = QFontMetricsF(font)
+
+        # --- Label color (theme-aware) ---
+        _theme = getattr(self, "_theme", "dark_wood")
+        from draughts.ui.theme_engine import get_board_style
+
+        board_style = get_board_style(_theme)
+        if board_style == "classic_light":
+            label_color = QColor(100, 75, 50)        # warm brown on light frame
+            shadow_color = QColor(255, 255, 255, 60)  # subtle light lift
+        else:
+            label_color = QColor(175, 145, 105)       # warm gold on dark mahogany
+            shadow_color = QColor(0, 0, 0, 80)        # subtle depth shadow
+
+        # --- Geometry ---
+        # The frame margin strip where labels live.
         strip = cell_size * 0.65
+        # Slight inset so labels don't hug the board edge or the frame edge.
+        # Labels sit centered in the strip.
+        shadow_offset = max(1.0, cell_size * 0.015)
+
+        align_center = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
 
         for i in range(BOARD_SIZE):
-            # Cell center X for column labels
+            # --- Column labels (a-h): above and below ---
             cell_cx = bx + (i + 0.5) * cell_size
-            # When inverted, visual column i corresponds to board column (7-i)
             letter = COLUMN_LETTERS[BOARD_SIZE - 1 - i] if self._inverted else COLUMN_LETTERS[i]
 
-            # Below board — centered in strip between board bottom and frame bottom
-            r_bot = QRectF(cell_cx - cell_size / 2, by + board_side, cell_size, strip)
-            painter.drawText(r_bot, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, letter)
+            # Measure character advance width for pixel-perfect centering.
+            char_w = fm.horizontalAdvance(letter)
+            # Use cap height (not full ascent) for uniform vertical centering
+            # across all letters a-h — ascent includes accents we don't have.
+            cap_h = fm.capHeight()
 
-            # Above board
-            r_top = QRectF(cell_cx - cell_size / 2, by - strip, cell_size, strip)
-            painter.drawText(r_top, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, letter)
+            # X: center of cell minus half the advance width
+            lx = cell_cx - char_w / 2
+            # Y: center of each strip
+            bot_strip_cy = by + board_side + strip / 2
+            top_strip_cy = by - strip / 2
 
-            # Cell center Y for row labels
+            # Draw shadow first, then label (shadow gives depth on textured frame)
+            painter.setPen(shadow_color)
+            painter.drawText(QRectF(lx + shadow_offset, bot_strip_cy - cap_h / 2 + shadow_offset,
+                                    char_w, cap_h),
+                             align_center, letter)
+            painter.drawText(QRectF(lx + shadow_offset, top_strip_cy - cap_h / 2 + shadow_offset,
+                                    char_w, cap_h),
+                             align_center, letter)
+
+            painter.setPen(label_color)
+            painter.drawText(QRectF(lx, bot_strip_cy - cap_h / 2, char_w, cap_h),
+                             align_center, letter)
+            painter.drawText(QRectF(lx, top_strip_cy - cap_h / 2, char_w, cap_h),
+                             align_center, letter)
+
+            # --- Row labels (1-8): left and right ---
             cell_cy = by + (i + 0.5) * cell_size
-            # When inverted, visual row i corresponds to board row (7-i); ROW_NUMBERS[0]="8", [7]="1"
             number = ROW_NUMBERS[BOARD_SIZE - 1 - i] if self._inverted else ROW_NUMBERS[i]
 
-            # Left of board
-            r_left = QRectF(bx - strip, cell_cy - cell_size / 2, strip, cell_size)
-            painter.drawText(r_left, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, number)
+            num_w = fm.horizontalAdvance(number)
 
-            # Right of board
-            r_right = QRectF(bx + board_side, cell_cy - cell_size / 2, strip, cell_size)
-            painter.drawText(r_right, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, number)
+            # Left strip center
+            left_strip_cx = bx - strip / 2
+            # Right strip center
+            right_strip_cx = bx + board_side + strip / 2
+
+            nx_left = left_strip_cx - num_w / 2
+            nx_right = right_strip_cx - num_w / 2
+
+            # Shadow
+            painter.setPen(shadow_color)
+            painter.drawText(QRectF(nx_left + shadow_offset, cell_cy - cap_h / 2 + shadow_offset,
+                                    num_w, cap_h),
+                             align_center, number)
+            painter.drawText(QRectF(nx_right + shadow_offset, cell_cy - cap_h / 2 + shadow_offset,
+                                    num_w, cap_h),
+                             align_center, number)
+
+            painter.setPen(label_color)
+            painter.drawText(QRectF(nx_left, cell_cy - cap_h / 2, num_w, cap_h),
+                             align_center, number)
+            painter.drawText(QRectF(nx_right, cell_cy - cap_h / 2, num_w, cap_h),
+                             align_center, number)
 
     # --- Mouse events ---
 
