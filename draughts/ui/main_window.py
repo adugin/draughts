@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from draughts.config import BOARD_PX, Color
+from draughts.config import BOARD_PX, BOARD_SIZE, Color
 from draughts.ui.analysis_pane import AnalysisPane
 from draughts.ui.board_widget import BoardWidget
 from draughts.ui.theme_engine import apply_theme as _apply_engine_theme
@@ -631,17 +631,71 @@ class MainWindow(QMainWindow):
         else:
             self._editor_radio_black.setChecked(True)
 
+    def _editor_validate_and_fix(self) -> Board | None:
+        """Validate the editor board, auto-fix pawns on promotion rows.
+
+        Returns a fixed copy of the board, or None if the position is
+        invalid (shows an error dialog).
+        """
+        import numpy as np
+
+        board = self._editor_board.copy()
+        grid = board.grid
+
+        # Auto-promote pawns on promotion rows (FMJD: can't exist in a legal game)
+        # Black pawns on row 7 (white's back rank) → black kings
+        for x in range(BOARD_SIZE):
+            if grid[7, x] == 1:  # BLACK pawn
+                grid[7, x] = 2   # BLACK_KING
+        # White pawns on row 0 (black's back rank) → white kings
+        for x in range(BOARD_SIZE):
+            if grid[0, x] == -1:  # WHITE pawn
+                grid[0, x] = -2   # WHITE_KING
+
+        # Count pieces
+        flat = grid.ravel()
+        b_count = int(np.count_nonzero(flat > 0))
+        w_count = int(np.count_nonzero(flat < 0))
+
+        # Block: no pieces at all
+        if b_count == 0 and w_count == 0:
+            QMessageBox.warning(self, "Ошибка", "Доска пуста. Расставьте шашки.")
+            return None
+
+        # Block: one side has no pieces
+        if b_count == 0:
+            QMessageBox.warning(self, "Ошибка", "У чёрных нет шашек.")
+            return None
+        if w_count == 0:
+            QMessageBox.warning(self, "Ошибка", "У белых нет шашек.")
+            return None
+
+        # Warn: more than 12 pieces per side (non-standard, but allowed)
+        warnings = []
+        if b_count > 12:
+            warnings.append(f"У чёрных {b_count} шашек (макс. 12 в стандартной игре)")
+        if w_count > 12:
+            warnings.append(f"У белых {w_count} шашек (макс. 12 в стандартной игре)")
+        if warnings:
+            self.setWindowTitle(f"Шашки — {'; '.join(warnings)}")
+
+        return board
+
     def _editor_play_from_here(self):
         """Exit editor and start a game from the edited position."""
+        board = self._editor_validate_and_fix()
+        if board is None:
+            return
         side = self._editor_side()
-        board = self._editor_board.copy()
         self.exit_editor_mode()
         self._start_game_from_position(board, side)
 
     def _editor_analyze_from_here(self):
         """Exit editor, start game from position, and open the analysis pane."""
+        board = self._editor_validate_and_fix()
+        if board is None:
+            return
         side = self._editor_side()
-        board = self._editor_board.copy()
         self.exit_editor_mode()
         self._start_game_from_position(board, side)
         # Open the analysis pane and prime it with the new position
