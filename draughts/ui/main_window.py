@@ -227,6 +227,7 @@ class MainWindow(QMainWindow):
         c.last_move_changed.connect(self._on_last_move_changed)
         c.hint_ready.connect(self._on_hint_ready)
         c.clock_updated.connect(self._on_clock_updated)
+        c.message_changed.connect(self._on_message_changed)
 
         # Push initial settings to board widget
         self.board_widget.set_settings(c.settings)
@@ -292,6 +293,13 @@ class MainWindow(QMainWindow):
         from PyQt6.QtCore import QTimer
 
         QTimer.singleShot(4000, lambda: self.setWindowTitle("Шашки"))
+
+    def _on_message_changed(self, message: str):
+        """Show controller messages (thinking, mandatory capture hints) in title bar."""
+        if message:
+            self.setWindowTitle(f"Шашки — {message}")
+        else:
+            self.setWindowTitle("Шашки")
 
     def _on_clock_updated(self, white_ms: int, black_ms: int):
         """Update clock labels (D19)."""
@@ -659,32 +667,7 @@ class MainWindow(QMainWindow):
 
     def _start_game_from_position(self, board, turn: Color):
         """Start a new game from a custom board position and side-to-move."""
-        c = self._controller
-        c.board = board
-        c._current_turn = turn
-        c._computer_color = Color.BLACK if not c.settings.invert_color else Color.WHITE
-        c._player_color = Color.WHITE if not c.settings.invert_color else Color.BLACK
-        c._selected = None
-        c._capture_path = []
-        c._positions = [board.to_position_string()]
-        c._replay_history = [board.to_position_string()]
-        c._ply_count = 0
-        c._game_started = True
-        c._position_counts = {board.to_position_string(): 1}
-
-        # Reset clock (D19)
-        c._white_time_ms = 0
-        c._black_time_ms = 0
-        c._move_timer.start()
-        c.clock_updated.emit(0, 0)
-
-        c.board_changed.emit()
-        c.turn_changed.emit(turn)
-        c.selection_changed.emit(None, None)
-        c.capture_highlights_changed.emit([])
-
-        if turn == c._computer_color:
-            c._start_computer_turn()
+        self._controller.new_game_from_position(board, turn)
 
     # --- UI helpers ---
 

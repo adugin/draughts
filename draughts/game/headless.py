@@ -506,28 +506,15 @@ class HeadlessGame:
         self._position_history.append(pos)
         self._position_counts[pos] = self._position_counts.get(pos, 0) + 1
 
-        # Check for repetition draw (3-fold)
-        if self._position_counts[pos] >= 3:
-            self._end_game(None, "draw_repetition")
-            return record
-
-        # Check for game over
-        opp = self._turn.opponent
-        opp_pieces = self._board.count_pieces(opp)
-        if opp_pieces == 0:
-            self._end_game(self._turn, "no_pieces")
-            return record
-
-        cur_pieces = self._board.count_pieces(self._turn)
-        if cur_pieces == 0:
-            self._end_game(opp, "no_pieces")
-            return record
-
-        if not self._board.has_any_move(opp):
-            self._end_game(self._turn, "no_moves")
+        # Check for game over (delegates to Board — shared with controller)
+        game_over = self._board.check_game_over(self._position_counts)
+        if game_over is not None:
+            winner, reason = game_over
+            self._end_game(winner, reason)
             return record
 
         # Switch turn
+        opp = self._turn.opponent
         self._turn = opp
         return record
 

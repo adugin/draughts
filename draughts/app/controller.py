@@ -167,18 +167,28 @@ class GameController(QObject):
     # --- New game ---
 
     def new_game(self):
-        """Reset everything for a new game."""
-        self.board = Board()
-        self._current_turn = Color.WHITE
+        """Reset everything for a new game from the standard starting position."""
+        self.new_game_from_position(Board(), Color.WHITE)
+
+    def new_game_from_position(self, board: Board, turn: Color):
+        """Reset everything for a new game from an arbitrary position.
+
+        This is the single point of initialization for all game state.
+        Both new_game() and the board editor "play from here" call this,
+        ensuring no private field is forgotten.
+        """
+        self.board = board
+        self._current_turn = turn
         self._computer_color = Color.BLACK if not self.settings.invert_color else Color.WHITE
         self._player_color = Color.WHITE if not self.settings.invert_color else Color.BLACK
         self._selected = None
         self._capture_path = []
-        self._positions = [self.board.to_position_string()]
-        self._replay_history = [self.board.to_position_string()]
+        pos = board.to_position_string()
+        self._positions = [pos]
+        self._replay_history = [pos]
         self._ply_count = 0
-        self._game_started = False
-        self._position_counts = {self.board.to_position_string(): 1}
+        self._game_started = turn != Color.WHITE  # custom position = game already in progress
+        self._position_counts = {pos: 1}
 
         # Reset clock (D19)
         self._white_time_ms = 0
@@ -192,7 +202,7 @@ class GameController(QObject):
         self.selection_changed.emit(None, None)
         self.capture_highlights_changed.emit([])
 
-        if self.settings.invert_color:
+        if turn == self._computer_color:
             self._start_computer_turn()
 
     # --- Player input ---
@@ -490,45 +500,23 @@ class GameController(QObject):
     # --- Game over ---
 
     def _check_game_over(self) -> bool:
-        """Check if the game is over. Emit game_over signal if so."""
-        w_count = self.board.count_pieces(Color.WHITE)
-        b_count = self.board.count_pieces(Color.BLACK)
+        """Check if the game is over. Emit game_over signal if so.
 
-        if w_count == 0:
-            player_lost = self._player_color == Color.WHITE
-            self.game_over.emit("Вы проиграли!" if player_lost else "Вы выиграли!")
-            return True
+        Delegates to Board.check_game_over() — the single source of truth
+        for game-over rules shared with HeadlessGame.
+        """
+        result = self.board.check_game_over(self._position_counts)
+        if result is None:
+            return False
 
-        if b_count == 0:
-            player_lost = self._player_color == Color.BLACK
-            self.game_over.emit("Вы проиграли!" if player_lost else "Вы выиграли!")
-            return True
-
-        # Check if the side about to move has any legal moves.
-        # After player moves, current_turn is still player (not yet switched);
-        # after AI moves, current_turn is already set to player.
-        # The correct "next mover" is always the OPPOSITE of whoever just moved.
-        # We compute it from _current_turn and the two call sites:
-        #   - _finish_player_move: current_turn == player → next = computer ✓
-        #   - _on_ai_finished_inner: current_turn == player → next = player ✗
-        # Fix: use the dedicated parameter to identify who just moved.
-        # Since both call sites set current_turn differently relative to
-        # who moved, the safest approach: check both sides.
-        for side in (Color.WHITE, Color.BLACK):
-            if not self.board.has_any_move(side):
-                if side == self._player_color:
-                    self.game_over.emit("Вы проиграли!")
-                else:
-                    self.game_over.emit("Вы выиграли!")
-                return True
-
-        # 3-fold repetition → draw
-        pos = self.board.to_position_string()
-        if self._position_counts.get(pos, 0) >= 3:
+        winner, reason = result
+        if winner is None:
             self.game_over.emit("Ничья — троекратное повторение позиции.")
-            return True
-
-        return False
+        elif winner == self._player_color:
+            self.game_over.emit("Вы выиграли!")
+        else:
+            self.game_over.emit("Вы проиграли!")
+        return True
 
     # --- Save / Load ---
 

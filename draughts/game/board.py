@@ -365,6 +365,40 @@ class Board:
             cy += dy
         return True
 
+    def check_game_over(
+        self,
+        position_counts: dict[str, int] | None = None,
+    ) -> tuple[Color | None, str] | None:
+        """Check if the game is over.
+
+        Returns ``(winner, reason)`` if the game ended, or ``None`` if
+        play continues.  ``winner`` is ``None`` for draws.
+
+        Reasons: ``"no_pieces"``, ``"no_moves"``, ``"draw_repetition"``.
+
+        This is the single source of truth for game-over detection,
+        used by both ``GameController`` (GUI) and ``HeadlessGame``.
+        """
+        w = self.count_pieces(Color.WHITE)
+        b = self.count_pieces(Color.BLACK)
+
+        if w == 0:
+            return (Color.BLACK, "no_pieces")
+        if b == 0:
+            return (Color.WHITE, "no_pieces")
+
+        if not self.has_any_move(Color.WHITE):
+            return (Color.BLACK, "no_moves")
+        if not self.has_any_move(Color.BLACK):
+            return (Color.WHITE, "no_moves")
+
+        if position_counts is not None:
+            pos = self.to_position_string()
+            if position_counts.get(pos, 0) >= 3:
+                return (None, "draw_repetition")
+
+        return None
+
     def __repr__(self) -> str:
         lines = []
         lines.append("  a b c d e f g h")

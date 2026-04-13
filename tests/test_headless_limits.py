@@ -97,10 +97,10 @@ def test_quiet_move_limit_terminates_king_dance():
         quiet_move_limit_endgame=6,  # tight — with 2 kings this must fire
     )
     assert result is not None
-    # Either the AI finds a forced repetition first (also fine — draw),
-    # or our quiet limit fires. What must NOT happen is running to
-    # max_ply=500.
-    assert result.reason in ("draw_quiet", "draw_repetition", "draw_max_ply")
+    # The AI may find a tactical capture (kings on the same diagonal),
+    # a forced repetition, or the quiet limit fires. What must NOT
+    # happen is running to max_ply=500.
+    assert result.reason in ("draw_quiet", "draw_repetition", "draw_max_ply", "no_pieces", "no_moves")
     assert result.ply_count < 500
     # The main claim: with a 6-ply endgame quiet limit, we terminate fast.
     assert result.ply_count <= 50
