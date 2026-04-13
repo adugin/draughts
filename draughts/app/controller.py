@@ -474,13 +474,20 @@ class GameController(QObject):
     # --- Undo ---
 
     def undo_move(self):
-        """Undo the last move (player + computer response). Available at all levels (D17)."""
-        if self._ply_count < 2:
+        """Undo the last move pair (player + computer). Available at all levels (D17).
+
+        Normally undoes 2 plies (player move + AI response). If only 1 ply
+        has been played (player moved but AI hasn't responded, or a game
+        started from the editor), undoes that single ply.
+        """
+        if self._ply_count < 1:
             return
         if self._ai_thread is not None:
             return
 
-        self._ply_count -= 2
+        # Undo 2 plies (player + AI) when possible, otherwise 1
+        undo_count = 2 if self._ply_count >= 2 else 1
+        self._ply_count -= undo_count
         # Decrement position counts for the two undone positions
         for pos in self._positions[self._ply_count + 1:]:
             cnt = self._position_counts.get(pos, 1)
@@ -752,7 +759,7 @@ class GameController(QObject):
     @property
     def can_undo(self) -> bool:
         """Undo is available at all difficulty levels (D17)."""
-        return self._ply_count >= 2
+        return self._ply_count >= 1
 
     @property
     def can_save(self) -> bool:

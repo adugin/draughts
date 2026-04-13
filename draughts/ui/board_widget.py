@@ -440,25 +440,6 @@ class BoardWidget(QWidget):
         # Draw coordinate labels
         self._draw_labels(painter, cell_size, bx, by, board_side)
 
-        # Editor-mode overlay: "РЕДАКТОР" label in the top-left corner
-        if self._editor_mode:
-            font_size = max(9, int(cell_size * 0.28))
-            font = QFont("Georgia", font_size, QFont.Weight.Bold)
-            painter.setFont(font)
-            label = "РЕДАКТОР"
-            fm = painter.fontMetrics()
-            text_w = fm.horizontalAdvance(label)
-            text_h = fm.height()
-            padding = max(4, int(cell_size * 0.12))
-            bg_rect = QRectF(bx, by, text_w + padding * 2, text_h + padding)
-            painter.fillRect(bg_rect, QColor(180, 60, 0, 210))
-            painter.setPen(QColor(255, 220, 100))
-            painter.drawText(
-                bg_rect,
-                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
-                label,
-            )
-
         painter.end()
 
     def _draw_piece(self, painter: QPainter, x: int, y: int, piece: int, cell_size: float, bx: float, by: float):
