@@ -263,7 +263,8 @@ class TestSettingsBackwardCompat:
         assert s.use_endgame_bitbase is True
         assert s.use_tuned_eval is True
         assert s.board_theme == "dark_wood"
-        assert s.show_legal_moves_hover is False
+        assert s.show_legal_moves_hover is True
+        assert s.highlight_last_move is True
 
     def test_partial_construction_old_fields_only(self):
         """Constructing with only old-style fields works (new fields get defaults)."""

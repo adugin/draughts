@@ -77,9 +77,9 @@ class TestLastMoveProperty:
         assert stored[0] == from_sq
         assert stored[1] == to_sq
 
-    def test_settings_flag_default_off(self):
+    def test_settings_flag_default_on(self):
         s = GameSettings()
-        assert s.highlight_last_move is False
+        assert s.highlight_last_move is True
 
     def test_settings_flag_can_enable(self):
         s = GameSettings()
@@ -203,14 +203,14 @@ class TestCoordinatesDrawFlag:
 # ---------------------------------------------------------------------------
 
 class TestHoverLegalMovesFlag:
-    def test_default_false(self):
+    def test_default_true(self):
         s = GameSettings()
-        assert s.show_legal_moves_hover is False
-
-    def test_can_enable(self):
-        s = GameSettings()
-        s.show_legal_moves_hover = True
         assert s.show_legal_moves_hover is True
+
+    def test_can_disable(self):
+        s = GameSettings()
+        s.show_legal_moves_hover = False
+        assert s.show_legal_moves_hover is False
 
     def test_hover_list_initially_empty(self):
         w = _FakeBoardWidget()

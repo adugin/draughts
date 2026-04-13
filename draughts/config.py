@@ -76,16 +76,16 @@ COLORS: dict[str, tuple[int, int, int]] = {
 class GameSettings:
     """Mutable game settings."""
 
-    difficulty: int = 4  # default: Сильный клубный (~1700) — old "normal"
+    difficulty: int = 3  # default: Клубный (~1400) — approachable for first-time users
     remind: bool = True  # hint for mandatory captures
-    pause: float = 0.75  # animation delay multiplier
+    pause: float = 0.5  # animation delay multiplier (snappy, matches competitors)
     invert_color: bool = False  # player plays black instead of white
     search_depth: int = 0  # 0=auto (from difficulty), 1-10=manual override
     # UI extras (D15)
     board_theme: str = "dark_wood"  # "dark_wood" | "classic_light" (D18)
     show_coordinates: bool = True
-    highlight_last_move: bool = False
-    show_legal_moves_hover: bool = False
+    highlight_last_move: bool = True  # universally ON in modern platforms
+    show_legal_moves_hover: bool = True  # critical for beginners
     # Engine stubs (D15 — wired to UI but TT resize / SMP not implemented yet)
     hash_size_mb: int = 32
     # Opening book (D8)
