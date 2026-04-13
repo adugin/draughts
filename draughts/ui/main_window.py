@@ -520,37 +520,42 @@ class MainWindow(QMainWindow):
         self._editor_toolbar.addWidget(self._editor_radio_black)
         self._editor_toolbar.addSeparator()
 
-        # Action buttons
-        btn_clear = QPushButton("Очистить доску")
+        # Action buttons — short labels to fit the 640px toolbar
+        btn_clear = QPushButton("Очистить")
+        btn_clear.setToolTip("Очистить доску")
         btn_clear.clicked.connect(self._editor_clear_board)
         self._editor_toolbar.addWidget(btn_clear)
 
-        btn_start = QPushButton("Начальная позиция")
+        btn_start = QPushButton("Начальная")
+        btn_start.setToolTip("Начальная позиция")
         btn_start.clicked.connect(self._editor_start_position)
         self._editor_toolbar.addWidget(btn_start)
 
-        self._editor_toolbar.addSeparator()
-
-        btn_import = QPushButton("Импорт FEN")
+        btn_import = QPushButton("FEN▼")
+        btn_import.setToolTip("Импорт FEN из буфера обмена")
         btn_import.clicked.connect(self._editor_import_fen)
         self._editor_toolbar.addWidget(btn_import)
 
-        btn_export = QPushButton("Экспорт FEN")
+        btn_export = QPushButton("FEN▲")
+        btn_export.setToolTip("Экспорт FEN в буфер обмена")
         btn_export.clicked.connect(self._editor_export_fen)
         self._editor_toolbar.addWidget(btn_export)
 
         self._editor_toolbar.addSeparator()
 
-        btn_play = QPushButton("▶ Играть отсюда")
+        btn_play = QPushButton("▶ Играть")
+        btn_play.setToolTip("Начать игру из этой позиции")
         btn_play.setStyleSheet(f"font-weight: bold; color: {_tc['editor_play_fg']};")
         btn_play.clicked.connect(self._editor_play_from_here)
         self._editor_toolbar.addWidget(btn_play)
 
-        btn_analyze = QPushButton("Анализ отсюда")
+        btn_analyze = QPushButton("Анализ")
+        btn_analyze.setToolTip("Анализировать эту позицию")
         btn_analyze.clicked.connect(self._editor_analyze_from_here)
         self._editor_toolbar.addWidget(btn_analyze)
 
-        btn_cancel = QPushButton("Отмена")
+        btn_cancel = QPushButton("✕")
+        btn_cancel.setToolTip("Отмена (Escape)")
         btn_cancel.setStyleSheet(f"color: {_tc['editor_cancel_fg']};")
         btn_cancel.clicked.connect(self._editor_cancel)
         self._editor_toolbar.addWidget(btn_cancel)
