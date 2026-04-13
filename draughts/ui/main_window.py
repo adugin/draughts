@@ -685,7 +685,7 @@ class MainWindow(QMainWindow):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape and self.board_widget.editor_mode:
-            self._editor_play_from_here()
+            self._editor_cancel()
             return
         if event.key() == Qt.Key.Key_F3:
             self._act_toggle_pane.setChecked(not self._act_toggle_pane.isChecked())
