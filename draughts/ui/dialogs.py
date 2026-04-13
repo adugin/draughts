@@ -152,6 +152,7 @@ class OptionsDialog(QDialog):
         self._threads = QSpinBox()
         self._threads.setRange(1, 1)
         self._threads.setValue(1)
+        # STUB(M5): SMP не реализовано, включить при реализации многопоточного поиска
         self._threads.setEnabled(False)
         self._threads.setToolTip("Многопоточный поиск (планируется в будущих версиях)")
         form.addRow("Потоки:", self._threads)
