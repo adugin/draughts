@@ -118,7 +118,6 @@ class MainWindow(QMainWindow):
 
         self._act_save = QAction("&Сохранить...", self)
         self._act_save.setShortcut(QKeySequence("Ctrl+S"))
-        self._act_save.setEnabled(False)
         self._act_save.triggered.connect(self._on_save)
         game_menu.addAction(self._act_save)
 
@@ -126,7 +125,6 @@ class MainWindow(QMainWindow):
 
         self._act_undo = QAction("О&тмена хода", self)
         self._act_undo.setShortcut(QKeySequence("Ctrl+Z"))
-        self._act_undo.setEnabled(False)
         self._act_undo.triggered.connect(self._on_undo)
         game_menu.addAction(self._act_undo)
 
@@ -199,7 +197,6 @@ class MainWindow(QMainWindow):
         analysis_menu.addSeparator()
 
         self._act_analyze_game = QAction("&Проанализировать партию...", self)
-        self._act_analyze_game.setEnabled(False)
         self._act_analyze_game.triggered.connect(self._on_analyze_game)
         analysis_menu.addAction(self._act_analyze_game)
 
@@ -275,10 +272,7 @@ class MainWindow(QMainWindow):
 
     def _on_ai_thinking(self, thinking: bool):
         self.board_widget.setEnabled(not thinking)
-        self._act_undo.setEnabled(not thinking and self._controller.can_undo)
-        self._act_save.setEnabled(not thinking and self._controller.can_save)
-        self._act_new.setEnabled(not thinking)
-        self._act_load.setEnabled(not thinking)
+        self._update_action_states()
         # Wait cursor while AI is thinking
         if thinking:
             self.setCursor(Qt.CursorShape.WaitCursor)
@@ -611,11 +605,7 @@ class MainWindow(QMainWindow):
         btn_export.clicked.connect(self._editor_export_fen)
         self._editor_toolbar2.addWidget(btn_export)
 
-        # Disable game actions while editing
-        self._act_new.setEnabled(False)
-        self._act_load.setEnabled(False)
-        self._act_save.setEnabled(False)
-        self._act_undo.setEnabled(False)
+        self._update_action_states()
 
     def exit_editor_mode(self):
         """Exit editor mode and remove the toolbar."""
@@ -628,8 +618,6 @@ class MainWindow(QMainWindow):
                 self.removeToolBar(tb)
                 tb.deleteLater()
                 setattr(self, attr, None)
-        self._act_new.setEnabled(True)
-        self._act_load.setEnabled(True)
         self._update_action_states()
         # Restore exact window size — no adjustSize() delay, no flicker
         if hasattr(self, "_editor_saved_size"):
@@ -792,9 +780,44 @@ class MainWindow(QMainWindow):
     # --- UI helpers ---
 
     def _update_action_states(self):
-        self._act_undo.setEnabled(self._controller.can_undo)
-        self._act_save.setEnabled(self._controller.can_save)
-        self._act_analyze_game.setEnabled(self._controller.can_save)
+        """Centralized action state management.
+
+        All enable/disable logic for menu actions lives here.
+        Called after every state change: board changed, AI started/stopped,
+        editor entered/exited, game loaded.
+
+        Three modes: EDITOR, AI_THINKING, NORMAL (playing).
+        """
+        editor = self.board_widget.editor_mode
+        thinking = self._controller.is_thinking
+        has_moves = self._controller.can_undo
+        has_game = self._controller.can_save
+
+        # --- Игра menu ---
+        self._act_new.setEnabled(not editor and not thinking)
+        self._act_load.setEnabled(not editor and not thinking)
+        self._act_save.setEnabled(not editor and not thinking and has_game)
+        self._act_undo.setEnabled(not editor and not thinking and has_moves)
+        self._act_hint.setEnabled(not editor and not thinking)
+        # _act_exit — always enabled
+
+        # --- Настройки ---
+        self._act_options.setEnabled(not editor and not thinking)
+
+        # --- Тренировка ---
+        self._act_puzzles.setEnabled(not editor and not thinking)
+
+        # --- Вид ---
+        self._act_playback.setEnabled(not editor and has_game)
+
+        # --- Позиция ---
+        self._act_editor.setEnabled(not editor and not thinking)
+        self._act_copy_fen.setEnabled(True)  # always available
+        self._act_paste_fen.setEnabled(not editor and not thinking)
+
+        # --- Анализ ---
+        self._act_toggle_pane.setEnabled(not editor)
+        self._act_analyze_game.setEnabled(not editor and not thinking and has_game)
 
     # --- Keyboard events ---
 
