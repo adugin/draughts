@@ -21,13 +21,12 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QRadioButton,
-    QSizePolicy,
     QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
-from draughts.config import Color
+from draughts.config import BOARD_PX, Color
 from draughts.ui.analysis_pane import AnalysisPane
 from draughts.ui.board_widget import BoardWidget
 from draughts.ui.theme_engine import apply_theme as _apply_engine_theme
@@ -64,6 +63,9 @@ class MainWindow(QMainWindow):
         """Apply the themed stylesheet to the entire window."""
         self._current_theme = theme_name
         _apply_engine_theme(self, theme_name)
+        # Refresh analysis pane inline styles (UX-001)
+        if hasattr(self, "_analysis_pane"):
+            self._analysis_pane.refresh_theme(theme_name)
 
     def _build_ui(self):
         """Board widget as the sole central content."""
@@ -74,9 +76,8 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        _BOARD_PX = 640  # fixed board square size in pixels
         self.board_widget = BoardWidget()
-        self.board_widget.setFixedSize(_BOARD_PX, _BOARD_PX)
+        self.board_widget.setFixedSize(BOARD_PX, BOARD_PX)
         layout.addWidget(self.board_widget, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # No status bar
@@ -209,6 +210,8 @@ class MainWindow(QMainWindow):
         self._analysis_pane.hide()
         # Keep the menu checkbox in sync when user closes the dock with the X button
         self._analysis_pane.visibilityChanged.connect(self._on_pane_visibility_changed)
+        # Show best move on board when analysis completes
+        self._analysis_pane.analysis_done.connect(self._on_analysis_done)
 
     # --- Connect controller signals ---
 
@@ -240,6 +243,7 @@ class MainWindow(QMainWindow):
 
     def _on_board_changed(self):
         self.board_widget.set_board(self._controller.board)
+        self.board_widget.analysis_squares = None  # clear stale analysis overlay
         self._update_action_states()
         # Auto-feed new position to analysis pane (only when pane is visible
         # and engine is not already thinking for the game).
@@ -291,6 +295,14 @@ class MainWindow(QMainWindow):
         from PyQt6.QtCore import QTimer
 
         QTimer.singleShot(4000, lambda: self.setWindowTitle("Шашки"))
+
+    def _on_analysis_done(self, result) -> None:
+        """Highlight the best move from analysis on the board."""
+        if result is not None and result.best_move is not None:
+            path = result.best_move.path
+            self.board_widget.analysis_squares = [path[0], path[-1]]
+        else:
+            self.board_widget.analysis_squares = None
 
     def _on_clock_updated(self, white_ms: int, black_ms: int):
         """Update clock labels (D19)."""

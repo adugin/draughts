@@ -149,6 +149,7 @@ class GameController(QObject):
         self._replay_history: list[str] = []
         self._ply_count: int = 0
         self._game_started: bool = False
+        self._position_counts: dict[str, int] = {}
 
         # Clock (D19) — cumulative thinking time per side in ms
         self._white_time_ms: int = 0
@@ -177,6 +178,7 @@ class GameController(QObject):
         self._replay_history = [self.board.to_position_string()]
         self._ply_count = 0
         self._game_started = False
+        self._position_counts = {self.board.to_position_string(): 1}
 
         # Reset clock (D19)
         self._white_time_ms = 0
@@ -349,6 +351,7 @@ class GameController(QObject):
         pos = self.board.to_position_string()
         self._positions.append(pos)
         self._replay_history.append(pos)
+        self._position_counts[pos] = self._position_counts.get(pos, 0) + 1
 
         if from_sq is not None and to_sq is not None:
             self.last_move_changed.emit((from_sq, to_sq))
@@ -437,17 +440,18 @@ class GameController(QObject):
         pos = self.board.to_position_string()
         self._positions.append(pos)
         self._replay_history.append(pos)
+        self._position_counts[pos] = self._position_counts.get(pos, 0) + 1
+
+        self._current_turn = self._player_color
 
         self.last_move_changed.emit((ai_from, ai_to))
         self.board_changed.emit()
+        self.turn_changed.emit(self._current_turn)
 
         if self._check_game_over():
             return
 
         self._do_autosave()
-
-        self._current_turn = self._player_color
-        self.turn_changed.emit(self._current_turn)
 
     # --- Undo ---
 
@@ -459,6 +463,13 @@ class GameController(QObject):
             return
 
         self._ply_count -= 2
+        # Decrement position counts for the two undone positions
+        for pos in self._positions[self._ply_count + 1:]:
+            cnt = self._position_counts.get(pos, 1)
+            if cnt <= 1:
+                self._position_counts.pop(pos, None)
+            else:
+                self._position_counts[pos] = cnt - 1
         if len(self._positions) > self._ply_count + 1:
             self._positions = self._positions[: self._ply_count + 1]
         if len(self._replay_history) > self._ply_count + 1:
@@ -501,6 +512,12 @@ class GameController(QObject):
                 self.game_over.emit("Вы выиграли!")
             return True
 
+        # 3-fold repetition → draw
+        pos = self.board.to_position_string()
+        if self._position_counts.get(pos, 0) >= 3:
+            self.game_over.emit("Ничья — троекратное повторение позиции.")
+            return True
+
         return False
 
     # --- Save / Load ---
@@ -513,6 +530,7 @@ class GameController(QObject):
             remind=self.settings.remind,
             sound_effect=False,
             pause=self.settings.pause,
+            invert_color=self.settings.invert_color,
             positions=list(self._positions),
             replay_positions=list(self._replay_history),
         )
@@ -524,6 +542,7 @@ class GameController(QObject):
         self.settings.difficulty = migrate_difficulty(gs.difficulty)
         self.settings.remind = gs.remind
         self.settings.pause = gs.pause
+        self.settings.invert_color = gs.invert_color
 
         self._positions = list(gs.positions)
         self._replay_history = list(gs.replay_positions) if gs.replay_positions else list(gs.positions)
@@ -653,6 +672,7 @@ class GameController(QObject):
                 remind=self.settings.remind,
                 sound_effect=False,
                 pause=self.settings.pause,
+                invert_color=self.settings.invert_color,
                 positions=list(self._positions),
                 replay_positions=list(self._replay_history),
             )

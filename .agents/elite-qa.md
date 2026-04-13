@@ -162,6 +162,52 @@ every audit. Each was born from a real missed bug.
     **Suggested hardening:** <defensive fix to apply now>
     ```
 
+22. **Legacy debt & forgotten TODO hunter** — the ability to find code
+    that was written as a temporary solution and never cleaned up. This
+    includes:
+
+    - **TODO/FIXME/HACK/WORKAROUND comments** — grep the entire codebase.
+      For each one: is it still relevant? Has the underlying issue been
+      fixed but the comment (and the hack) remained? If a TODO references
+      a milestone or decision that has already shipped, it's dead weight.
+
+    - **Dead code paths** — functions that are defined but never called.
+      Imports that are unused. Feature flags that are always True/False.
+      Config options with UI but no backend. Backward-compat shims for
+      migrations that have already happened.
+
+    - **Orphaned constants and thresholds** — magic numbers that were
+      tuned for a previous version of the eval, search, or UI. If the
+      eval scale changed (e.g. Texel tuning), are ALL thresholds that
+      depend on it updated? Check annotation thresholds, "Mat" detection
+      thresholds, score display formatting, bitbase probe conditions.
+
+    - **Stale validators** — `__post_init__` checks, `assert` statements,
+      range validators that reflect OLD constraints (e.g. "difficulty
+      must be 1-3" when the system now uses 1-6). These don't just fail
+      to protect — they actively break valid inputs.
+
+    - **Copy-paste drift** — code that was duplicated between modules and
+      has since diverged. The same logic in `controller.py` and
+      `headless.py` for game-over detection, but one has 3-fold
+      repetition and the other doesn't. Same constant defined in 3 files
+      with different values.
+
+    - **Thread lifecycle patterns** — QThread cleanup that calls
+      `deleteLater()` without `quit()` + `wait()` first. Signal
+      connections across threads without proper cleanup. Workers that
+      emit signals after the receiver is deleted.
+
+    For each finding, report as:
+    ```
+    ### LEGACY-NNN: <title>
+    **Type:** TODO / DEAD_CODE / STALE_VALIDATOR / COPY_PASTE / THREAD
+    **Location:** file:line
+    **Origin:** <when/why this was introduced (git blame if possible)>
+    **Risk if kept:** <what breaks or degrades>
+    **Suggested cleanup:** <concrete fix>
+    ```
+
 ### Code-level (existing)
 - **Cross-cutting vision**: when a component is reused in multiple
   contexts, you immediately think "what assumptions does context A make
@@ -625,3 +671,17 @@ Agent(
   analyzer bug was found by comparing actual notation formats side by side.
   All three bugs were invisible to the test suite because tests used values
   within the old ranges or never tested the annotation comparison path.
+
+- **2026-04-13 user-reported crash + follow-up fixes:**
+  User found analysis pane crash — clicking "Анализ" silently killed the
+  app. Root cause: `_cleanup_thread()` called `deleteLater()` on a running
+  QThread without `quit()` + `wait()` first — undefined behavior in Qt,
+  causes segfault. This was a **thread lifecycle pattern bug** — the exact
+  kind the new superpower #22 (Legacy debt hunter) is designed to catch.
+  Also found and fixed: hover dots showing for pieces that can't move
+  (mandatory capture not checked), analysis pane passing wrong color
+  (board_changed emitted before current_turn updated), and added
+  analysis best-move visualization (blue arrow overlay on board).
+
+  **Lesson:** thread cleanup must ALWAYS follow quit→wait→deleteLater.
+  Added "Thread lifecycle patterns" to superpower #22 checklist.

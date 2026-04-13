@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import random
 import time
 from typing import TYPE_CHECKING
@@ -241,6 +242,7 @@ def _alphabeta(
 
     opp = _opponent(color)
     orig_alpha = alpha
+    orig_beta = beta
     best_idx = 0
 
     # Track position for repetition detection
@@ -292,46 +294,13 @@ def _alphabeta(
     # Store in transposition table
     if value <= orig_alpha:
         flag = _TT_UPPER
-    elif value >= beta:
+    elif value >= orig_beta:
         flag = _TT_LOWER
     else:
         flag = _TT_EXACT
     _tt_store(ctx.tt, h, depth, value, flag, best_idx)
 
     return value
-
-
-def _build_root_move_scores(
-    board: Board,
-    color: str | Color,
-    moves: list[tuple[str, list[tuple[int, int]]]],
-    depth: int,
-    ctx: SearchContext,
-) -> list[tuple[float, str, list[tuple[int, int]]]]:
-    """Re-evaluate all root moves at *depth* and return them sorted best-first.
-
-    Called after each fully completed depth iteration in ``_search_best_move``
-    to populate ``ctx.root_move_scores`` with a full ranking.  Used by
-    blunder selection (D7) in ``AIEngine.find_move``.
-
-    This is a lightweight re-sweep: the transposition table from the just-
-    completed search is warm, so most nodes are TT hits and the cost is
-    negligible compared to the full search.
-    """
-    opp = _opponent(color)
-    scored: list[tuple[float, str, list[tuple[int, int]]]] = []
-    for kind, path in moves:
-        child = _apply_move(board, kind, path)
-        try:
-            score = _alphabeta(child, depth - 1, -float("inf"), float("inf"), False, opp, color, ctx)
-        except SearchCancelledError:
-            # Deadline expired mid-sweep — skip remaining moves; caller will
-            # discard this partial depth anyway so the list may be incomplete.
-            break
-        scored.append((score, kind, path))
-    # Sort descending (best score first)
-    scored.sort(key=lambda t: t[0], reverse=True)
-    return scored
 
 
 def _search_best_move(
@@ -392,6 +361,7 @@ def _search_best_move(
 
             best_score = -float("inf")
             best_moves_at_depth: list[tuple[str, list[tuple[int, int]]]] = []
+            depth_scores: list[tuple[float, str, list[tuple[int, int]]]] = []
             alpha = -float("inf")
             beta = float("inf")
 
@@ -399,6 +369,7 @@ def _search_best_move(
                 for kind, path in moves:
                     child = _apply_move(board, kind, path)
                     score = _alphabeta(child, depth - 1, alpha, beta, False, opp, color, ctx)
+                    depth_scores.append((score, kind, path))
 
                     if score > best_score:
                         best_score = score
@@ -415,13 +386,10 @@ def _search_best_move(
                 last_complete_best = best_moves_at_depth[:]
                 last_complete_score = best_score
                 # Record scored root moves for blunder selection (D7).
-                # We track this incrementally: every call to _alphabeta at
-                # root level returns a score for that move.  We rebuild the
-                # full ranked list after each completed depth so ctx always
-                # reflects the last fully completed depth's ranking.
-                ctx.root_move_scores = _build_root_move_scores(
-                    board, color, moves, depth, ctx
-                )
+                # Built incrementally during the root loop above — no
+                # separate re-sweep needed (PERF-002).
+                depth_scores.sort(key=lambda t: t[0], reverse=True)
+                ctx.root_move_scores = depth_scores
     finally:
         ctx.deadline = None
 
@@ -564,7 +532,8 @@ class AIEngine:
             top_k = blunder_cfg["top_k"]
             # Use a position-derived seed for reproducibility in tests while
             # still producing variety across different board positions.
-            rng = random.Random(hash(board.to_position_string()))
+            seed = int.from_bytes(hashlib.md5(board.to_position_string().encode()).digest()[:8], "little")  # noqa: S324
+            rng = random.Random(seed)
             if rng.random() < prob:
                 scored = self._ctx.root_move_scores
                 # Collect up to top_k candidates, excluding the best move.

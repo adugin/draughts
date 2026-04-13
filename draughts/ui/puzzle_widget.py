@@ -20,11 +20,10 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QSizePolicy,
     QVBoxLayout,
 )
 
-from draughts.config import EMPTY, Color
+from draughts.config import BOARD_PX, EMPTY, Color
 from draughts.game.board import Board
 from draughts.game.puzzles import Puzzle, PuzzleSet, load_bundled_puzzles
 from draughts.ui.board_widget import BoardWidget
@@ -258,9 +257,8 @@ class PuzzleTrainer(QDialog):
         root.addWidget(self._status_lbl)
 
         # Board widget — same fixed size as main window board
-        _BOARD_PX = 640
         self._board_widget = BoardWidget()
-        self._board_widget.setFixedSize(_BOARD_PX, _BOARD_PX)
+        self._board_widget.setFixedSize(BOARD_PX, BOARD_PX)
         self._board_widget.cell_left_clicked.connect(self._on_cell_click)
         root.addWidget(self._board_widget, alignment=Qt.AlignmentFlag.AlignCenter)
 

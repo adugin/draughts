@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from draughts.config import BOARD_PX
 from draughts.game.board import Board
 from draughts.ui.board_widget import BoardWidget
 
@@ -58,9 +59,8 @@ class PlaybackDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # Board widget
-        _BOARD_PX = 640
         self._board_widget = BoardWidget()
-        self._board_widget.setFixedSize(_BOARD_PX, _BOARD_PX)
+        self._board_widget.setFixedSize(BOARD_PX, BOARD_PX)
         layout.addWidget(self._board_widget, stretch=1)
 
         # Position indicator

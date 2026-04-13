@@ -226,6 +226,30 @@ class AnalysisPane(QDockWidget):
     # Public interface
     # ------------------------------------------------------------------
 
+    def refresh_theme(self, theme_name: str) -> None:
+        """Re-resolve theme colors and re-apply inline styles."""
+        self._tc = _get_theme_colors(theme_name)
+        tc = self._tc
+        _label_style = f"color: {tc['fg']}; font-size: 12px;"
+        _value_style = f"color: {tc['fg_accent']}; font-size: 12px; font-weight: bold;"
+        _caption_style = f"color: {tc['caption_fg']}; font-size: 11px;"
+
+        # Container background
+        container = self.widget()
+        if container is not None:
+            container.setStyleSheet(f"background-color: {tc['bg']};")
+
+        # Labels
+        for w in (self._score_val, self._bm_val, self._depth_val,
+                  self._time_val, self._lm_val):
+            w.setStyleSheet(_value_style)
+        self._status_lbl.setStyleSheet(_caption_style)
+        # Find all QLabel children that are row labels (not value labels)
+        for child in self.findChildren(QLabel):
+            if child not in (self._score_val, self._bm_val, self._depth_val,
+                             self._time_val, self._lm_val, self._status_lbl):
+                child.setStyleSheet(_label_style)
+
     def set_position(self, board: Board, color: Color) -> None:
         """Update the position that will be analyzed on the next run."""
         self._current_board = board
@@ -273,10 +297,9 @@ class AnalysisPane(QDockWidget):
 
         # Update labels
         score = result.score
-        if abs(score) >= 9000:
-            score_text = "Мат" if score > 0 else "-Мат"
+        if abs(score) >= 900:
+            score_text = "Выигрыш" if score > 0 else "Проигрыш"
         else:
-            # Display as centi-pawns * 100 for readability
             sign = "+" if score >= 0 else ""
             score_text = f"{sign}{score:.0f}"
         self._score_val.setText(score_text)
@@ -343,6 +366,9 @@ class AnalysisPane(QDockWidget):
             self._cleanup_thread()
 
     def _cleanup_thread(self) -> None:
+        if self._thread is not None:
+            self._thread.quit()
+            self._thread.wait()
         if self._worker is not None:
             try:
                 self._worker.deleteLater()

@@ -17,6 +17,7 @@ import numpy as np
 # ---------------------------------------------------------------------------
 
 BOARD_SIZE = 8
+BOARD_PX = 640  # fixed board widget size in pixels
 
 # Piece encoding — signed int8 for NumPy vectorization:
 #   positive = black, negative = white, 0 = empty

@@ -20,6 +20,7 @@ class GameSave:
     remind: bool = True  # hint for mandatory captures
     sound_effect: bool = False
     pause: float = 0.75  # animation delay multiplier (0.0-5.0)
+    invert_color: bool = False  # True = player was playing as black
     positions: list[str] = field(default_factory=list)  # history of 32-char board states
     replay_positions: list[str] = field(default_factory=list)  # same positions for playback
 
@@ -59,6 +60,8 @@ def load_game(filepath: str | Path) -> GameSave:
     # Backward compatibility: old saves used "movie" key
     if "movie" in data and "replay_positions" not in data:
         data["replay_positions"] = data.pop("movie")
+    # Old saves don't have invert_color — default to False
+    data.setdefault("invert_color", False)
     return GameSave(**data)
 
 
