@@ -83,20 +83,6 @@ class MainWindow(QMainWindow):
         # No status bar
         self.setStatusBar(None)
 
-        # Clock toolbar (D19) — shown only when settings.show_clock is True
-        self._clock_toolbar = QToolBar("Часы", self)
-        self._clock_toolbar.setMovable(False)
-        self._clock_toolbar.setFloatable(False)
-        # Clock toolbar inherits colors from the window-level theme QSS.
-        # Only set font here (not colors).
-        self._clock_label_white = QLabel("\u26aa 0:00")
-        self._clock_label_black = QLabel("\u26ab 0:00")
-        self._clock_toolbar.addWidget(self._clock_label_white)
-        self._clock_toolbar.addSeparator()
-        self._clock_toolbar.addWidget(self._clock_label_black)
-        self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self._clock_toolbar)
-        self._clock_toolbar.setVisible(False)
-
     def _build_menus(self):
         """Create standard menu bar with all game actions."""
         menubar = self.menuBar()
@@ -235,7 +221,6 @@ class MainWindow(QMainWindow):
         c.capture_hint.connect(self._on_capture_hint)
         c.last_move_changed.connect(self._on_last_move_changed)
         c.hint_ready.connect(self._on_hint_ready)
-        c.clock_updated.connect(self._on_clock_updated)
         c.message_changed.connect(self._on_message_changed)
 
         # Push initial settings to board widget
@@ -312,17 +297,6 @@ class MainWindow(QMainWindow):
         else:
             self.setWindowTitle("Шашки")
 
-    def _on_clock_updated(self, white_ms: int, black_ms: int):
-        """Update clock labels (D19)."""
-
-        def fmt(ms: int) -> str:
-            total_s = ms // 1000
-            m, s = divmod(total_s, 60)
-            return f"{m}:{s:02d}"
-
-        self._clock_label_white.setText(f"\u26aa {fmt(white_ms)}")
-        self._clock_label_black.setText(f"\u26ab {fmt(black_ms)}")
-
     # --- Menu actions ---
 
     def _on_undo(self):
@@ -385,8 +359,6 @@ class MainWindow(QMainWindow):
                 self._apply_theme(new_theme)
             # Apply board orientation (D22)
             self.board_widget.inverted = self._controller.settings.invert_color
-            # Show/hide clock toolbar (D19)
-            self._clock_toolbar.setVisible(self._controller.settings.show_clock)
             # Apply tuned eval toggle immediately (BUG-004)
             from draughts.game.ai.eval import set_use_tuned_eval
 

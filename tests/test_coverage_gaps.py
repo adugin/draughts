@@ -262,7 +262,6 @@ class TestSettingsBackwardCompat:
         assert s.use_opening_book is True
         assert s.use_endgame_bitbase is True
         assert s.use_tuned_eval is True
-        assert s.show_clock is False
         assert s.board_theme == "dark_wood"
         assert s.show_legal_moves_hover is False
 

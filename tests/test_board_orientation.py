@@ -178,13 +178,6 @@ class TestOrientationSettings:
         s = GameSettings()
         assert s.invert_color is False
 
-    def test_game_settings_show_clock_default_false(self):
-        """GameSettings.show_clock defaults to False (D19)."""
-        from draughts.config import GameSettings
-
-        s = GameSettings()
-        assert s.show_clock is False
-
     def test_controller_default_player_is_white(self, qt_app):
         """By default the human player is WHITE and computer is BLACK.
 
