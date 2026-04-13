@@ -202,7 +202,15 @@ class GameController(QObject):
     # --- Player input ---
 
     def on_cell_left_click(self, x: int, y: int):
-        """Handle left-click on board cell."""
+        """Handle left-click on board cell.
+
+        Input model (matches lidraughts/CheckerBoard):
+        - Click own piece → select it (clears any partial capture path)
+        - Click empty square → try to move/capture there
+        - Multi-capture disambiguation is automatic via _try_capture_move:
+          if the click is an intermediate point, the path extends;
+          if it's a final point, the capture executes.
+        """
         if self._current_turn != self._player_color:
             return
         if self._ai_thread is not None:
@@ -217,53 +225,22 @@ class GameController(QObject):
 
         sx, sy = self._selected
 
-        if self._is_player_piece(piece) and (x, y) != (sx, sy) and not self._capture_path:
+        # Click on own piece → reselect (always allowed, even mid-capture)
+        if self._is_player_piece(piece) and (x, y) != (sx, sy):
             self._select_piece(x, y)
             return
 
+        # Click on empty square → try move or capture
         if piece == Board.EMPTY:
             self._try_move(sx, sy, x, y)
 
     def on_cell_right_click(self, x: int, y: int):
-        """Handle right-click — intermediate capture position."""
-        if self._current_turn != self._player_color:
-            return
-        if self._selected is None:
-            return
-
-        sx, sy = self._selected
-
-        virtual = self.board.copy()
-        current_pos = (sx, sy)
-
-        if self._capture_path:
-            piece = virtual.piece_at(sx, sy)
-            for i in range(len(self._capture_path) - 1):
-                fx, fy = self._capture_path[i]
-                tx, ty = self._capture_path[i + 1]
-                dx = 1 if tx > fx else -1
-                dy = 1 if ty > fy else -1
-                cx, cy = fx + dx, fy + dy
-                while (cx, cy) != (tx, ty):
-                    if virtual.piece_at(cx, cy) != Board.EMPTY:
-                        virtual.place_piece(cx, cy, Board.EMPTY)
-                        break
-                    cx += dx
-                    cy += dy
-                virtual.place_piece(fx, fy, Board.EMPTY)
-                virtual.place_piece(tx, ty, piece)
-            current_pos = self._capture_path[-1]
-
-        captures = virtual.get_captures(*current_pos)
-
-        for path in captures:
-            if len(path) >= 2 and path[1] == (x, y):
-                if not self._capture_path:
-                    self._capture_path = [(sx, sy), (x, y)]
-                else:
-                    self._capture_path.append((x, y))
-                self.capture_highlights_changed.emit(self._capture_path[1:])
-                return
+        """Right-click in game mode: deselect piece and clear capture path."""
+        if self._selected is not None:
+            self._selected = None
+            self._capture_path = []
+            self.selection_changed.emit(None, None)
+            self.capture_highlights_changed.emit([])
 
     def _is_player_piece(self, piece: int) -> bool:
         return self.board.is_white(piece) if self._player_color == Color.WHITE else self.board.is_black(piece)
