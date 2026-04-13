@@ -123,8 +123,9 @@ class EngineSession:
     # -----------------------------------------------------------------------
 
     def _cmd_uci(self, out: IO[str]) -> None:
-        emit(out, "id name DRAUGHTS-engine")
-        emit(out, "id author Andrey Dugin")
+        import draughts
+        emit(out, f"id name DRAUGHTS-engine v{draughts.__version__}")
+        emit(out, f"id author {draughts.__author__}")
         emit(out, "option name Hash type spin default 64 min 1 max 1024")
         emit(out, "option name Threads type spin default 1 min 1 max 1")
         emit(out, "option name Level type spin default 4 min 1 max 6")

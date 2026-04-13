@@ -77,7 +77,8 @@ def main():
             load_path = str(autosave_path)
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Шашки")
+    from draughts.config import APP_NAME
+    app.setApplicationName(APP_NAME)
     app.setApplicationVersion(draughts.__version__)
 
     controller = GameController()

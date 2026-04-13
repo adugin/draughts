@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from draughts.config import BOARD_PX, BOARD_SIZE, Color
+from draughts.config import APP_NAME, BOARD_PX, BOARD_SIZE, Color
 from draughts.ui.analysis_pane import AnalysisPane
 from draughts.ui.board_widget import BoardWidget
 from draughts.ui.theme_engine import apply_theme as _apply_engine_theme
@@ -41,7 +41,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, controller: GameController, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Шашки")
+        self.setWindowTitle(APP_NAME)
         # Window size is built FROM the board, not the other way around.
         # Board widget gets a fixed square size; the window wraps tightly.
         # setFixedSize is called AFTER _build_ui so the layout can compute.
@@ -284,18 +284,18 @@ class MainWindow(QMainWindow):
         """Display the hint squares on the board and show a status message (D16)."""
         self.board_widget.hint_squares = squares
         # Show as a transient message box in the title bar area
-        self.setWindowTitle(f"Шашки — {message}")
+        self.setWindowTitle(f"{APP_NAME} — {message}")
         # Restore plain title after 4 seconds
         from PyQt6.QtCore import QTimer
 
-        QTimer.singleShot(4000, lambda: self.setWindowTitle("Шашки"))
+        QTimer.singleShot(4000, lambda: self.setWindowTitle(APP_NAME))
 
     def _on_message_changed(self, message: str):
         """Show controller messages (thinking, mandatory capture hints) in title bar."""
         if message:
-            self.setWindowTitle(f"Шашки — {message}")
+            self.setWindowTitle(f"{APP_NAME} — {message}")
         else:
-            self.setWindowTitle("Шашки")
+            self.setWindowTitle(APP_NAME)
 
     # --- Menu actions ---
 
@@ -379,9 +379,9 @@ class MainWindow(QMainWindow):
         color = self._controller.current_turn
         fen = board_to_fen(board, color)
         QApplication.clipboard().setText(fen)
-        self.setWindowTitle(f"Шашки — FEN скопирован")
+        self.setWindowTitle(f"{APP_NAME} — FEN скопирован")
         from PyQt6.QtCore import QTimer
-        QTimer.singleShot(2000, lambda: self.setWindowTitle("Шашки"))
+        QTimer.singleShot(2000, lambda: self.setWindowTitle(APP_NAME))
 
     def _on_paste_fen(self):
         """Paste FEN from clipboard and start a new game from it (D36)."""
@@ -698,7 +698,7 @@ class MainWindow(QMainWindow):
         if w_count > 12:
             warnings.append(f"У белых {w_count} шашек (макс. 12 в стандартной игре)")
         if warnings:
-            self.setWindowTitle(f"Шашки — {'; '.join(warnings)}")
+            self.setWindowTitle(f"{APP_NAME} — {'; '.join(warnings)}")
 
         return board
 

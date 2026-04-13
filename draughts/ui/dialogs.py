@@ -349,9 +349,12 @@ class AboutDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
+        import draughts
+        from draughts.config import APP_NAME
+
         info = QLabel(
-            "<h3>Шашки</h3>"
-            "<p>Based on original by <b>Andrey Dugin</b> (1998–2000)</p>"
+            f"<h3>{APP_NAME} v{draughts.__version__}</h3>"
+            f"<p>Based on original by <b>{draughts.__author__}</b> (1998–2000)</p>"
             "<p>Borland Pascal 7.0 → Python / PyQt6</p>"
             "<p>Русские шашки 8×8 с ИИ-противником</p>"
         )
