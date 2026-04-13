@@ -493,55 +493,20 @@ class MainWindow(QMainWindow):
         # Enable editor mode on the widget
         self.board_widget.editor_mode = True
 
-        # Build the editor toolbar
-        self._editor_toolbar = QToolBar("Редактор позиции", self)
-        self._editor_toolbar.setMovable(False)
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._editor_toolbar)
+        # Save window size before adding toolbars
+        self._editor_saved_size = self.size()
 
-        # Side-to-move radio buttons
+        # Unlock window size so toolbars can expand it
+        self.setMinimumSize(0, 0)
+        self.setMaximumSize(16777215, 16777215)
+
+        # Build editor toolbars at the bottom (like analysis pane)
         _tc = get_theme_colors(self._current_theme)
-        lbl = QLabel("Ход:")
-        lbl.setStyleSheet(f"color: {_tc['fg']}; font-weight: bold; padding: 0 4px;")
-        self._editor_toolbar.addWidget(lbl)
 
-        self._editor_radio_white = QRadioButton("Белые")
-        self._editor_radio_black = QRadioButton("Чёрные")
-
-        self._editor_side_group = QButtonGroup(self)
-        self._editor_side_group.addButton(self._editor_radio_white)
-        self._editor_side_group.addButton(self._editor_radio_black)
-
-        if self._editor_turn == Color.WHITE:
-            self._editor_radio_white.setChecked(True)
-        else:
-            self._editor_radio_black.setChecked(True)
-
-        self._editor_toolbar.addWidget(self._editor_radio_white)
-        self._editor_toolbar.addWidget(self._editor_radio_black)
-        self._editor_toolbar.addSeparator()
-
-        # Action buttons — short labels to fit the 640px toolbar
-        btn_clear = QPushButton("Очистить")
-        btn_clear.setToolTip("Очистить доску")
-        btn_clear.clicked.connect(self._editor_clear_board)
-        self._editor_toolbar.addWidget(btn_clear)
-
-        btn_start = QPushButton("Начальная")
-        btn_start.setToolTip("Начальная позиция")
-        btn_start.clicked.connect(self._editor_start_position)
-        self._editor_toolbar.addWidget(btn_start)
-
-        btn_import = QPushButton("FEN▼")
-        btn_import.setToolTip("Импорт FEN из буфера обмена")
-        btn_import.clicked.connect(self._editor_import_fen)
-        self._editor_toolbar.addWidget(btn_import)
-
-        btn_export = QPushButton("FEN▲")
-        btn_export.setToolTip("Экспорт FEN в буфер обмена")
-        btn_export.clicked.connect(self._editor_export_fen)
-        self._editor_toolbar.addWidget(btn_export)
-
-        self._editor_toolbar.addSeparator()
+        # --- Row 1: Play / Analyze / Cancel + side-to-move ---
+        self._editor_toolbar = QToolBar("Редактор", self)
+        self._editor_toolbar.setMovable(False)
+        self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self._editor_toolbar)
 
         btn_play = QPushButton("▶ Играть")
         btn_play.setToolTip("Начать игру из этой позиции")
@@ -554,11 +519,59 @@ class MainWindow(QMainWindow):
         btn_analyze.clicked.connect(self._editor_analyze_from_here)
         self._editor_toolbar.addWidget(btn_analyze)
 
-        btn_cancel = QPushButton("✕")
+        btn_cancel = QPushButton("Отмена")
         btn_cancel.setToolTip("Отмена (Escape)")
         btn_cancel.setStyleSheet(f"color: {_tc['editor_cancel_fg']};")
         btn_cancel.clicked.connect(self._editor_cancel)
         self._editor_toolbar.addWidget(btn_cancel)
+
+        self._editor_toolbar.addSeparator()
+
+        # Side-to-move (whose turn after pressing Play)
+        lbl = QLabel("  Чей ход:")
+        lbl.setStyleSheet(f"color: {_tc['fg']}; padding: 0 2px;")
+        self._editor_toolbar.addWidget(lbl)
+
+        self._editor_radio_white = QRadioButton("Белых")
+        self._editor_radio_black = QRadioButton("Чёрных")
+
+        self._editor_side_group = QButtonGroup(self)
+        self._editor_side_group.addButton(self._editor_radio_white)
+        self._editor_side_group.addButton(self._editor_radio_black)
+
+        if self._editor_turn == Color.WHITE:
+            self._editor_radio_white.setChecked(True)
+        else:
+            self._editor_radio_black.setChecked(True)
+
+        self._editor_toolbar.addWidget(self._editor_radio_white)
+        self._editor_toolbar.addWidget(self._editor_radio_black)
+
+        # --- Row 2: tools (clear, reset, FEN) ---
+        self._editor_toolbar2 = QToolBar("Инструменты", self)
+        self._editor_toolbar2.setMovable(False)
+        self.addToolBarBreak(Qt.ToolBarArea.BottomToolBarArea)
+        self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self._editor_toolbar2)
+
+        btn_clear = QPushButton("Очистить доску")
+        btn_clear.clicked.connect(self._editor_clear_board)
+        self._editor_toolbar2.addWidget(btn_clear)
+
+        btn_start = QPushButton("Начальная позиция")
+        btn_start.clicked.connect(self._editor_start_position)
+        self._editor_toolbar2.addWidget(btn_start)
+
+        self._editor_toolbar2.addSeparator()
+
+        btn_import = QPushButton("Импорт FEN")
+        btn_import.setToolTip("Вставить позицию из буфера обмена")
+        btn_import.clicked.connect(self._editor_import_fen)
+        self._editor_toolbar2.addWidget(btn_import)
+
+        btn_export = QPushButton("Экспорт FEN")
+        btn_export.setToolTip("Скопировать позицию в буфер обмена")
+        btn_export.clicked.connect(self._editor_export_fen)
+        self._editor_toolbar2.addWidget(btn_export)
 
         # Disable game actions while editing
         self._act_new.setEnabled(False)
@@ -571,13 +584,18 @@ class MainWindow(QMainWindow):
         if not self.board_widget.editor_mode:
             return
         self.board_widget.editor_mode = False
-        if hasattr(self, "_editor_toolbar") and self._editor_toolbar is not None:
-            self.removeToolBar(self._editor_toolbar)
-            self._editor_toolbar.deleteLater()
-            self._editor_toolbar = None
+        for attr in ("_editor_toolbar", "_editor_toolbar2"):
+            tb = getattr(self, attr, None)
+            if tb is not None:
+                self.removeToolBar(tb)
+                tb.deleteLater()
+                setattr(self, attr, None)
         self._act_new.setEnabled(True)
         self._act_load.setEnabled(True)
         self._update_action_states()
+        # Restore exact window size — no adjustSize() delay, no flicker
+        if hasattr(self, "_editor_saved_size"):
+            self.setFixedSize(self._editor_saved_size)
 
     def _editor_side(self) -> Color:
         """Return the currently selected side-to-move from the editor toolbar."""
