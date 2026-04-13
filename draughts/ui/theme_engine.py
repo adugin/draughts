@@ -416,6 +416,9 @@ QComboBox {{
     border-radius: 3px;
     font-size: 13px;
 }}
+QComboBox:disabled {{
+    color: {disabled_fg};
+}}
 QComboBox::drop-down {{
     background: transparent;
     border: none;
@@ -451,6 +454,9 @@ QCheckBox {{
     color: {fg};
     spacing: 6px;
 }}
+QCheckBox:disabled {{
+    color: {disabled_fg};
+}}
 QCheckBox::indicator {{
     width: 18px;
     height: 18px;
@@ -467,6 +473,9 @@ QCheckBox::indicator:checked {{
 QRadioButton {{
     color: {fg};
     spacing: 6px;
+}}
+QRadioButton:disabled {{
+    color: {disabled_fg};
 }}
 QRadioButton::indicator {{
     width: 16px;
@@ -487,6 +496,9 @@ QSpinBox {{
     border: 1px solid {input_border};
     padding: 3px;
     border-radius: 3px;
+}}
+QSpinBox:disabled {{
+    color: {disabled_fg};
 }}
 QSpinBox::up-button, QSpinBox::down-button {{
     background: transparent;

@@ -43,7 +43,7 @@ analysis_stop_bg = "#5a2a2a"
 analysis_stop_border = "#8a4a4a"
 analysis_stop_hover = "#6a3a3a"
 disabled_bg = "#2a2a2a"
-disabled_fg = "#666666"
+disabled_fg = "#6a5a4a"
 caption_fg = "#a08050"
 
 # Editor specific
