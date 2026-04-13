@@ -107,6 +107,7 @@ class HeadlessGame:
         # play_full_game to detect sterile endgames (draughts' analogue
         # of the chess 50-move rule).
         self._quiet_plies: int = 0
+        self._kings_only_plies: int = 0  # consecutive plies with all kings (FMJD 15-move rule)
         # Wall-clock of the most recent AI move. Useful for heartbeat logs.
         self._last_move_time_s: float = 0.0
 
@@ -492,22 +493,31 @@ class HeadlessGame:
         self._moves.append(record)
         self._ply += 1
 
-        # Quiet-move counter: reset to zero on any capture, otherwise
-        # increment. A promotion-only move (no capture) still counts as
-        # quiet; that is fine because promotions change material count
-        # and will unblock the 3-fold/repetition check via distinct
-        # positions. The counter exists to catch sterile king-dances.
+        # Draw rule counters (FMJD)
+        import numpy as np
+
         if kind == "capture":
             self._quiet_plies = 0
         else:
             self._quiet_plies += 1
+
+        grid = self._board.grid
+        has_pawns = bool(np.any(np.abs(grid[grid != 0]) == 1))
+        if has_pawns:
+            self._kings_only_plies = 0
+        else:
+            self._kings_only_plies += 1
 
         pos = self._board.to_position_string()
         self._position_history.append(pos)
         self._position_counts[pos] = self._position_counts.get(pos, 0) + 1
 
         # Check for game over (delegates to Board — shared with controller)
-        game_over = self._board.check_game_over(self._position_counts)
+        game_over = self._board.check_game_over(
+            self._position_counts,
+            quiet_plies=self._quiet_plies,
+            kings_only_plies=self._kings_only_plies,
+        )
         if game_over is not None:
             winner, reason = game_over
             self._end_game(winner, reason)

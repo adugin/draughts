@@ -368,13 +368,23 @@ class Board:
     def check_game_over(
         self,
         position_counts: dict[str, int] | None = None,
+        quiet_plies: int = 0,
+        kings_only_plies: int = 0,
     ) -> tuple[Color | None, str] | None:
         """Check if the game is over.
 
         Returns ``(winner, reason)`` if the game ended, or ``None`` if
         play continues.  ``winner`` is ``None`` for draws.
 
-        Reasons: ``"no_pieces"``, ``"no_moves"``, ``"draw_repetition"``.
+        Reasons: ``"no_pieces"``, ``"no_moves"``, ``"draw_repetition"``,
+        ``"draw_kings_only"``, ``"draw_no_progress"``, ``"draw_endgame"``.
+
+        Args:
+            position_counts: position → count dict for 3-fold repetition.
+            quiet_plies: consecutive half-moves without captures or pawn
+                advances (for the 30-move no-progress rule: 60 half-moves).
+            kings_only_plies: consecutive half-moves where ALL pieces on
+                the board are kings (for the 15-move rule: 30 half-moves).
 
         This is the single source of truth for game-over detection,
         used by both ``GameController`` (GUI) and ``HeadlessGame``.
@@ -392,10 +402,31 @@ class Board:
         if not self.has_any_move(Color.BLACK):
             return (Color.WHITE, "no_moves")
 
+        # 3-fold repetition
         if position_counts is not None:
             pos = self.to_position_string()
             if position_counts.get(pos, 0) >= 3:
                 return (None, "draw_repetition")
+
+        # 2K vs 1K — theoretical draw (Petrov triangle), declare immediately
+        flat = self.grid.ravel()
+        has_pawns = bool(np.any(np.abs(flat) == 1))
+        if not has_pawns:
+            bk = int(np.count_nonzero(flat == 2))
+            wk = int(np.count_nonzero(flat == -2))
+            if (bk == 1 and wk == 1) or (bk == 2 and wk == 1) or (bk == 1 and wk == 2):
+                return (None, "draw_endgame")
+
+        # 15-move all-kings rule (FMJD): 15 moves = 30 half-moves
+        # by both sides with only kings on the board → draw.
+        # Also covers 3K vs 1K (must win within 15 moves).
+        if kings_only_plies >= 30:
+            return (None, "draw_kings_only")
+
+        # 30-move no-progress rule: 30 moves = 60 half-moves
+        # without any capture or pawn advance → draw.
+        if quiet_plies >= 60:
+            return (None, "draw_no_progress")
 
         return None
 

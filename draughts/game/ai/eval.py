@@ -384,16 +384,24 @@ def _has_single_capture_only(grid: np.ndarray) -> bool:
 
 
 def _is_drawn_endgame(grid: np.ndarray) -> bool:
-    """Detect trivially drawn endgame positions."""
+    """Detect trivially drawn endgame positions (FMJD rules).
+
+    Drawn patterns (no pawns, kings only):
+    - 1K vs 1K — dead position, no mating material.
+    - 2K vs 1K — theoretical draw (Petrov triangle defense:
+      the lone king oscillates within a1-c1-c3 or mirror and
+      cannot be captured).
+    """
     flat = grid.ravel().view(np.uint8)
     counts = np.bincount(flat, minlength=256)
     bp, bk, wp, wk = int(counts[1]), int(counts[2]), int(counts[255]), int(counts[254])
-    black_total = bp + bk
-    white_total = wp + wk
-    # 1 King vs 1 King (no pawns) — always a draw in Russian draughts.
-    # Note: 2K vs 1K and 3K vs 1K are WINS (not draws) so we must check
-    # exact counts, not >= 1.
-    if bp == 0 and wp == 0 and bk == 1 and wk == 1:
+    if bp != 0 or wp != 0:
+        return False  # pawns present — not a trivial endgame
+    # 1K vs 1K
+    if bk == 1 and wk == 1:
+        return True
+    # 2K vs 1K (either side)
+    if (bk == 2 and wk == 1) or (bk == 1 and wk == 2):
         return True
     return False
 
@@ -534,11 +542,13 @@ def _evaluate_fast(grid: np.ndarray, color: str | Color) -> float:
     if white_total == 0:
         return 1000.0 if color == Color.BLACK else -1000.0
 
-    # Drawn endgame: exactly 1 king vs 1 king with no pawns.
-    # Return contempt (slight negative from root's POV) so the searching
-    # side prefers decisive play when alternatives exist.
-    if black_total == 1 and white_total == 1 and black_kings == 1 and white_kings == 1:
-        return -_CONTEMPT if color == Color.BLACK else _CONTEMPT
+    # Drawn endgames (FMJD): 1K vs 1K, 2K vs 1K (Petrov triangle).
+    # Return contempt so the searching side prefers decisive play.
+    if black_pawns == 0 and white_pawns == 0:
+        if (black_kings == 1 and white_kings == 1) or \
+           (black_kings == 2 and white_kings == 1) or \
+           (black_kings == 1 and white_kings == 2):
+            return -_CONTEMPT if color == Color.BLACK else _CONTEMPT
 
     # Material
     total = (black_pawns * _PAWN_VALUE + black_kings * _KING_VALUE) - (

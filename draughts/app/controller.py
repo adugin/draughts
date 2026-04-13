@@ -151,6 +151,10 @@ class GameController(QObject):
         self._game_started: bool = False
         self._position_counts: dict[str, int] = {}
 
+        # Draw rule counters (FMJD)
+        self._quiet_plies: int = 0       # plies without captures or pawn moves
+        self._kings_only_plies: int = 0  # plies where all pieces are kings
+
         # Clock (D19) — cumulative thinking time per side in ms
         self._white_time_ms: int = 0
         self._black_time_ms: int = 0
@@ -189,6 +193,8 @@ class GameController(QObject):
         self._ply_count = 0
         self._game_started = turn != Color.WHITE  # custom position = game already in progress
         self._position_counts = {pos: 1}
+        self._quiet_plies = 0
+        self._kings_only_plies = 0
 
         # Reset clock (D19)
         self._white_time_ms = 0
@@ -316,7 +322,7 @@ class GameController(QObject):
 
         notation = f"{Board.pos_to_notation(sx, sy)}-{Board.pos_to_notation(tx, ty)}"
         self.board.execute_move(sx, sy, tx, ty)
-        self._finish_player_move(notation, from_sq=(sx, sy), to_sq=(tx, ty))
+        self._finish_player_move(notation, from_sq=(sx, sy), to_sq=(tx, ty), was_capture=False)
 
     def _try_capture_move(self, sx: int, sy: int, tx: int, ty: int):
         """Try a capture move."""
@@ -340,9 +346,9 @@ class GameController(QObject):
         self.board.execute_capture_path(best_path)
 
         notation = ":".join(Board.pos_to_notation(x, y) for x, y in best_path)
-        self._finish_player_move(notation, from_sq=best_path[0], to_sq=best_path[-1])
+        self._finish_player_move(notation, from_sq=best_path[0], to_sq=best_path[-1], was_capture=True)
 
-    def _finish_player_move(self, notation: str, from_sq: tuple[int, int] | None = None, to_sq: tuple[int, int] | None = None):
+    def _finish_player_move(self, notation: str, from_sq: tuple[int, int] | None = None, to_sq: tuple[int, int] | None = None, was_capture: bool = False):
         """Finalize player's move — record, switch turns, start AI."""
         # Accumulate elapsed time for the player's side (D19)
         elapsed = self._move_timer.elapsed() if self._move_timer.isValid() else 0
@@ -354,6 +360,7 @@ class GameController(QObject):
         self.clock_updated.emit(self._white_time_ms, self._black_time_ms)
 
         self._ply_count += 1
+        self._update_draw_counters(was_capture)
         self._game_started = True
         self._selected = None
         self._capture_path = []
@@ -437,6 +444,7 @@ class GameController(QObject):
             return
 
         self._ply_count += 1
+        self._update_draw_counters(result.kind == "capture")
 
         # Accumulate elapsed time for the computer's side (D19)
         elapsed = self._move_timer.elapsed() if self._move_timer.isValid() else 0
@@ -497,7 +505,35 @@ class GameController(QObject):
         self.selection_changed.emit(None, None)
         self.capture_highlights_changed.emit([])
 
+    # --- Draw counters (FMJD endgame rules) ---
+
+    def _update_draw_counters(self, was_capture: bool) -> None:
+        """Update quiet-move and kings-only counters after a half-move."""
+        import numpy as np
+
+        grid = self.board.grid
+        has_pawns = bool(np.any(np.abs(grid[grid != 0]) == 1))
+
+        # Quiet plies: reset on capture or pawn presence change
+        if was_capture or has_pawns:
+            self._quiet_plies = 0 if was_capture else self._quiet_plies + 1
+        else:
+            self._quiet_plies += 1
+
+        # Kings-only plies: count consecutive plies where all pieces are kings
+        if has_pawns:
+            self._kings_only_plies = 0
+        else:
+            self._kings_only_plies += 1
+
     # --- Game over ---
+
+    _DRAW_MESSAGES: dict[str, str] = {
+        "draw_repetition": "Ничья — троекратное повторение позиции.",
+        "draw_endgame": "Ничья — недостаточно материала.",
+        "draw_kings_only": "Ничья — 15 ходов только дамками без взятий.",
+        "draw_no_progress": "Ничья — 30 ходов без взятий и движения шашек.",
+    }
 
     def _check_game_over(self) -> bool:
         """Check if the game is over. Emit game_over signal if so.
@@ -505,13 +541,18 @@ class GameController(QObject):
         Delegates to Board.check_game_over() — the single source of truth
         for game-over rules shared with HeadlessGame.
         """
-        result = self.board.check_game_over(self._position_counts)
+        result = self.board.check_game_over(
+            self._position_counts,
+            quiet_plies=self._quiet_plies,
+            kings_only_plies=self._kings_only_plies,
+        )
         if result is None:
             return False
 
         winner, reason = result
         if winner is None:
-            self.game_over.emit("Ничья — троекратное повторение позиции.")
+            msg = self._DRAW_MESSAGES.get(reason, "Ничья.")
+            self.game_over.emit(msg)
         elif winner == self._player_color:
             self.game_over.emit("Вы выиграли!")
         else:
