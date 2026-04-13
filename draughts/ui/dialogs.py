@@ -153,21 +153,19 @@ class OptionsDialog(QDialog):
         self._threads.setRange(1, 1)
         self._threads.setValue(1)
         self._threads.setEnabled(False)
-        self._threads.setToolTip("Многопоточность (не реализована)")
+        self._threads.setToolTip("Многопоточный поиск (планируется в будущих версиях)")
         form.addRow("Потоки:", self._threads)
 
-        # Opening book — stub, disabled
+        # Opening book (D8)
         self._opening_book = QCheckBox("Дебютная книга")
-        self._opening_book.setChecked(False)
-        self._opening_book.setEnabled(False)
-        self._opening_book.setToolTip("Не реализовано (планируется в M2)")
+        self._opening_book.setChecked(s.use_opening_book)
+        self._opening_book.setToolTip("Использовать книгу дебютов для первых ходов")
         form.addRow(self._opening_book)
 
-        # Endgame bitbase — stub, disabled
+        # Endgame bitbase (D9)
         self._bitbase = QCheckBox("Эндшпильная база")
-        self._bitbase.setChecked(False)
-        self._bitbase.setEnabled(False)
-        self._bitbase.setToolTip("Не реализовано (планируется в M2)")
+        self._bitbase.setChecked(s.use_endgame_bitbase)
+        self._bitbase.setToolTip("Использовать базу эндшпилей для точной игры в окончаниях")
         form.addRow(self._bitbase)
 
         # Depth override — only enabled in dev mode
@@ -256,17 +254,16 @@ class OptionsDialog(QDialog):
     def _build_analysis_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        coming_soon = QLabel(
-            "<h3>Анализ партии</h3>"
-            "<p>Функции анализа (оценка позиции, аннотации ходов,<br>"
-            "график оценки) будут доступны в следующем обновлении (M3).</p>"
+        info = QLabel(
+            "<b>Панель анализа</b> — F3 или меню Анализ<br>"
+            "<b>Анализ партии</b> — меню Анализ → Проанализировать партию<br><br>"
+            "Настройки анализа будут добавлены в будущих версиях."
         )
-        coming_soon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        coming_soon.setTextFormat(Qt.TextFormat.RichText)
-        coming_soon.setWordWrap(True)
-        layout.addWidget(coming_soon)
+        info.setTextFormat(Qt.TextFormat.RichText)
+        info.setWordWrap(True)
+        layout.addWidget(info)
 
         return page
 
@@ -290,6 +287,8 @@ class OptionsDialog(QDialog):
             show_legal_moves_hover=self._show_legal.isChecked(),
             show_clock=self._show_clock.isChecked(),
             hash_size_mb=self._hash_size.value(),
+            use_opening_book=self._opening_book.isChecked(),
+            use_endgame_bitbase=self._bitbase.isChecked(),
         )
         return s
 
