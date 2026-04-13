@@ -380,8 +380,8 @@ class MainWindow(QMainWindow):
             self.board_widget.set_settings(self._controller.settings)
             # Apply theme change to board AND entire window (D18)
             new_theme = getattr(self._controller.settings, "board_theme", "dark_wood")
-            self.board_widget.set_theme(new_theme)
             if new_theme != self._current_theme:
+                self.board_widget.set_theme(new_theme)
                 self._apply_theme(new_theme)
             # Apply board orientation (D22)
             self.board_widget.inverted = self._controller.settings.invert_color
