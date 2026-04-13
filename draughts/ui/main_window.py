@@ -263,10 +263,16 @@ class MainWindow(QMainWindow):
 
     def _on_ai_thinking(self, thinking: bool):
         self.board_widget.setEnabled(not thinking)
+        self.board_widget.set_thinking(thinking)
         self._act_undo.setEnabled(not thinking and self._controller.can_undo)
         self._act_save.setEnabled(not thinking and self._controller.can_save)
         self._act_new.setEnabled(not thinking)
         self._act_load.setEnabled(not thinking)
+        # Wait cursor while AI is thinking
+        if thinking:
+            self.setCursor(Qt.CursorShape.WaitCursor)
+        else:
+            self.unsetCursor()
 
     def _on_selection_changed(self, x, y):
         if x is None:

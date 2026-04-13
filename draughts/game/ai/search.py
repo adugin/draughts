@@ -220,9 +220,10 @@ def _alphabeta(
     if not moves:
         return -1000.0 if maximizing else 1000.0
 
-    # Endgame pattern: king vs king only = draw (also contempt-biased).
-    if _is_drawn_endgame(board.grid):
-        return -_CONTEMPT
+    # Drawn endgame (1K vs 1K) is handled in _evaluate_fast, which is
+    # called by quiescence at leaf nodes. This ensures captures are still
+    # searched properly — returning contempt here at internal nodes would
+    # blind the AI to captures, causing it to walk into losing positions.
 
     # Move ordering: TT best move first, then killers, then heuristic
     moves = _order_moves(moves, board, color, ctx.history)

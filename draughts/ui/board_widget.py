@@ -75,6 +75,13 @@ class BoardWidget(QWidget):
         self._hint_clear_timer.setSingleShot(True)
         self._hint_clear_timer.timeout.connect(self._clear_hint_squares)
 
+        # AI thinking overlay
+        self._thinking: bool = False
+        self._thinking_dots: int = 0
+        self._thinking_timer = QTimer(self)
+        self._thinking_timer.setInterval(500)
+        self._thinking_timer.timeout.connect(self._thinking_tick)
+
         self.setMinimumSize(240, 240)
         self.setMouseTracking(False)
 
@@ -128,6 +135,22 @@ class BoardWidget(QWidget):
 
     def _clear_hint_squares(self) -> None:
         self._hint_squares = None
+        self.update()
+
+    # --- AI thinking overlay ---
+
+    def set_thinking(self, thinking: bool) -> None:
+        """Show or hide the thinking overlay."""
+        self._thinking = thinking
+        if thinking:
+            self._thinking_dots = 0
+            self._thinking_timer.start()
+        else:
+            self._thinking_timer.stop()
+        self.update()
+
+    def _thinking_tick(self) -> None:
+        self._thinking_dots = (self._thinking_dots + 1) % 4
         self.update()
 
     # --- Editor mode ---
@@ -439,6 +462,22 @@ class BoardWidget(QWidget):
 
         # Draw coordinate labels
         self._draw_labels(painter, cell_size, bx, by, board_side)
+
+        # AI thinking overlay: semi-transparent darkening + animated text
+        if self._thinking:
+            overlay = QRectF(bx, by, board_side, board_side)
+            painter.fillRect(overlay, QColor(0, 0, 0, 90))
+            dots = "." * self._thinking_dots
+            label = f"Думаю{dots}"
+            font_size = max(14, int(cell_size * 0.45))
+            font = QFont("Georgia", font_size, QFont.Weight.Bold)
+            painter.setFont(font)
+            painter.setPen(QColor(255, 255, 255, 220))
+            painter.drawText(
+                overlay,
+                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
+                label,
+            )
 
         # Editor-mode overlay: "РЕДАКТОР" label in the top-left corner
         if self._editor_mode:

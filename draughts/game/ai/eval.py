@@ -534,6 +534,12 @@ def _evaluate_fast(grid: np.ndarray, color: str | Color) -> float:
     if white_total == 0:
         return 1000.0 if color == Color.BLACK else -1000.0
 
+    # Drawn endgame: exactly 1 king vs 1 king with no pawns.
+    # Return contempt (slight negative from root's POV) so the searching
+    # side prefers decisive play when alternatives exist.
+    if black_total == 1 and white_total == 1 and black_kings == 1 and white_kings == 1:
+        return -_CONTEMPT if color == Color.BLACK else _CONTEMPT
+
     # Material
     total = (black_pawns * _PAWN_VALUE + black_kings * _KING_VALUE) - (
         white_pawns * _PAWN_VALUE + white_kings * _KING_VALUE

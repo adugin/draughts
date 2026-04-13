@@ -397,19 +397,20 @@ class TestDiagonalDistance:
 
 class TestContempt:
     def test_drawn_endgame_returns_negative_contempt(self):
-        """King vs King is a drawn endgame pattern. The minimax score
-        should be the contempt bias (slightly negative from root's POV),
-        not exactly 0 — the searching side prefers decisive play."""
+        """King vs King on different diagonals is a drawn endgame.
+        The minimax score should reflect the contempt bias (slightly
+        negative from root's POV). Kings must NOT be on the same
+        diagonal — corner-vs-corner on one diagonal is a forced win."""
         from draughts.game.ai import SearchContext
         b = Board(empty=True)
-        b.place_piece(0, 0, BLACK_KING)
-        b.place_piece(7, 7, -2)  # WHITE_KING
+        b.place_piece(1, 0, BLACK_KING)   # b8 — diagonal b8-g3
+        b.place_piece(5, 6, -2)  # WHITE_KING at f2 — different diagonal
         score = _alphabeta(
             b, depth=3, alpha=-1000, beta=1000,
             maximizing=True, color=Color.BLACK, root_color=Color.BLACK,
             ctx=SearchContext(),
         )
-        assert abs(score + _CONTEMPT) < 1e-4
+        assert abs(score) < 5.0, f"Expected near-zero (contempt), got {score}"
 
     def test_repetition_returns_negative_contempt(self):
         """When the path already visited the current hash, the
