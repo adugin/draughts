@@ -174,6 +174,18 @@ class MainWindow(QMainWindow):
         self._act_editor.triggered.connect(self.enter_editor_mode)
         position_menu.addAction(self._act_editor)
 
+        position_menu.addSeparator()
+
+        self._act_copy_fen = QAction("&Копировать FEN", self)
+        self._act_copy_fen.setShortcut(QKeySequence("Ctrl+Shift+C"))
+        self._act_copy_fen.triggered.connect(self._on_copy_fen)
+        position_menu.addAction(self._act_copy_fen)
+
+        self._act_paste_fen = QAction("&Вставить FEN", self)
+        self._act_paste_fen.setShortcut(QKeySequence("Ctrl+Shift+V"))
+        self._act_paste_fen.triggered.connect(self._on_paste_fen)
+        position_menu.addAction(self._act_paste_fen)
+
         # --- Анализ ---
         analysis_menu = menubar.addMenu("&Анализ")
 
@@ -390,6 +402,37 @@ class MainWindow(QMainWindow):
             # computer moves first when it's now white.
             if old_invert != new_invert:
                 self._controller.new_game()
+
+    def _on_copy_fen(self):
+        """Copy current board position as FEN to clipboard (D36)."""
+        from PyQt6.QtWidgets import QApplication
+
+        from draughts.game.fen import board_to_fen
+
+        board = self._controller.board
+        color = self._controller.current_turn
+        fen = board_to_fen(board, color)
+        QApplication.clipboard().setText(fen)
+        self.setWindowTitle(f"Шашки — FEN скопирован")
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(2000, lambda: self.setWindowTitle("Шашки"))
+
+    def _on_paste_fen(self):
+        """Paste FEN from clipboard and start a new game from it (D36)."""
+        from PyQt6.QtWidgets import QApplication
+
+        from draughts.game.fen import parse_fen
+
+        text = QApplication.clipboard().text()
+        if not text or not text.strip():
+            QMessageBox.warning(self, "Вставить FEN", "Буфер обмена пуст.")
+            return
+        try:
+            board, color = parse_fen(text.strip())
+        except ValueError as exc:
+            QMessageBox.warning(self, "Ошибка FEN", f"Неверный FEN:\n{exc}")
+            return
+        self._controller.new_game_from_position(board, color)
 
     def _on_playback(self):
         from draughts.ui.playback import PlaybackDialog
