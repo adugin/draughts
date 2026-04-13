@@ -364,6 +364,10 @@ class MainWindow(QMainWindow):
 
             set_use_tuned_eval(self._controller.settings.use_tuned_eval)
 
+            # Persist user preferences to disk
+            from draughts.config import save_settings
+            save_settings(self._controller.settings)
+
             # If player switched sides, start a new game so the
             # computer moves first when it's now white.
             if old_invert != new_invert:

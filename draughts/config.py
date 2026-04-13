@@ -138,6 +138,7 @@ def migrate_difficulty(old: int) -> int:
 # ---------------------------------------------------------------------------
 
 AUTOSAVE_FILENAME = "autosave.json"
+SETTINGS_FILENAME = "settings.json"
 
 
 def get_data_dir() -> Path:
@@ -146,3 +147,47 @@ def get_data_dir() -> Path:
     data_dir = base / "draughts"
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
+
+
+# ---------------------------------------------------------------------------
+# Settings persistence
+# ---------------------------------------------------------------------------
+
+# Fields that are persisted to settings.json (UI preferences only —
+# not game state like invert_color or search_depth which are per-game).
+_PERSISTENT_FIELDS = [
+    "difficulty", "remind", "pause", "board_theme",
+    "show_coordinates", "highlight_last_move", "show_legal_moves_hover",
+    "hash_size_mb", "use_opening_book", "use_endgame_bitbase", "use_tuned_eval",
+]
+
+
+def save_settings(settings: GameSettings) -> None:
+    """Save user preferences to settings.json in the data directory."""
+    import json
+
+    data = {k: getattr(settings, k) for k in _PERSISTENT_FIELDS}
+    path = get_data_dir() / SETTINGS_FILENAME
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def load_settings() -> GameSettings:
+    """Load user preferences from settings.json, falling back to defaults.
+
+    Unknown keys are silently ignored (forward compatibility).
+    Missing keys use the dataclass defaults (backward compatibility).
+    """
+    import json
+
+    path = get_data_dir() / SETTINGS_FILENAME
+    settings = GameSettings()
+    if not path.exists():
+        return settings
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for key in _PERSISTENT_FIELDS:
+            if key in data:
+                setattr(settings, key, data[key])
+    except Exception:
+        pass  # corrupted file — use defaults
+    return settings

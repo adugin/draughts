@@ -83,7 +83,11 @@ def main():
 
     controller = GameController()
 
-    # Apply CLI settings before starting the game
+    # Load saved user preferences (or defaults if no settings file)
+    from draughts.config import load_settings
+    controller.settings = load_settings()
+
+    # CLI flags override saved settings
     if args.difficulty is not None:
         controller.settings.difficulty = args.difficulty
     if args.black:
