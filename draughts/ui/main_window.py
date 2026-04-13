@@ -458,6 +458,7 @@ class MainWindow(QMainWindow):
         self._editor_saved_turn = self._controller._current_turn
         self._editor_saved_player_color = self._controller._player_color
         self._editor_saved_board = self._controller.board.copy()
+        self._editor_saved_position_counts = dict(self._controller._position_counts)
 
         # Stop any running AI
         if self._controller._ai_thread is not None:
@@ -645,6 +646,7 @@ class MainWindow(QMainWindow):
         self._controller._current_turn = self._editor_saved_turn
         self._controller._player_color = self._editor_saved_player_color
         self._controller.board = self._editor_saved_board
+        self._controller._position_counts = self._editor_saved_position_counts
         self._controller.board_changed.emit()
         self._controller.turn_changed.emit(self._controller._current_turn)
         self._controller.selection_changed.emit(None, None)
@@ -668,6 +670,13 @@ class MainWindow(QMainWindow):
         c._replay_history = [board.to_position_string()]
         c._ply_count = 0
         c._game_started = True
+        c._position_counts = {board.to_position_string(): 1}
+
+        # Reset clock (D19)
+        c._white_time_ms = 0
+        c._black_time_ms = 0
+        c._move_timer.start()
+        c.clock_updated.emit(0, 0)
 
         c.board_changed.emit()
         c.turn_changed.emit(turn)

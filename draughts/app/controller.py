@@ -504,13 +504,23 @@ class GameController(QObject):
             self.game_over.emit("Вы проиграли!" if player_lost else "Вы выиграли!")
             return True
 
-        next_turn = self._player_color if self._current_turn == self._computer_color else self._computer_color
-        if not self.board.has_any_move(next_turn):
-            if next_turn == self._player_color:
-                self.game_over.emit("Вы проиграли!")
-            else:
-                self.game_over.emit("Вы выиграли!")
-            return True
+        # Check if the side about to move has any legal moves.
+        # After player moves, current_turn is still player (not yet switched);
+        # after AI moves, current_turn is already set to player.
+        # The correct "next mover" is always the OPPOSITE of whoever just moved.
+        # We compute it from _current_turn and the two call sites:
+        #   - _finish_player_move: current_turn == player → next = computer ✓
+        #   - _on_ai_finished_inner: current_turn == player → next = player ✗
+        # Fix: use the dedicated parameter to identify who just moved.
+        # Since both call sites set current_turn differently relative to
+        # who moved, the safest approach: check both sides.
+        for side in (Color.WHITE, Color.BLACK):
+            if not self.board.has_any_move(side):
+                if side == self._player_color:
+                    self.game_over.emit("Вы проиграли!")
+                else:
+                    self.game_over.emit("Вы выиграли!")
+                return True
 
         # 3-fold repetition → draw
         pos = self.board.to_position_string()
@@ -552,6 +562,12 @@ class GameController(QObject):
             self.board.load_from_position_string(self._positions[-1])
         else:
             self.board = Board()
+
+        # Rebuild position counts from the loaded history so 3-fold
+        # repetition detection works correctly for the loaded game.
+        self._position_counts = {}
+        for pos in self._positions:
+            self._position_counts[pos] = self._position_counts.get(pos, 0) + 1
 
         self._current_turn = Color.WHITE if self._ply_count % 2 == 0 else Color.BLACK
         self._selected = None
@@ -649,6 +665,12 @@ class GameController(QObject):
         self._replay_history = list(positions)
         self._ply_count = len(positions) - 1
 
+        # Rebuild position counts from replayed history so 3-fold
+        # repetition detection works correctly for PDN-loaded games.
+        self._position_counts = {}
+        for pos in self._positions:
+            self._position_counts[pos] = self._position_counts.get(pos, 0) + 1
+
         self.board.load_from_position_string(positions[-1])
         self._current_turn = start_color if self._ply_count % 2 == 0 else start_color.opponent
         self._selected = None
@@ -678,7 +700,7 @@ class GameController(QObject):
             )
             autosave(filepath, gs)
         except Exception:
-            pass
+            logger.warning("Autosave failed", exc_info=True)
 
     # --- Properties ---
 
