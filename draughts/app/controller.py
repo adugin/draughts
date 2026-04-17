@@ -914,6 +914,33 @@ class GameController(QObject):
             return sep.join(squares)
         return f"{squares[0]}{sep}{squares[-1]}"
 
+    def get_book_moves(self) -> list[tuple[str, int, tuple[tuple[int, int], tuple[int, int]]]]:
+        """Return opening-book moves for the current position (M9.b).
+
+        Each entry is (notation, weight, (from_sq, to_sq)) where notation
+        is like 'c3-d4' / 'e5:c3:a5', weight is the raw book weight
+        (typically #games this move was played in our training set), and
+        (from_sq, to_sq) are the internal (x, y) tuples of the first and
+        last squares of the path for UI highlighting.
+
+        Empty list if the position is not in the book, or the book is
+        disabled, or no book is loaded.
+        """
+        if not self.settings.use_opening_book:
+            return []
+        from draughts.game.ai import DEFAULT_BOOK
+
+        if DEFAULT_BOOK is None:
+            return []
+        moves_and_weights = DEFAULT_BOOK.probe_all(self.board, self._current_turn)
+        result: list[tuple[str, int, tuple[tuple[int, int], tuple[int, int]]]] = []
+        for ai_move, weight in moves_and_weights:
+            notation = self._format_move_notation(ai_move)
+            from_sq = tuple(ai_move.path[0])
+            to_sq = tuple(ai_move.path[-1])
+            result.append((notation, weight, (from_sq, to_sq)))
+        return result
+
     def request_analysis(self, depth: int = 6) -> object:  # returns Analysis | None
         """Analyze the current position synchronously and return an Analysis.
 

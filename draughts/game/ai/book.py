@@ -100,6 +100,30 @@ class OpeningBook:
                 return
         entry.moves.append((path_tuple, weight))
 
+    def probe_all(
+        self,
+        board: Board,
+        color: Color,
+    ) -> list[tuple[AIMove, int]]:
+        """Return every book move for this position, with its weight.
+
+        Used by the Opening Explorer UI (M9.b) to let the user see which
+        moves are in the book, how often each one is chosen during
+        self-play/import, and click one to preview. Empty list if the
+        position is not in the book. Sorted by descending weight so the
+        most-played move is first.
+        """
+        h = _zobrist_hash(board.grid, color)
+        entry = self._entries.get(h)
+        if entry is None or not entry.moves:
+            return []
+        result: list[tuple[AIMove, int]] = []
+        for path_tuple, weight in entry.moves:
+            kind = _infer_kind(board, path_tuple)
+            result.append((AIMove(kind=kind, path=list(path_tuple)), weight))
+        result.sort(key=lambda item: item[1], reverse=True)
+        return result
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

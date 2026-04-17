@@ -10,7 +10,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QDockWidget,
@@ -200,6 +200,18 @@ class AnalysisPane(QDockWidget):
         lm_row.addStretch()
         outer.addLayout(lm_row)
 
+        # --- Opening book row (M9.b) ---
+        book_row = QHBoxLayout()
+        book_lbl = QLabel("Дебют:")
+        book_lbl.setStyleSheet(_label_style)
+        book_row.addWidget(book_lbl)
+        self._book_val = QLabel("—")
+        self._book_val.setStyleSheet(_value_style)
+        self._book_val.setWordWrap(True)
+        self._book_val.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        book_row.addWidget(self._book_val, 1)
+        outer.addLayout(book_row)
+
         # --- Status label ---
         self._status_lbl = QLabel("Нажмите «Анализ» для запуска")
         self._status_lbl.setStyleSheet(_caption_style)
@@ -241,19 +253,59 @@ class AnalysisPane(QDockWidget):
 
         # Labels
         for w in (self._score_val, self._bm_val, self._depth_val,
-                  self._time_val, self._lm_val):
+                  self._time_val, self._lm_val, self._book_val):
             w.setStyleSheet(_value_style)
         self._status_lbl.setStyleSheet(_caption_style)
         # Find all QLabel children that are row labels (not value labels)
         for child in self.findChildren(QLabel):
             if child not in (self._score_val, self._bm_val, self._depth_val,
-                             self._time_val, self._lm_val, self._status_lbl):
+                             self._time_val, self._lm_val, self._book_val,
+                             self._status_lbl):
                 child.setStyleSheet(_label_style)
 
     def set_position(self, board: Board, color: Color) -> None:
         """Update the position that will be analyzed on the next run."""
         self._current_board = board
         self._current_color = color
+        self._refresh_book_row(board, color)
+
+    def _refresh_book_row(self, board: Board, color: Color) -> None:
+        """Query the opening book and populate the 'Дебют' row (M9.b).
+
+        Shows up to 5 top moves by weight inline; the full list is put
+        into the tooltip so crowded openings stay readable.
+        """
+        try:
+            from draughts.game.ai import DEFAULT_BOOK
+        except Exception:
+            self._book_val.setText("—")
+            self._book_val.setToolTip("")
+            return
+
+        if DEFAULT_BOOK is None:
+            self._book_val.setText("—")
+            self._book_val.setToolTip("Книга не загружена")
+            return
+
+        moves = DEFAULT_BOOK.probe_all(board, color)
+        if not moves:
+            self._book_val.setText("вне книги")
+            self._book_val.setToolTip("")
+            return
+
+        def fmt(mv_weight: tuple) -> str:
+            mv, w = mv_weight
+            sep = ":" if mv.kind == "capture" else "-"
+            if mv.kind == "capture":
+                n = sep.join(Board.pos_to_notation(x, y) for x, y in mv.path)
+            else:
+                n = f"{Board.pos_to_notation(*mv.path[0])}{sep}{Board.pos_to_notation(*mv.path[-1])}"
+            return f"{n} ({w})"
+
+        top = ", ".join(fmt(m) for m in moves[:5])
+        extra = "" if len(moves) <= 5 else f" (+{len(moves) - 5})"
+        self._book_val.setText(top + extra)
+        self._book_val.setToolTip("\n".join(fmt(m) for m in moves))
 
     def request_analysis(self, board: Board | None = None, color: Color | None = None) -> None:
         """Start analysis, optionally updating position first."""
