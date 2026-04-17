@@ -23,16 +23,25 @@ from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from draughts.game.gametree import NAG_MAP, NAG_REVERSE, GameNode, GameTree
+
 if TYPE_CHECKING:
     from draughts.game.board import Board
 
 
 @dataclass
 class PDNGame:
-    """A single game record in PDN format."""
+    """A single game record in PDN format.
+
+    ``moves`` is the main-line move list (backward compat with code written
+    before M5). ``tree`` is the full variation tree (populated by the
+    RAV-aware parser; when None, callers can build one via
+    GameTree.from_moves(game.moves)).
+    """
 
     headers: dict[str, str] = field(default_factory=dict)
     moves: list[str] = field(default_factory=list)
+    tree: "GameTree | None" = field(default=None, repr=False)
 
     @property
     def event(self) -> str:
@@ -190,14 +199,51 @@ def pdngame_to_string(game: PDNGame) -> str:
 
     lines.append("")
 
-    # Build movetext
+    # Build movetext. If a tree is present and has variations (or
+    # annotations on move nodes), render it as RAV; otherwise fall back
+    # to the flat move-list format for byte-identical output to pre-M5
+    # files. Determine starting side-to-move from the FEN header, if any:
+    # games opened from a black-to-move setup start with "N...".
     result_token = game.result
-    move_parts: list[str] = []
-    for i, move in enumerate(game.moves):
-        if i % 2 == 0:
-            move_parts.append(f"{i // 2 + 1}.")
-        move_parts.append(move)
-    move_parts.append(result_token)
+    tree = game.tree
+    starts_with_black = False
+    if headers.get("SetUp") == "1":
+        fen = headers.get("FEN", "").strip()
+        if fen and fen.split(":", 1)[0].strip().upper() == "B":
+            starts_with_black = True
+    start_ply = 1 if starts_with_black else 0
+
+    # Only move nodes (children of root) matter for the "has_tree_data"
+    # test — root-level comments/NAGs are not emitted by _emit_tree_line,
+    # so treating them as tree data would create a round-trip asymmetry.
+    has_tree_data = tree is not None and (
+        tree.has_variations()
+        or any(
+            (n.comment or n.nag)
+            for n in tree.root.iter_all()
+            if n is not tree.root
+        )
+    )
+    if has_tree_data:
+        move_parts: list[str] = []
+        _emit_tree_line(
+            tree.root,
+            move_parts,
+            cur_ply=start_ply,
+            black_ellipsis=starts_with_black,
+        )
+        move_parts.append(result_token)
+    else:
+        move_parts = []
+        for i, move in enumerate(game.moves):
+            absolute_ply = start_ply + i
+            if absolute_ply % 2 == 0:
+                move_parts.append(f"{absolute_ply // 2 + 1}.")
+            elif i == 0:
+                # First move is black's — emit "N..." before it.
+                move_parts.append(f"{absolute_ply // 2 + 1}...")
+            move_parts.append(move)
+        move_parts.append(result_token)
 
     movetext = " ".join(move_parts)
     # Wrap at ~80 chars, but don't break tokens
@@ -206,6 +252,68 @@ def pdngame_to_string(game: PDNGame) -> str:
     lines.append("")
 
     return "\n".join(lines)
+
+
+def _escape_pdn_comment(text: str) -> str:
+    """Make ``text`` safe to wrap inside ``{...}`` in PDN.
+
+    PDN has no comment-escape convention; most tools reject unmatched
+    braces. We replace both opening and closing braces with square brackets
+    so the output round-trips through our parser and is accepted by
+    third-party tools.
+    """
+    return text.replace("{", "[").replace("}", "]")
+
+
+def _emit_tree_line(
+    node: GameNode,
+    parts: list[str],
+    cur_ply: int,
+    black_ellipsis: bool,
+) -> None:
+    """Emit the descendants of ``node`` as PDN movetext (with RAV).
+
+    - ``cur_ply`` is the absolute ply index of the NEXT move to emit
+      (0 = white's 1st move, 1 = black's 1st, ...).
+    - ``black_ellipsis=True`` means the first emitted move (if it is
+      black's) needs an ``N...`` prefix — used at the start of a
+      variation whose first move is black.
+    """
+    cur = node
+    first = True
+    while cur.children:
+        main = cur.children[0]
+        # Move number
+        if cur_ply % 2 == 0:
+            parts.append(f"{cur_ply // 2 + 1}.")
+        elif first and black_ellipsis:
+            parts.append(f"{cur_ply // 2 + 1}...")
+        first = False
+        # Move + NAGs + comment
+        assert main.move is not None
+        parts.append(main.move)
+        for ng in main.nag:
+            parts.append(NAG_REVERSE.get(ng, ng))
+        if main.comment:
+            parts.append("{" + _escape_pdn_comment(main.comment) + "}")
+        # Alternative variations (siblings after main) — each in its own parens
+        for var in cur.children[1:]:
+            parts.append("(")
+            # The variation's first move sits at the same ply as ``main``.
+            if cur_ply % 2 == 0:
+                parts.append(f"{cur_ply // 2 + 1}.")
+            else:
+                parts.append(f"{cur_ply // 2 + 1}...")
+            assert var.move is not None
+            parts.append(var.move)
+            for ng in var.nag:
+                parts.append(NAG_REVERSE.get(ng, ng))
+            if var.comment:
+                parts.append("{" + _escape_pdn_comment(var.comment) + "}")
+            _emit_tree_line(var, parts, cur_ply + 1, black_ellipsis=True)
+            parts.append(")")
+        cur = main
+        cur_ply += 1
 
 
 def _normalize_date(d: str) -> str:
@@ -327,22 +435,161 @@ def parse_pdn(text: str) -> list[PDNGame]:
     return games
 
 
-def _build_game(headers: dict[str, str], move_text: str) -> PDNGame:
-    """Build a PDNGame from headers and raw move text."""
-    # Strip move numbers and result tokens
-    text = _MOVE_NUM_RE.sub("", move_text)
-    tokens = text.split()
+# --- RAV-aware tokenizer / parser (M5) -----------------------------------
 
-    moves = []
-    for token in tokens:
-        token = token.strip(".,;")
-        if not token or token in _RESULT_TOKENS:
+_MOVE_RE = re.compile(r"^(?:\d+[x\-](?:\d+[x\-])*\d+|[a-h][1-8](?::[a-h][1-8])+|[a-h][1-8]-[a-h][1-8])$")
+_MOVENUM_RE = re.compile(r"^\d+\.+$")
+
+
+def _tokenize_pdn_movetext(text: str) -> list[tuple[str, str]]:
+    """Tokenize PDN movetext, respecting {comments}, (variations), and NAGs.
+
+    Returns a list of (kind, value) pairs. Kinds:
+      'move', 'nag', 'comment', 'lparen', 'rparen', 'movenum', 'result'.
+    Unknown tokens are silently dropped.
+    """
+    tokens: list[tuple[str, str]] = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c.isspace():
+            i += 1
             continue
-        # Numeric PDN: NN-NN or NNxNN (possibly multi-jump like NNxNNxNN)
-        if re.match(r"^\d+[x\-]\d+", token) or re.match(r"^[a-h][1-8][:\-][a-h][1-8]", token):
-            moves.append(token)
+        if c == "{":
+            # Comment; terminated by the next '}'. If unbalanced, consume to EOL.
+            j = text.find("}", i + 1)
+            if j == -1:
+                j = n
+            tokens.append(("comment", text[i + 1:j]))
+            i = j + 1
+            continue
+        if c == "(":
+            tokens.append(("lparen", "("))
+            i += 1
+            continue
+        if c == ")":
+            tokens.append(("rparen", ")"))
+            i += 1
+            continue
+        if c in "!?":
+            j = i
+            while j < n and text[j] in "!?":
+                j += 1
+            tokens.append(("nag", text[i:j]))
+            i = j
+            continue
+        if c == "$":
+            j = i + 1
+            while j < n and text[j].isdigit():
+                j += 1
+            tokens.append(("nag", text[i:j]))
+            i = j
+            continue
+        # Regular word — up to next whitespace/paren/brace/NAG-char.
+        # NAG glyphs (!?$) stop a word, so '22-17!' splits into '22-17' + '!'.
+        j = i
+        while j < n and text[j] not in " \t\n\r()[]{}!?$":
+            j += 1
+        word = text[i:j]
+        i = j
+        if not word:
+            continue
+        if _MOVENUM_RE.match(word):
+            tokens.append(("movenum", word))
+        elif word in _RESULT_TOKENS:
+            tokens.append(("result", word))
+        elif _MOVE_RE.match(word):
+            tokens.append(("move", word))
+        # else: unknown punctuation or stray char — drop.
+    return tokens
 
-    return PDNGame(headers=dict(headers), moves=moves)
+
+def _parse_tokens_into_tree(
+    tokens: list[tuple[str, str]],
+    idx: int,
+    attach_to: GameNode,
+    *,
+    in_variation: bool = False,
+) -> int:
+    """Recursive descent: consume tokens starting at idx, extending the tree.
+
+    Moves go as first-children along a spine; parenthesised variations
+    attach as siblings of the move they follow. Returns the index of the
+    first unconsumed token (at or past a matching ')' if called from a
+    variation, else len(tokens)).
+
+    Stray ``)`` at the top level (``in_variation=False``) is skipped
+    instead of truncating the parse — otherwise a single malformed
+    paren in the input would silently drop every move after it.
+    """
+    cur = attach_to          # where the NEXT sequential move attaches
+    last_node: GameNode | None = None  # most recently added move node
+    while idx < len(tokens):
+        kind, val = tokens[idx]
+        if kind == "rparen":
+            if in_variation:
+                return idx + 1
+            # Top-level stray ')' — skip without terminating the parse.
+            idx += 1
+            continue
+        if kind == "lparen":
+            # Variation attaches to the parent of the last-added move.
+            # If no move has been added yet in this scope, skip the
+            # variation cleanly to avoid corrupting the tree.
+            if last_node is None or last_node.parent is None:
+                idx = _skip_balanced_parens(tokens, idx)
+                continue
+            idx = _parse_tokens_into_tree(
+                tokens, idx + 1, last_node.parent, in_variation=True
+            )
+            continue
+        if kind == "move":
+            last_node = cur.add_child(val)
+            cur = last_node
+            idx += 1
+            continue
+        if kind == "nag":
+            if last_node is not None:
+                last_node.nag.append(NAG_MAP.get(val, val))
+            idx += 1
+            continue
+        if kind == "comment":
+            if last_node is not None:
+                stripped = val.strip()
+                last_node.comment = (
+                    f"{last_node.comment} {stripped}".strip()
+                    if last_node.comment
+                    else stripped
+                )
+            idx += 1
+            continue
+        # movenum / result / anything else — advance silently
+        idx += 1
+    return idx
+
+
+def _skip_balanced_parens(tokens: list[tuple[str, str]], idx: int) -> int:
+    """Skip from an opening '(' to its matching ')'. Returns index past ')'."""
+    depth = 0
+    while idx < len(tokens):
+        kind, _ = tokens[idx]
+        if kind == "lparen":
+            depth += 1
+        elif kind == "rparen":
+            depth -= 1
+            if depth == 0:
+                return idx + 1
+        idx += 1
+    return idx
+
+
+def _build_game(headers: dict[str, str], move_text: str) -> PDNGame:
+    """Build a PDNGame from headers and raw move text, with RAV support."""
+    tokens = _tokenize_pdn_movetext(move_text)
+    tree = GameTree()
+    _parse_tokens_into_tree(tokens, 0, tree.root)
+    moves = tree.main_line
+    return PDNGame(headers=dict(headers), moves=moves, tree=tree)
 
 
 def load_pdn_file(path: str | Path) -> list[PDNGame]:
