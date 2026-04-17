@@ -395,30 +395,28 @@ def _search_best_move(
         ctx.deadline = None
 
     # Final selection: among moves with the same minimax score from the
-    # last fully completed depth, prefer the one the move orderer ranks
-    # highest. This gives more purposeful tie-breaking than random.choice
-    # (which earlier allowed real blunders to be picked when fail-hard
-    # quiescence tied a blunder with the real best move — that underlying
-    # bug is fixed, but deterministic ordered tie-break is strictly
-    # better even in the clean case). A tiny bit of randomness is kept
-    # by shuffling within each priority bucket so repeated self-play
-    # still produces variety.
+    # last fully completed depth, pick deterministically — the first
+    # entry after move-ordering (_order_moves is a stable sort so equal-
+    # priority moves keep their input order).
+    #
+    # Historical note: previously this called random.choice on the top-3
+    # to add "variety for self-play", but it used the module-level
+    # unseeded random, which made repeated searches on the *same
+    # position* return different moves. From the user's POV this looks
+    # like the AI randomly picks between equivalent captures (e.g. taking
+    # 1 piece vs 3 when both evaluate to the same score after counter-
+    # captures) and turns undo-replay into a non-repeatable experience.
+    # Strong engines (Scan, Kingsrow) are deterministic for the same
+    # position; we match that. Self-play variety, if needed, should be
+    # injected at a higher level (e.g. randomised opening book) rather
+    # than at the search tie-break.
     ctx.last_score = last_complete_score
     _state._last_search_score = last_complete_score  # backward-compat: callers read ai._last_search_score
     if len(last_complete_best) == 1:
         kind, path = last_complete_best[0]
     else:
         ordered = _order_moves(last_complete_best, board, color, ctx.history)
-        # Group by priority (we recompute here lightly; _order_moves is
-        # already a stable sort so equal-priority moves preserve their
-        # input order — shuffle within groups via random.choice on the
-        # top priority group only).
-        _top_kind, _top_path = ordered[0]
-        # Find all moves tied at top of ordered list — identify by
-        # re-computing priority. Simpler: shuffle top-3 at most to keep
-        # variety without risking blunders.
-        top_group = ordered[: min(3, len(ordered))]
-        kind, path = random.choice(top_group)
+        kind, path = ordered[0]
     return AIMove(kind, path)
 
 
