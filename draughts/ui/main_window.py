@@ -159,7 +159,7 @@ class MainWindow(QMainWindow):
         position_menu = menubar.addMenu("По&зиция")
 
         self._act_editor = QAction("&Редактор...", self)
-        self._act_editor.setShortcut(QKeySequence("E"))
+        self._act_editor.setShortcut(QKeySequence("Ctrl+E"))
         self._act_editor.triggered.connect(self.enter_editor_mode)
         position_menu.addAction(self._act_editor)
 
