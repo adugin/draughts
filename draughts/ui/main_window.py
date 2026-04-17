@@ -119,6 +119,11 @@ class MainWindow(QMainWindow):
         self._act_hint.triggered.connect(self._on_hint)
         game_menu.addAction(self._act_hint)
 
+        self._act_flip = QAction("&Сменить сторону", self)
+        self._act_flip.setShortcut(QKeySequence("Ctrl+F"))
+        self._act_flip.triggered.connect(self._on_flip_sides)
+        game_menu.addAction(self._act_flip)
+
         game_menu.addSeparator()
 
         self._act_exit = QAction("Вы&ход", self)
@@ -244,6 +249,8 @@ class MainWindow(QMainWindow):
 
     def _on_turn_changed(self, color: str):
         self.board_widget.set_turn_indicator(color)
+        # Flip-sides availability depends on whose turn it is (D36).
+        self._update_action_states()
 
     def _on_game_over(self, message: str):
         from draughts.ui.dialogs import GameOverDialog
@@ -337,6 +344,17 @@ class MainWindow(QMainWindow):
     def _on_hint(self):
         """Request a hint from the engine (D16, Ctrl+H)."""
         self._controller.get_hint()
+
+    def _on_flip_sides(self):
+        """Swap sides mid-game and flip the board so the player is at bottom (Ctrl+F)."""
+        if self.board_widget.editor_mode:
+            return
+        self._controller.flip_sides()
+        self.board_widget.inverted = (self._controller.player_color == Color.BLACK)
+        # Clear any stale hint/hover overlays — they belonged to the
+        # former player (BUG-8).
+        self.board_widget.hint_squares = None
+        self.board_widget._hover_legal_moves = []
 
     def _on_options(self):
         from draughts.ui.dialogs import OptionsDialog
@@ -481,12 +499,20 @@ class MainWindow(QMainWindow):
         self._editor_saved_board = self._controller.board.copy()
         self._editor_saved_position_counts = dict(self._controller._position_counts)
 
-        # Stop any running AI
+        # Invalidate any running AI (BUG-3): do NOT block main thread with
+        # quit()+wait() — AI.find_move() is a tight Python loop that doesn't
+        # check Qt's quit flag, so wait() would freeze the UI for seconds.
+        # Instead bump the generation token (same mechanism as flip_sides);
+        # the stale worker's result is dropped when it finishes, and the
+        # thread self-cleans via the finished-handler's stale path.
         if self._controller._ai_thread is not None:
-            self._controller._ai_thread.quit()
-            self._controller._ai_thread.wait()
-            self._controller._ai_worker = None
+            self._controller._ai_generation += 1
+            if self._controller._ai_worker is not None:
+                self._controller._pending_ai.append(
+                    (self._controller._ai_thread, self._controller._ai_worker)
+                )
             self._controller._ai_thread = None
+            self._controller._ai_worker = None
             self._controller.ai_thinking.emit(False)
 
         # Make a working copy of the board for editing
@@ -775,6 +801,11 @@ class MainWindow(QMainWindow):
         self._act_save.setEnabled(not editor and not thinking and has_game)
         self._act_undo.setEnabled(not editor and not thinking and has_moves)
         self._act_hint.setEnabled(not editor and not thinking)
+        # Flip sides (D36) — allowed only on the player's turn to prevent
+        # swap-spam from turning the game into AI-vs-AI. Blocked in editor
+        # (which has its own side-to-move widget).
+        on_player_turn = self._controller.current_turn == self._controller.player_color
+        self._act_flip.setEnabled(not editor and not thinking and on_player_turn)
         # _act_exit — always enabled
 
         # --- Настройки ---

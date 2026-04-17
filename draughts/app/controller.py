@@ -92,12 +92,13 @@ def _apply_pdn_move(board: Board, pdn_move: str) -> None:
 class AIWorker(QObject):
     """Runs AI computation in a background thread."""
 
-    finished = pyqtSignal(object)  # AIMove | None
+    finished = pyqtSignal(object, int)  # (AIMove | None, generation)
 
-    def __init__(self, board: Board, engine: AIEngine):
+    def __init__(self, board: Board, engine: AIEngine, generation: int):
         super().__init__()
         self._board = board
         self._engine = engine
+        self._generation = generation
 
     def run(self):
         try:
@@ -105,7 +106,7 @@ class AIWorker(QObject):
         except Exception:
             logger.exception("AI crashed during find_move")
             result = None
-        self.finished.emit(result)
+        self.finished.emit(result, self._generation)
 
 
 class GameController(QObject):
@@ -157,6 +158,14 @@ class GameController(QObject):
         # AI thread
         self._ai_thread: QThread | None = None
         self._ai_worker: AIWorker | None = None
+        # Pending (still-alive) AI threads/workers from prior generations that
+        # were invalidated by flip_sides. Python refs are held here so neither
+        # Qt nor GC collects them until their natural finish + deleteLater.
+        self._pending_ai: list[tuple[QThread, AIWorker]] = []
+        # Generation token — incremented when the in-flight AI result must
+        # be discarded (flip sides). Stale workers emit against an old token
+        # and _on_ai_finished silently ignores them.
+        self._ai_generation: int = 0
 
         # Record initial position
         self._positions.append(self.board.to_position_string())
@@ -189,6 +198,15 @@ class GameController(QObject):
         self._position_counts = {pos: 1}
         self._quiet_plies = 0
         self._kings_only_plies = 0
+        # Bump generation so any in-flight AI worker from the previous game
+        # is dropped when it finishes (BUG-10). NB: we do NOT clear
+        # _pending_ai — Python refs keep stale workers alive until their
+        # run() returns and the finished-handler's stale path cleans them.
+        self._ai_generation += 1
+        if self._ai_thread is not None and self._ai_worker is not None:
+            self._pending_ai.append((self._ai_thread, self._ai_worker))
+        self._ai_thread = None
+        self._ai_worker = None
 
         self.last_move_changed.emit(None)
         self.board_changed.emit()
@@ -345,10 +363,16 @@ class GameController(QObject):
     # --- Computer turn ---
 
     def _start_computer_turn(self):
-        """Start the AI computation in a background thread."""
+        """Start the AI computation in a background thread.
+
+        The worker carries the current generation token. If flip_sides()
+        bumps the token before the worker finishes, its result is discarded
+        in _on_ai_finished.
+        """
         self.message_changed.emit("Думаю...")
         self.ai_thinking.emit(True)
 
+        generation = self._ai_generation
         self._ai_thread = QThread()
         engine = AIEngine(
             difficulty=self.settings.difficulty,
@@ -357,14 +381,36 @@ class GameController(QObject):
             use_book=self.settings.use_opening_book,
             use_bitbase=self.settings.use_endgame_bitbase,
         )
-        self._ai_worker = AIWorker(self.board, engine)
+        self._ai_worker = AIWorker(self.board, engine, generation)
         self._ai_worker.moveToThread(self._ai_thread)
         self._ai_thread.started.connect(self._ai_worker.run)
         self._ai_worker.finished.connect(self._on_ai_finished)
         self._ai_thread.start()
 
-    def _on_ai_finished(self, result: AIMove | None):
+    def _on_ai_finished(self, result: AIMove | None, generation: int):
         """Handle AI computation result."""
+        # Stale result (flip_sides was called while AI was thinking). Clean up
+        # the stale thread here — don't touch self._ai_thread/_ai_worker which
+        # may already point to a new worker started after the flip.
+        if generation != self._ai_generation:
+            logger.debug("Ignoring stale AI result (worker gen=%d, current=%d)", generation, self._ai_generation)
+            worker = self.sender()
+            thread = worker.thread() if worker is not None else None
+            if thread is not None:
+                thread.quit()
+                thread.wait()
+            if worker is not None:
+                worker.deleteLater()
+            if thread is not None:
+                thread.deleteLater()
+            # Remove from pending list. Compare by stored generation — relying
+            # on identity (w is not worker) is unsafe because self.sender()
+            # may return a different Python wrapper for the same C++ QObject
+            # than the one originally stashed (BUG-6).
+            self._pending_ai = [
+                (t, w) for (t, w) in self._pending_ai if w._generation != generation
+            ]
+            return
         try:
             self._on_ai_finished_inner(result)
         except Exception:
@@ -377,7 +423,8 @@ class GameController(QObject):
         if self._ai_thread is not None:
             self._ai_thread.quit()
             self._ai_thread.wait()
-            self._ai_worker.deleteLater()
+            if self._ai_worker is not None:
+                self._ai_worker.deleteLater()
             self._ai_thread.deleteLater()
             self._ai_worker = None
             self._ai_thread = None
@@ -417,6 +464,78 @@ class GameController(QObject):
             return
 
         self._do_autosave()
+
+    # --- Flip sides ---
+
+    def flip_sides(self) -> None:
+        """Swap player/computer colors in the middle of a game.
+
+        Allowed only on the player's turn (D36). Pressing while AI is
+        thinking is a no-op with a brief status hint — this prevents the
+        spam scenario where repeated Ctrl+F makes the AI play both sides.
+        After swap, the AI answers once (because _current_turn is now its
+        color), and the next swap is blocked until AI finishes and control
+        returns to the player.
+
+        The board position, PDN-level move history, position counts, draw
+        counters and ply count are absolute and remain untouched: the
+        partition keeps playing from the same position with the same side
+        to move. Only the role bindings ("which color does the human play")
+        swap.
+
+        No-op when the game is over.
+        """
+        if self.board.check_game_over(
+            self._position_counts,
+            quiet_plies=self._quiet_plies,
+            kings_only_plies=self._kings_only_plies,
+        ) is not None:
+            return
+
+        # Guard (D36): only on the player's turn. Prevents swap-spam from
+        # turning the game into AI-vs-AI.
+        if self._current_turn != self._player_color:
+            self.message_changed.emit("Дождитесь хода AI")
+            return
+
+        # Guard (BUG-5): block while the player is mid multi-capture selection.
+        # The partial path would be silently dropped otherwise — confusing UX.
+        if self._capture_path:
+            self.message_changed.emit("Сначала завершите взятие")
+            return
+
+        # Invalidate any in-flight AI worker. Its result will be dropped by
+        # _on_ai_finished via generation mismatch. Stash Python refs in
+        # _pending_ai so neither Qt nor Python GC collects them until the
+        # stale worker finishes and the finished-handler cleans up.
+        self._ai_generation += 1
+        if self._ai_thread is not None and self._ai_worker is not None:
+            self._pending_ai.append((self._ai_thread, self._ai_worker))
+        self._ai_thread = None
+        self._ai_worker = None
+
+        # Swap role bindings. _current_turn (absolute side-to-move) is untouched.
+        self._player_color, self._computer_color = self._computer_color, self._player_color
+        self.settings.invert_color = (self._player_color == Color.BLACK)
+
+        # Clear UI state tied to the former player.
+        self._selected = None
+        self._capture_path = []
+
+        self.ai_thinking.emit(False)
+        self.message_changed.emit("")
+        self.selection_changed.emit(None, None)
+        self.capture_highlights_changed.emit([])
+        self.last_move_changed.emit(None)
+        self.board_changed.emit()
+        self.turn_changed.emit(self._current_turn)
+
+        # Persist new invert_color via autosave so --resume is consistent
+        # with the user's current orientation (BUG-9).
+        self._do_autosave()
+
+        if self._current_turn == self._computer_color:
+            self._start_computer_turn()
 
     # --- Undo ---
 
@@ -536,6 +655,18 @@ class GameController(QObject):
         self.settings.remind = gs.remind
         self.settings.pause = gs.pause
         self.settings.invert_color = gs.invert_color
+        # Reconcile role bindings with the loaded invert_color flag (BUG-1).
+        # Without this, a save made after flip_sides would resume with the
+        # wrong player/computer color mapping.
+        self._player_color = Color.BLACK if gs.invert_color else Color.WHITE
+        self._computer_color = Color.WHITE if gs.invert_color else Color.BLACK
+
+        # Invalidate any in-flight worker from the previous session (BUG-10).
+        self._ai_generation += 1
+        if self._ai_thread is not None and self._ai_worker is not None:
+            self._pending_ai.append((self._ai_thread, self._ai_worker))
+        self._ai_thread = None
+        self._ai_worker = None
 
         self._positions = list(gs.positions)
         self._replay_history = list(gs.replay_positions) if gs.replay_positions else list(gs.positions)
