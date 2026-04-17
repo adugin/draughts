@@ -124,6 +124,10 @@ class MainWindow(QMainWindow):
         self._act_flip.triggered.connect(self._on_flip_sides)
         game_menu.addAction(self._act_flip)
 
+        self._act_resign = QAction("С&даться", self)
+        self._act_resign.triggered.connect(self._on_resign)
+        game_menu.addAction(self._act_resign)
+
         game_menu.addSeparator()
 
         self._act_exit = QAction("Вы&ход", self)
@@ -358,6 +362,20 @@ class MainWindow(QMainWindow):
         # former player (BUG-8).
         self.board_widget.hint_squares = None
         self.board_widget._hover_legal_moves = []
+
+    def _on_resign(self):
+        """Player resigns — ask for confirmation, then end the game."""
+        if self.board_widget.editor_mode:
+            return
+        reply = QMessageBox.question(
+            self,
+            "Сдаться",
+            "Вы уверены, что хотите сдаться?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._controller.resign()
 
     def _on_options(self):
         from draughts.ui.dialogs import OptionsDialog
@@ -809,6 +827,8 @@ class MainWindow(QMainWindow):
         # (which has its own side-to-move widget).
         on_player_turn = self._controller.current_turn == self._controller.player_color
         self._act_flip.setEnabled(not editor and not thinking and on_player_turn)
+        # Resign — allowed any time a game is in progress and outside editor.
+        self._act_resign.setEnabled(not editor and has_game)
         # _act_exit — always enabled
 
         # --- Настройки ---

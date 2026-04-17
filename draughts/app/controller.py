@@ -476,6 +476,42 @@ class GameController(QObject):
 
         self._do_autosave()
 
+    # --- Resign ---
+
+    def resign(self) -> None:
+        """Resign the game on behalf of the player.
+
+        Emits game_over with a loss message and invalidates any in-flight
+        AI worker. Safe at any point — during AI thinking, mid-capture
+        selection, or on the player's turn. No-op if the game is already
+        over (Board.check_game_over returns non-None).
+        """
+        # Already over — ignore.
+        if self.board.check_game_over(
+            self._position_counts,
+            quiet_plies=self._quiet_plies,
+            kings_only_plies=self._kings_only_plies,
+        ) is not None:
+            return
+
+        # Invalidate any running AI worker via the generation token so its
+        # move (if any) does not get applied to the post-resignation board.
+        self._ai_generation += 1
+        if self._ai_thread is not None and self._ai_worker is not None:
+            self._pending_ai.append((self._ai_thread, self._ai_worker))
+        self._ai_thread = None
+        self._ai_worker = None
+
+        # Clear transient UI state.
+        self._selected = None
+        self._capture_path = []
+
+        self.ai_thinking.emit(False)
+        self.message_changed.emit("")
+        self.selection_changed.emit(None, None)
+        self.capture_highlights_changed.emit([])
+        self.game_over.emit("Вы сдались.")
+
     # --- Flip sides ---
 
     def flip_sides(self) -> None:
