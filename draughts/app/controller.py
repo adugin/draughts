@@ -405,15 +405,20 @@ class GameController(QObject):
         # may already point to a new worker started after the flip.
         if generation != self._ai_generation:
             logger.debug("Ignoring stale AI result (worker gen=%d, current=%d)", generation, self._ai_generation)
-            worker = self.sender()
-            thread = worker.thread() if worker is not None else None
-            if thread is not None:
-                thread.quit()
-                thread.wait()
-            if worker is not None:
-                worker.deleteLater()
-            if thread is not None:
-                thread.deleteLater()
+            # Look up the stale thread/worker from _pending_ai by stored
+            # generation — authoritative source. self.sender() may return
+            # None during C++-object teardown (M4), in which case without
+            # this fallback the thread would leak and pending_ai would not
+            # be drained for this generation.
+            stale_entries = [(t, w) for (t, w) in self._pending_ai if w._generation == generation]
+            for thread, worker in stale_entries:
+                if thread is not None:
+                    thread.quit()
+                    thread.wait()
+                if worker is not None:
+                    worker.deleteLater()
+                if thread is not None:
+                    thread.deleteLater()
             # Remove from pending list. Compare by stored generation — relying
             # on identity (w is not worker) is unsafe because self.sender()
             # may return a different Python wrapper for the same C++ QObject
@@ -618,6 +623,11 @@ class GameController(QObject):
         self._selected = None
         self._capture_path = []
         self._current_turn = self._player_color
+        # Undo invalidates any loaded PDN variation tree: the game now
+        # diverges from the original main line, so re-emitting the tree
+        # on save would produce a stale/incorrect RAV. Drop it — save
+        # will fall back to the linear move history.
+        self._game_tree = None
 
         self.last_move_changed.emit(None)
         self.board_changed.emit()
@@ -820,12 +830,14 @@ class GameController(QObject):
         positions: list[str] = [start_board.to_position_string()]
         board = start_board.copy()
 
+        replay_truncated = False
         for pdn_move in pdn_game.moves:
             try:
                 _apply_pdn_move(board, pdn_move)
                 positions.append(board.to_position_string())
             except Exception:
                 logger.warning(f"Could not apply PDN move {pdn_move!r}, stopping replay")
+                replay_truncated = True
                 break
 
         self._positions = positions
@@ -835,7 +847,10 @@ class GameController(QObject):
         # Keep the variation tree so re-export via save_game_as_pdn
         # preserves alternatives, comments and NAGs — otherwise a load/
         # save round-trip would silently drop every non-main-line node.
-        self._game_tree = pdn_game.tree
+        # But only when the main line replayed fully — a truncated replay
+        # means our position no longer matches the tree's main line, so
+        # re-emitting RAV would produce a broken PDN.
+        self._game_tree = None if replay_truncated else pdn_game.tree
 
         # Rebuild position counts from replayed history so 3-fold
         # repetition detection works correctly for PDN-loaded games.

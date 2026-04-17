@@ -325,6 +325,13 @@ def _search_best_move(
     the old shared-global behaviour (TT persists across all calls in the
     same process, killers/history are reset per call). Pass an explicit
     SearchContext for isolation (e.g. parallel tournament games).
+
+    THREAD SAFETY: _default_ctx is NOT thread-safe. In threaded contexts
+    (Qt worker threads, parallel tournaments) every caller MUST pass an
+    explicit ctx. Production callers in this codebase (AIEngine,
+    AnalysisWorker, analysis.compute_pv, analysis.get_ai_analysis,
+    engine.session) all pass explicit ctx — only dev scripts and
+    sequential tests still rely on _default_ctx.
     """
     # Use module-level default context when none supplied — matches the old
     # behaviour where _tt / _killers / _history were shared module globals.

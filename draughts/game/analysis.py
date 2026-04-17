@@ -136,6 +136,10 @@ def compute_pv(
     from draughts.config import Color
 
     pv: list[AIMove] = []
+    if pv_length <= 0:
+        return pv
+    depth = max(1, int(depth))
+    pv_length = max(1, int(pv_length))
     # Work on a fresh Board copy so ``game.board`` is untouched.
     board = Board()
     board.load_from_position_string(game.board.to_position_string())
