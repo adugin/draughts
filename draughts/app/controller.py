@@ -150,6 +150,11 @@ class GameController(QObject):
         self._ply_count: int = 0
         self._game_started: bool = False
         self._position_counts: dict[str, int] = {}
+        # Optional game tree carried along with the game — populated by
+        # load_game_from_pdn so that re-export preserves variations and
+        # annotations (M5.b). None means "no imported tree"; save then
+        # falls back to inferring the main line from _positions.
+        self._game_tree = None  # type: GameTree | None
 
         # Draw rule counters (FMJD)
         self._quiet_plies: int = 0       # plies without captures or pawn moves
@@ -198,6 +203,9 @@ class GameController(QObject):
         self._position_counts = {pos: 1}
         self._quiet_plies = 0
         self._kings_only_plies = 0
+        # Reset imported variation tree — a new game starts a fresh main
+        # line with no variations (M5.b).
+        self._game_tree = None
         # Bump generation so any in-flight AI worker from the previous game
         # is dropped when it finishes (BUG-10). NB: we do NOT clear
         # _pending_ai — Python refs keep stale workers alive until their
@@ -338,6 +346,9 @@ class GameController(QObject):
         self._game_started = True
         self._selected = None
         self._capture_path = []
+        # Any new move makes an imported PDN tree stale — the game has
+        # diverged from the loaded variation structure (M5.b).
+        self._game_tree = None
 
         pos = self.board.to_position_string()
         self._positions.append(pos)
@@ -740,6 +751,9 @@ class GameController(QObject):
                 "GameType": RUSSIAN_DRAUGHTS_GAMETYPE,
             },
             moves=moves,
+            # If this game was loaded from a PDN carrying variations/
+            # annotations, write them back out (M5.b).
+            tree=self._game_tree,
         )
         write_pdn([game], filepath)
 
@@ -781,6 +795,11 @@ class GameController(QObject):
         self._positions = positions
         self._replay_history = list(positions)
         self._ply_count = len(positions) - 1
+
+        # Keep the variation tree so re-export via save_game_as_pdn
+        # preserves alternatives, comments and NAGs — otherwise a load/
+        # save round-trip would silently drop every non-main-line node.
+        self._game_tree = pdn_game.tree
 
         # Rebuild position counts from replayed history so 3-fold
         # repetition detection works correctly for PDN-loaded games.
