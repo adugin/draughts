@@ -855,37 +855,64 @@ class GameController(QObject):
         return self._ai_thread is not None
 
     def get_hint(self) -> None:
-        """Ask the engine for the best move and emit hint_ready (D16).
+        """Ask the engine for the best move + principal variation (M9).
 
         Ignored when it is not the player's turn, the game is over, or AI
-        is already thinking.  Uses depth=4 for a fast (~0.1 s) response.
-        Emits hint_ready(squares, message) where squares = [from_sq, to_sq].
+        is already thinking.  Uses depth=6 for a richer PV; the first
+        ply alone would be ~4-deep. Emits hint_ready(squares, message):
+        ``squares`` = [from_sq, to_sq] of the recommended move for
+        board highlighting; ``message`` shows the full PV (up to 4 moves
+        ahead) with the final eval in pawns.
         """
         if self._current_turn != self._player_color:
             return
         if self._ai_thread is not None:
             return
         try:
-            from draughts.game.analysis import get_ai_analysis
+            from draughts.game.analysis import compute_pv, get_ai_analysis
             from draughts.game.headless import HeadlessGame
 
             hg = HeadlessGame(position=self.board.to_position_string(), auto_ai=False)
             hg._turn = self._current_turn
-            analysis = get_ai_analysis(hg, depth=4)
+
+            # Full analysis for the recommended move and its eval.
+            analysis = get_ai_analysis(hg, depth=6)
             if analysis.best_move is None:
                 return
-            path = analysis.best_move.path
-            from_sq = path[0]
-            to_sq = path[-1]
+            best = analysis.best_move
+            from_sq = best.path[0]
+            to_sq = best.path[-1]
             score = analysis.score
-            from_note = self.board.pos_to_notation(*from_sq)
-            to_note = self.board.pos_to_notation(*to_sq)
-            sep = ":" if analysis.best_move.kind == "capture" else "-"
             score_str = f"{score:+.1f}"
-            message = f"Лучший ход: {from_note}{sep}{to_note} (оценка: {score_str})"
+
+            # Principal variation (up to 4 moves). Starts with ``best``;
+            # we re-run it to keep a single, consistent code path in
+            # compute_pv (including board-state mutations).
+            pv = compute_pv(hg, depth=6, pv_length=4)
+            pv_notations = [self._format_move_notation(mv) for mv in pv]
+            if pv_notations:
+                pv_text = " ".join(pv_notations)
+                message = f"Лучший ход: {pv_text} (оценка: {score_str})"
+            else:
+                # Fallback: should not happen because analysis.best_move
+                # was non-None, but guard just in case.
+                from_note = self.board.pos_to_notation(*from_sq)
+                to_note = self.board.pos_to_notation(*to_sq)
+                sep = ":" if best.kind == "capture" else "-"
+                message = f"Лучший ход: {from_note}{sep}{to_note} (оценка: {score_str})"
+
             self.hint_ready.emit([from_sq, to_sq], message)
         except Exception:
             logger.exception("get_hint failed")
+
+    @staticmethod
+    def _format_move_notation(mv) -> str:
+        """Render an AIMove as readable algebraic notation (e.g. 'c3-d4', 'e5:c3:a5')."""
+        sep = ":" if mv.kind == "capture" else "-"
+        squares = [Board.pos_to_notation(x, y) for x, y in mv.path]
+        if mv.kind == "capture":
+            return sep.join(squares)
+        return f"{squares[0]}{sep}{squares[-1]}"
 
     def request_analysis(self, depth: int = 6) -> object:  # returns Analysis | None
         """Analyze the current position synchronously and return an Analysis.

@@ -106,3 +106,58 @@ def get_ai_analysis(game: HeadlessGame, depth: int = 6) -> Analysis:
         depth=effective_depth,
         legal_move_count=len(moves),
     )
+
+
+def compute_pv(
+    game: "HeadlessGame",
+    depth: int = 6,
+    pv_length: int = 5,
+) -> list[AIMove]:
+    """Compute a principal variation — the AI's best-line continuation.
+
+    Iteratively: find best move, apply it, find best response, apply, ...
+    Stops early when the position has no legal moves (game-over) or
+    ``pv_length`` is reached.
+
+    Each internal search uses a fresh ``SearchContext`` so this call is
+    safe to run concurrently with ``get_ai_analysis`` on other games.
+
+    Args:
+        game: HeadlessGame whose current position is the PV start.
+            The game is NOT mutated — all work is on board copies.
+        depth: Requested depth for every PV ply.
+        pv_length: Maximum number of moves in the returned PV.
+
+    Returns:
+        List of AIMove objects, length ≤ pv_length. Empty list if the
+        start position has no legal moves.
+    """
+    from draughts.game.board import Board
+    from draughts.config import Color
+
+    pv: list[AIMove] = []
+    # Work on a fresh Board copy so ``game.board`` is untouched.
+    board = Board()
+    board.load_from_position_string(game.board.to_position_string())
+    color: Color = game.turn
+
+    for _ in range(pv_length):
+        moves = _generate_all_moves(board, color)
+        if not moves:
+            break
+        eff_depth = adaptive_depth(depth, board)
+        ctx = SearchContext()
+        best = _search_best_move(board, color, eff_depth, ctx=ctx)
+        if best is None:
+            break
+        pv.append(best)
+
+        # Apply the move to the local board and swap side-to-move.
+        if best.kind == "capture":
+            board.execute_capture_path(best.path)
+        else:
+            (x1, y1), (x2, y2) = best.path[0], best.path[1]
+            board.execute_move(x1, y1, x2, y2)
+        color = color.opponent
+
+    return pv
