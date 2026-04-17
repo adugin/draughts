@@ -59,7 +59,8 @@ class AnalysisWorker(QObject):
             # the work twice and discarding the first result (BUG-006).
             from draughts.game.ai import _generate_all_moves, _search_best_move, adaptive_depth, evaluate_position
             from draughts.game.ai.state import SearchContext
-            from draughts.game.analysis import Analysis
+            from draughts.game.analysis import Analysis, compute_pv
+            from draughts.game.headless import HeadlessGame
 
             moves = _generate_all_moves(self._board, self._color)
             effective_depth = adaptive_depth(6, self._board)
@@ -80,6 +81,18 @@ class AnalysisWorker(QObject):
             )
             # Attach elapsed time so the pane can display it
             result._elapsed_ms = elapsed_ms  # type: ignore[attr-defined]
+
+            # Compute principal variation (M9.c) — fresh HeadlessGame with
+            # a copy of the current board avoids mutating self._board.
+            pv: list = []
+            if best is not None:
+                try:
+                    hg = HeadlessGame(position=self._board.to_position_string(), auto_ai=False)
+                    hg._turn = self._color
+                    pv = compute_pv(hg, depth=effective_depth, pv_length=5)
+                except Exception:
+                    logger.exception("compute_pv failed in AnalysisWorker")
+            result._pv = pv  # type: ignore[attr-defined]
         except Exception:
             logger.exception("AnalysisWorker crashed")
             result = None
@@ -167,6 +180,18 @@ class AnalysisPane(QDockWidget):
         bm_row.addStretch()
         outer.addLayout(bm_row)
 
+        # --- Principal variation row (M9.c) ---
+        pv_row = QHBoxLayout()
+        pv_lbl = QLabel("Продолжение:")
+        pv_lbl.setStyleSheet(_label_style)
+        pv_row.addWidget(pv_lbl)
+        self._pv_val = QLabel("—")
+        self._pv_val.setStyleSheet(_value_style)
+        self._pv_val.setWordWrap(True)
+        self._pv_val.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        pv_row.addWidget(self._pv_val, 1)
+        outer.addLayout(pv_row)
+
         # --- Depth row ---
         depth_row = QHBoxLayout()
         depth_lbl = QLabel("Глубина:")
@@ -252,15 +277,15 @@ class AnalysisPane(QDockWidget):
             container.setStyleSheet(f"background-color: {tc['bg']};")
 
         # Labels
-        for w in (self._score_val, self._bm_val, self._depth_val,
+        for w in (self._score_val, self._bm_val, self._pv_val, self._depth_val,
                   self._time_val, self._lm_val, self._book_val):
             w.setStyleSheet(_value_style)
         self._status_lbl.setStyleSheet(_caption_style)
         # Find all QLabel children that are row labels (not value labels)
         for child in self.findChildren(QLabel):
-            if child not in (self._score_val, self._bm_val, self._depth_val,
-                             self._time_val, self._lm_val, self._book_val,
-                             self._status_lbl):
+            if child not in (self._score_val, self._bm_val, self._pv_val,
+                             self._depth_val, self._time_val, self._lm_val,
+                             self._book_val, self._status_lbl):
                 child.setStyleSheet(_label_style)
 
     def set_position(self, board: Board, color: Color) -> None:
@@ -373,6 +398,20 @@ class AnalysisPane(QDockWidget):
             self._time_val.setText(f"{elapsed_ms / 1000.0:.2f} с")
         else:
             self._time_val.setText("—")
+
+        # Principal variation (M9.c)
+        pv = getattr(result, "_pv", None) or []
+        if pv:
+            from draughts.game.board import Board
+
+            def _fmt(mv) -> str:
+                sep = ":" if mv.kind == "capture" else "-"
+                if mv.kind == "capture":
+                    return sep.join(Board.pos_to_notation(x, y) for x, y in mv.path)
+                return f"{Board.pos_to_notation(*mv.path[0])}{sep}{Board.pos_to_notation(*mv.path[-1])}"
+            self._pv_val.setText(" ".join(_fmt(m) for m in pv))
+        else:
+            self._pv_val.setText("—")
 
         self._status_lbl.setText("Готово")
         self.analysis_done.emit(result)
