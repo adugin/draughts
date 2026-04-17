@@ -100,6 +100,10 @@ def main():
     if load_path:
         try:
             controller.load_saved_game(load_path)
+            # Apply loaded invert_color flag to the widget — MainWindow
+            # sampled it once in _connect_controller with the defaults, so
+            # it would still be False here without an explicit sync.
+            window.board_widget.inverted = controller.settings.invert_color
         except Exception as e:
             print(f"Ошибка загрузки {load_path}: {e}", file=sys.stderr)
             controller.new_game()

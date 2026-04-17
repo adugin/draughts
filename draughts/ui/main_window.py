@@ -319,6 +319,9 @@ class MainWindow(QMainWindow):
                     self._controller.load_game_from_pdn(filepath)
                 else:
                     self._controller.load_saved_game(filepath)
+                # Sync board orientation with the loaded invert_color flag —
+                # load_saved_game mutates settings but doesn't signal the UI.
+                self.board_widget.inverted = self._controller.settings.invert_color
             except Exception:
                 logger.exception("Failed to load game from %s", filepath)
 
