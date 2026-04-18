@@ -1,0 +1,1679 @@
+[
+  {
+    "id": "puzzle_001",
+    "category": "combination_2cap",
+    "position": "nnnnnnnnnnnnnnnnnbbnnwnnnnnnnnnn",
+    "turn": "white",
+    "best_move": "c3:e5:g3",
+    "solution_sequence": [
+      "c3:e5:g3"
+    ],
+    "difficulty": 1,
+    "source": "textbook_synthetic",
+    "description": "Белые берут две шашки через e5. Шашка c3 прыгает через d4 на e5, затем через f4 на g3."
+  },
+  {
+    "id": "puzzle_002",
+    "category": "combination_2cap",
+    "position": "nnnnnnnnnnnnnnnnbbnnwnnnnnnnnnnn",
+    "turn": "white",
+    "best_move": "a3:c5:e3",
+    "solution_sequence": [
+      "a3:c5:e3"
+    ],
+    "difficulty": 1,
+    "source": "textbook_synthetic",
+    "description": "Длинный удар по левому флангу. Шашка a3 прыгает через b4 и d4."
+  },
+  {
+    "id": "puzzle_003",
+    "category": "combination_2cap",
+    "position": "nnnnnnnnnnnnnnnnnnnnnnnnbbnnnnwn",
+    "turn": "white",
+    "best_move": "e1:c3:a1",
+    "solution_sequence": [
+      "e1:c3:a1"
+    ],
+    "difficulty": 1,
+    "source": "textbook_synthetic",
+    "description": "Двойной удар из угла. Шашка e1 прыгает через d2 и b2, возвращаясь на a1."
+  },
+  {
+    "id": "puzzle_004",
+    "category": "combination_2cap",
+    "position": "nnnnnnnnnbnnnwnnnnnnnwnnnnnnnnnn",
+    "turn": "black",
+    "best_move": "d6:b4:d2",
+    "solution_sequence": [
+      "d6:b4:d2"
+    ],
+    "difficulty": 1,
+    "source": "textbook_synthetic",
+    "description": "Чёрные берут две шашки белых. Шашка d6 прыгает через c5 на b4, затем через c3 на d2."
+  },
+  {
+    "id": "puzzle_005",
+    "category": "combination_2cap",
+    "position": "nnnnnnnnnnnnnnnbnwwnnnnnnnnnnnnn",
+    "turn": "black",
+    "best_move": "g5:e3:c5",
+    "solution_sequence": [
+      "g5:e3:c5"
+    ],
+    "difficulty": 1,
+    "source": "textbook_synthetic",
+    "description": "Чёрные бьют назад через центр. Шашка g5 прыгает через f4 и d4."
+  },
+  {
+    "id": "puzzle_029",
+    "category": "combination_3cap",
+    "position": "nnnnnnnnnnnnnnnnbbbnwnnnnnnnnnnn",
+    "turn": "white",
+    "best_move": "a3:c5:e3:g5",
+    "solution_sequence": [
+      "a3:c5:e3:g5"
+    ],
+    "difficulty": 3,
+    "source": "textbook_synthetic",
+    "description": "Четырёхкратный удар по центру. Шашка a3 сметает b4, d4, f4 одним манёвром."
+  },
+  {
+    "id": "puzzle_007",
+    "category": "combination_3cap",
+    "position": "nnnnnnnnnnbnnnnnnnbnnnnnnbnnnwnn",
+    "turn": "white",
+    "best_move": "c1:e3:g5:e7",
+    "solution_sequence": [
+      "c1:e3:g5:e7"
+    ],
+    "difficulty": 2,
+    "source": "textbook_synthetic",
+    "description": "Зигзагообразный тройной удар. Шашка c1 бьёт d2, f4, f6 зигзагом."
+  },
+  {
+    "id": "puzzle_008",
+    "category": "combination_3cap",
+    "position": "nnnnnnnnnnnbnnnwnnnnnwwnnnnnnnnn",
+    "turn": "black",
+    "best_move": "h6:f4:d2:b4",
+    "solution_sequence": [
+      "h6:f4:d2:b4"
+    ],
+    "difficulty": 2,
+    "source": "textbook_synthetic",
+    "description": "Тройной удар чёрных по правому флангу. Шашка h6 бьёт g5, e3, c3."
+  },
+  {
+    "id": "puzzle_009",
+    "category": "combination_2cap",
+    "position": "nnnnnnbnnnnnnnnbnnnWnnnnnnnnnnnn",
+    "turn": "white",
+    "best_move": "h4:f6:d8",
+    "solution_sequence": [
+      "h4:f6:d8"
+    ],
+    "difficulty": 2,
+    "source": "textbook_synthetic",
+    "description": "Дамка бьёт две шашки на диагонали. Белая дамка h4 бьёт g5 и e7, приходя на d8."
+  },
+  {
+    "id": "puzzle_010",
+    "category": "combination_3cap",
+    "position": "nnnnnnnnnnbnnnnnnbnnnnnnbnnnWnnn",
+    "turn": "white",
+    "best_move": "a1:c3:e5:g7",
+    "solution_sequence": [
+      "a1:c3:e5:g7"
+    ],
+    "difficulty": 3,
+    "source": "textbook_synthetic",
+    "description": "Дамка сметает все шашки по диагонали. Классический этюд на диагональное доминирование."
+  },
+  {
+    "id": "puzzle_011",
+    "category": "combination_3cap",
+    "position": "Bnnnnwnnnnnnnnwnnnnnnnnwnnnnnnnn",
+    "turn": "black",
+    "best_move": "b8:d6:f4:h2",
+    "solution_sequence": [
+      "b8:d6:f4:h2"
+    ],
+    "difficulty": 3,
+    "source": "textbook_synthetic",
+    "description": "Чёрная дамка бьёт три шашки. Дамка b8 проходит через c7, e5, g3 на h2."
+  },
+  {
+    "id": "puzzle_012",
+    "category": "etude",
+    "position": "nnnBnnnnnnBnnnnnnnnnnnnnnnnnWWnn",
+    "turn": "white",
+    "best_move": "a1:g7",
+    "solution_sequence": [
+      "a1:g7"
+    ],
+    "difficulty": 4,
+    "source": "textbook_synthetic",
+    "description": "Этюд: белая дамка ловит чёрную. Решение требует точного выбора пути на перехват."
+  },
+  {
+    "id": "puzzle_013",
+    "category": "combination_2cap",
+    "position": "nnnnnnnnnnbnnnwnnnnnnwnnnnnnnnnn",
+    "turn": "black",
+    "best_move": "f6:d4:b2",
+    "solution_sequence": [
+      "f6:d4:b2"
+    ],
+    "difficulty": 1,
+    "source": "textbook_synthetic",
+    "description": "Удар чёрных через центр. Шашка f6 бьёт e5 и c3."
+  },
+  {
+    "id": "puzzle_014",
+    "category": "combination_2cap",
+    "position": "nnnnnnnnnnnnnnnnnnbbnnnwnnnnnnnn",
+    "turn": "white",
+    "best_move": "g3:e5",
+    "solution_sequence": [
+      "g3:e5"
+    ],
+    "difficulty": 1,
+    "source": "textbook_synthetic",
+    "description": "Взятие двух шашек с поля g3. Шашка g3 бьёт f4 и h4 за один ход."
+  },
+  {
+    "id": "puzzle_015",
+    "category": "combination_3cap",
+    "position": "nnnnnnnnbbnnnnnnnbnnnwnnnnnnnnnn",
+    "turn": "white",
+    "best_move": "c3:e5:c7:a5",
+    "solution_sequence": [
+      "c3:e5:c7:a5"
+    ],
+    "difficulty": 3,
+    "source": "textbook_synthetic",
+    "description": "Турецкий удар — возврат шашки. Шашка c3 совершает замкнутый путь через d4, d6, b6."
+  },
+  {
+    "id": "puzzle_016",
+    "category": "combination_3cap",
+    "position": "nnnbnnnwnnnnnnwnnnnnnwnnnnnnnnnn",
+    "turn": "black",
+    "best_move": "h8:f6:d4:b2",
+    "solution_sequence": [
+      "h8:f6:d4:b2"
+    ],
+    "difficulty": 2,
+    "source": "textbook_synthetic",
+    "description": "Тройной удар от угла. Шашка h8 бьёт g7, e5, c3 по диагонали."
+  },
+  {
+    "id": "puzzle_017",
+    "category": "combination_2cap",
+    "position": "nnnnnnnnbbnnnnwnnnnnnnnnnnnnnnnn",
+    "turn": "white",
+    "best_move": "e5:c7:a5",
+    "solution_sequence": [
+      "e5:c7:a5"
+    ],
+    "difficulty": 2,
+    "source": "textbook_synthetic",
+    "description": "Двойной удар белых в угол. Шашка e5 бьёт d6 и b6, захватывая угол a5."
+  },
+  {
+    "id": "puzzle_018",
+    "category": "combination_3cap",
+    "position": "nnnbnnnnnnbnnnnnnbnnnnnnbnnnWnnn",
+    "turn": "white",
+    "best_move": "a1:c3:e5:g7",
+    "solution_sequence": [
+      "a1:c3:e5:g7"
+    ],
+    "difficulty": 3,
+    "source": "textbook_synthetic",
+    "description": "Дамка на главной диагонали. Тема идентична puzzle_010 с иным расположением шашек."
+  },
+  {
+    "id": "puzzle_019",
+    "category": "combination_2cap",
+    "position": "nnnnnnnnnnnnnnnnnbnnnnnnnnbnnnnw",
+    "turn": "white",
+    "best_move": "g1:e3:c5",
+    "solution_sequence": [
+      "g1:e3:c5"
+    ],
+    "difficulty": 1,
+    "source": "textbook_synthetic",
+    "description": "Удар от правого нижнего угла. Шашка g1 бьёт f2 и d4, выходя в центр."
+  },
+  {
+    "id": "puzzle_020",
+    "category": "combination_2cap",
+    "position": "bnnnnwnnnnnnnnwnnnnnnnnnnnnnnnnn",
+    "turn": "black",
+    "best_move": "b8:d6:f4",
+    "solution_sequence": [
+      "b8:d6:f4"
+    ],
+    "difficulty": 1,
+    "source": "textbook_synthetic",
+    "description": "Атака чёрных с тыла. Шашка b8 бьёт c7 и e5, прорываясь в центр."
+  },
+  {
+    "id": "puzzle_021",
+    "category": "combination_3cap",
+    "position": "nnnnbnnbnnnnnnbnnnnnnWnnnnnnnnnn",
+    "turn": "white",
+    "best_move": "c3:f6:h8",
+    "solution_sequence": [
+      "c3:f6:h8"
+    ],
+    "difficulty": 4,
+    "source": "textbook_synthetic",
+    "description": "Дамка берёт три шашки в эндшпиле. Сложный этюд с нелинейным путём дамки."
+  },
+  {
+    "id": "puzzle_022",
+    "category": "combination_2cap",
+    "position": "nnnnnnnnnnbnnnnnnbnnnwnnnnnnnnnn",
+    "turn": "white",
+    "best_move": "c3:e5:g7",
+    "solution_sequence": [
+      "c3:e5:g7"
+    ],
+    "difficulty": 2,
+    "source": "textbook_synthetic",
+    "description": "Выбор правильной шашки для удара. Шашка c3 бьёт d4 и f6, достигая g7."
+  },
+  {
+    "id": "puzzle_023",
+    "category": "combination_3cap",
+    "position": "nnnBnnnwnnnnnnwnnnnnnwnnnnnnnnnn",
+    "turn": "black",
+    "best_move": "h8:f6:d4:b2",
+    "solution_sequence": [
+      "h8:f6:d4:b2"
+    ],
+    "difficulty": 3,
+    "source": "textbook_synthetic",
+    "description": "Тройной удар чёрной дамки. Дамка h8 бьёт g7, e5, c3 по всей длине диагонали."
+  },
+  {
+    "id": "puzzle_024",
+    "category": "combination_2cap",
+    "position": "nbnnnnnnbnnnwnnnnnnnnnnnnnnnnnnn",
+    "turn": "white",
+    "best_move": "a5:c7",
+    "solution_sequence": [
+      "a5:c7"
+    ],
+    "difficulty": 2,
+    "source": "textbook_synthetic",
+    "description": "Взятие с продвижением к дамочному полю. Шашка a5 бьёт b6, приближаясь к превращению."
+  },
+  {
+    "id": "puzzle_025",
+    "category": "endgame",
+    "position": "nnnBnnnnnnnnnnnnnnnnnnnnbnnnWnnn",
+    "turn": "white",
+    "best_move": "a1:c3",
+    "solution_sequence": [
+      "a1:c3"
+    ],
+    "difficulty": 4,
+    "source": "textbook_synthetic",
+    "description": "Этюд: белая дамка против чёрных. Надо точно рассчитать последовательность ходов дамки."
+  },
+  {
+    "id": "puzzle_026",
+    "category": "combination_3cap",
+    "position": "nnbnnnwnnnnnnwnnnnnnwnnnnnnnnnnn",
+    "turn": "black",
+    "best_move": "f8:d6:b4",
+    "solution_sequence": [
+      "f8:d6:b4"
+    ],
+    "difficulty": 2,
+    "source": "textbook_synthetic",
+    "description": "Тройное взятие чёрных. Шашка f8 бьёт e7, c5, a3 через все ряды."
+  },
+  {
+    "id": "puzzle_027",
+    "category": "combination_2cap",
+    "position": "nnnnnbbnwnnnnnnnnnnnnnnnnnnnnnnn",
+    "turn": "white",
+    "best_move": "b6:d8:f6",
+    "solution_sequence": [
+      "b6:d8:f6"
+    ],
+    "difficulty": 2,
+    "source": "textbook_synthetic",
+    "description": "Взятие с превращением в дамку. Шашка b6 бьёт c7, проходя d8, и продолжает как дамка."
+  },
+  {
+    "id": "puzzle_028",
+    "category": "combination_2cap",
+    "position": "nnnnnnbnnnnnnbnnnWnnnnnnnnnnnnnn",
+    "turn": "white",
+    "best_move": "d4:b6",
+    "solution_sequence": [
+      "d4:b6"
+    ],
+    "difficulty": 3,
+    "source": "textbook_synthetic",
+    "description": "Дамка выбирает лучший путь. Дамка d4 берёт c5, приходя на b6 с наилучшей позицией."
+  },
+  {
+    "id": "puzzle_030",
+    "category": "endgame",
+    "position": "nnnnnnnnnnnnnnnnnnnwnnnbnnwnnnnn",
+    "turn": "black",
+    "best_move": "g3:e1",
+    "solution_sequence": [
+      "g3:e1"
+    ],
+    "difficulty": 2,
+    "source": "textbook_synthetic",
+    "description": "Этюд: чёрные выигрывают темп. Шашка g3 бьёт f2, достигая e1 и создавая угрозу превращения."
+  },
+  {
+    "id": "mined_055_nbbnnnnn",
+    "category": "endgame",
+    "position": "nbbnnnnnnnnnnnnnnnnwnbnnnnnnwBnn",
+    "turn": "black",
+    "best_move": "c1-f4",
+    "solution_sequence": [
+      "c1-f4"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 996 ед.)."
+  },
+  {
+    "id": "mined_057_nbbnnnnn",
+    "category": "endgame",
+    "position": "nbbnnnnnnnwnnnnnnnnnnbnnnnnnwnnn",
+    "turn": "black",
+    "best_move": "d8-c7",
+    "solution_sequence": [
+      "d8-c7"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 1000 ед.)."
+  },
+  {
+    "id": "mined_050_nbbnnnnn",
+    "category": "endgame",
+    "position": "nbbnnnnnnnnnbnnnnnnnwnnnnbnwwnnn",
+    "turn": "white",
+    "best_move": "h2-g3",
+    "solution_sequence": [
+      "h2-g3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_067_nnWnnnnn",
+    "category": "endgame",
+    "position": "nnWnnnnnnnnbbwnnnwnnnnnnnnwnwnnn",
+    "turn": "black",
+    "best_move": "h6-g5",
+    "solution_sequence": [
+      "h6-g5"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_034_nnnbnnnn",
+    "category": "endgame",
+    "position": "nnnbnnnnbnnbbbbnnnnwwwnwnnnnwnwn",
+    "turn": "white",
+    "best_move": "a1-b2",
+    "solution_sequence": [
+      "a1-b2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 4 ед.)."
+  },
+  {
+    "id": "mined_033_bnnbnnnn",
+    "category": "endgame",
+    "position": "bnnbnnnnnnnbbnnnnnnwwnnnnnwwwWnw",
+    "turn": "black",
+    "best_move": "b8-a7",
+    "solution_sequence": [
+      "b8-a7"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_038_nnnbnnnb",
+    "category": "endgame",
+    "position": "nnnbnnnbbnbbbnnnbnnwbwnwnwnwnnnn",
+    "turn": "white",
+    "best_move": "g3-f4",
+    "solution_sequence": [
+      "g3-f4"
+    ],
+    "difficulty": 3,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 10 ед.)."
+  },
+  {
+    "id": "mined_004_bbbbbnbb",
+    "category": "endgame",
+    "position": "bbbbbnbbbbbbbnnnwnnwnwwnwwwwwwww",
+    "turn": "white",
+    "best_move": "b2-a3",
+    "solution_sequence": [
+      "b2-a3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_040_bnnnnnnn",
+    "category": "endgame",
+    "position": "bnnnnnnnbnnnnnnbnnnnnbnwnnnnwnnw",
+    "turn": "white",
+    "best_move": "g1-h2",
+    "solution_sequence": [
+      "g1-h2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_002_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbbbnbnnnbnnwnwwwnwwwwwwww",
+    "turn": "white",
+    "best_move": "c3-b4",
+    "solution_sequence": [
+      "c3-b4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_026_bnnbnnnn",
+    "category": "endgame",
+    "position": "bnnbnnnnbnbbbbnnnnwwwnnnwnnnwwwn",
+    "turn": "white",
+    "best_move": "e1-f2",
+    "solution_sequence": [
+      "e1-f2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 4 ед.)."
+  },
+  {
+    "id": "mined_057_nnnbnnnn",
+    "category": "endgame",
+    "position": "nnnbnnnnnnwnbnnnnnnnnnnnnnnnnBnn",
+    "turn": "black",
+    "best_move": "c1-a3",
+    "solution_sequence": [
+      "c1-a3"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 998 ед.)."
+  },
+  {
+    "id": "mined_061_nnnbnnnn",
+    "category": "endgame",
+    "position": "nnnbnnnnnnnnnnnwbnnnnnnnnnnnnnnn",
+    "turn": "black",
+    "best_move": "h8-g7",
+    "solution_sequence": [
+      "h8-g7"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 998 ед.)."
+  },
+  {
+    "id": "mined_044_nnnbnnwn",
+    "category": "endgame",
+    "position": "nnnbnnwnnnnnbbnnnnnnwnnwnnnnwBnn",
+    "turn": "white",
+    "best_move": "e7-d8",
+    "solution_sequence": [
+      "e7-d8"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 4 ед.)."
+  },
+  {
+    "id": "mined_044_nnWnnnnn",
+    "category": "combination_2cap",
+    "position": "nnWnnnnnbnbbbnnnnwwnbbnnnwnnwwnn",
+    "turn": "white",
+    "best_move": "d2:b4",
+    "solution_sequence": [
+      "d2:b4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 4 ед.)."
+  },
+  {
+    "id": "mined_003_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbbbbnnnnbwnnwwnwnwwwwwwww",
+    "turn": "black",
+    "best_move": "d6-c5",
+    "solution_sequence": [
+      "d6-c5"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 3 ед.)."
+  },
+  {
+    "id": "mined_018_nnbbbnbb",
+    "category": "endgame",
+    "position": "nnbbbnbbnbbwbbnnnnnwwnnwwwwwwnnw",
+    "turn": "white",
+    "best_move": "d2-e3",
+    "solution_sequence": [
+      "d2-e3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_046_nnbbnnnn",
+    "category": "endgame",
+    "position": "nnbbnnnnnnnwnnnnbbnwnnnwnbnnnnnn",
+    "turn": "white",
+    "best_move": "g3-f4",
+    "solution_sequence": [
+      "g3-f4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_042_bnnbbnnn",
+    "category": "endgame",
+    "position": "bnnbbnnnnnnbnnnnnnnwbnnnbwnnnnnn",
+    "turn": "white",
+    "best_move": "d2-e3",
+    "solution_sequence": [
+      "d2-e3"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 988 ед.)."
+  },
+  {
+    "id": "mined_004_bbbbbbbb",
+    "category": "combination_2cap",
+    "position": "bbbbbbbbbnbbnnnnwnnnnwwbwwwwwwww",
+    "turn": "white",
+    "best_move": "f2:h4",
+    "solution_sequence": [
+      "f2:h4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_048_nnnnbnnn",
+    "category": "endgame",
+    "position": "nnnnbnnnnnbnbnnnnnnnbbnnnnnnwwnn",
+    "turn": "white",
+    "best_move": "a1-b2",
+    "solution_sequence": [
+      "a1-b2"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 988 ед.)."
+  },
+  {
+    "id": "mined_044_nnnbbnnn",
+    "category": "endgame",
+    "position": "nnnbbnnnnnnnbnnwnbnnbnnnnnnnwwnn",
+    "turn": "white",
+    "best_move": "c1-d2",
+    "solution_sequence": [
+      "c1-d2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_049_bnnnnnnn",
+    "category": "endgame",
+    "position": "bnnnnnnnnnbnwnbnnnnnnnwnnnnnnnnn",
+    "turn": "black",
+    "best_move": "b8-c7",
+    "solution_sequence": [
+      "b8-c7"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 1000 ед.)."
+  },
+  {
+    "id": "mined_034_bnnbnbnn",
+    "category": "endgame",
+    "position": "bnnbnbnnbnnwwnnnnnnnwnnnnwnbnwnn",
+    "turn": "white",
+    "best_move": "d2-c3",
+    "solution_sequence": [
+      "d2-c3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_042_bnnnnnnn",
+    "category": "endgame",
+    "position": "bnnnnnnnnnbnwnbnnnnnwnnnnnnnnwnB",
+    "turn": "white",
+    "best_move": "c1-d2",
+    "solution_sequence": [
+      "c1-d2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_047_bnnnnnnn",
+    "category": "endgame",
+    "position": "bnnnnnnnnnbnwwbnnnnnnnnnnnnnBnnn",
+    "turn": "black",
+    "best_move": "b8-a7",
+    "solution_sequence": [
+      "b8-a7"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 4 ед.)."
+  },
+  {
+    "id": "mined_072_nnnnnnnn",
+    "category": "endgame",
+    "position": "nnnnnnnnnnnnnnnnnbnnBnnnnWnnnnnn",
+    "turn": "white",
+    "best_move": "d2-a5",
+    "solution_sequence": [
+      "d2-a5"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 3 ед.)."
+  },
+  {
+    "id": "mined_014_bnnbbnbb",
+    "category": "endgame",
+    "position": "bnnbbnbbbbbbbnnbnwnwwwwnwwnwwnww",
+    "turn": "white",
+    "best_move": "e1-f2",
+    "solution_sequence": [
+      "e1-f2"
+    ],
+    "difficulty": 3,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 8 ед.)."
+  },
+  {
+    "id": "mined_016_bbnbnnbb",
+    "category": "endgame",
+    "position": "bbnbnnbbnbbbbnnnnnwwbnnwwwnwwwwn",
+    "turn": "white",
+    "best_move": "b2-c3",
+    "solution_sequence": [
+      "b2-c3"
+    ],
+    "difficulty": 3,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 8 ед.)."
+  },
+  {
+    "id": "mined_006_bbbbbbbn",
+    "category": "endgame",
+    "position": "bbbbbbbnbbbbnnnnwnnwnwwnwwnwwwww",
+    "turn": "white",
+    "best_move": "b4-a5",
+    "solution_sequence": [
+      "b4-a5"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_023_bnnbbbnb",
+    "category": "endgame",
+    "position": "bnnbbbnbnnnbbnnnnnnnbnwnwwnwwwnw",
+    "turn": "black",
+    "best_move": "g7-f6",
+    "solution_sequence": [
+      "g7-f6"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_077_nnnnnnnn",
+    "category": "endgame",
+    "position": "nnnnnnnnBnnbnnnnnnnbnnnnnnnWwnWn",
+    "turn": "black",
+    "best_move": "b6-f2",
+    "solution_sequence": [
+      "b6-f2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 4 ед.)."
+  },
+  {
+    "id": "mined_002_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbbnbbnnbnnwnnwnwwwwwwwwww",
+    "turn": "white",
+    "best_move": "g3-h4",
+    "solution_sequence": [
+      "g3-h4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 4 ед.)."
+  },
+  {
+    "id": "mined_051_nnnnnbnn",
+    "category": "endgame",
+    "position": "nnnnnbnnnnnbnnwnnnnnnnnnnnnnnnnn",
+    "turn": "black",
+    "best_move": "h6-g5",
+    "solution_sequence": [
+      "h6-g5"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 1004 ед.)."
+  },
+  {
+    "id": "mined_047_nnnnnnnn",
+    "category": "endgame",
+    "position": "nnnnnnnnnnnbbbnnbnwnnnnnwnnnnnnn",
+    "turn": "black",
+    "best_move": "b4-a3",
+    "solution_sequence": [
+      "b4-a3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_045_nbnbnnnb",
+    "category": "endgame",
+    "position": "nbnbnnnbnnnnnnnnnnnnwnnnwnnwnnBw",
+    "turn": "black",
+    "best_move": "g7-h6",
+    "solution_sequence": [
+      "g7-h6"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_048_nnnbBnnn",
+    "category": "endgame",
+    "position": "nnnbBnnnnbnbwnnnnnnnnnnnnnnbwnnn",
+    "turn": "white",
+    "best_move": "a1-b2",
+    "solution_sequence": [
+      "a1-b2"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 987 ед.)."
+  },
+  {
+    "id": "mined_002_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbbnbbnbnnnnwnwwnwwwwwwwww",
+    "turn": "white",
+    "best_move": "f4-e5",
+    "solution_sequence": [
+      "f4-e5"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 4 ед.)."
+  },
+  {
+    "id": "mined_036_nnbbbnnb",
+    "category": "endgame",
+    "position": "nnbbbnnbnnnnnbwnnnBnwnnwnnnnwnnn",
+    "turn": "white",
+    "best_move": "g3-h4",
+    "solution_sequence": [
+      "g3-h4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_040_bnbnbnnb",
+    "category": "endgame",
+    "position": "bnbnbnnbbnnnnnnnnnnnnnnnbbwwnnnn",
+    "turn": "white",
+    "best_move": "f2-g3",
+    "solution_sequence": [
+      "f2-g3"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 983 ед.)."
+  },
+  {
+    "id": "mined_002_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbnbbbnbnnnnwnwwnwwwwwwwww",
+    "turn": "white",
+    "best_move": "c3-b4",
+    "solution_sequence": [
+      "c3-b4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_014_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbnbnnnnnnnnnwbnnnwwnwwwww",
+    "turn": "white",
+    "best_move": "h2-g3",
+    "solution_sequence": [
+      "h2-g3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_053_nnnWnnnn",
+    "category": "endgame",
+    "position": "nnnWnnnnnbnnwnnnnbnwwnnnnwnwnnnn",
+    "turn": "black",
+    "best_move": "d4-e3",
+    "solution_sequence": [
+      "d4-e3"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 986 ед.)."
+  },
+  {
+    "id": "mined_001_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbbbbbnnnnnnwnwwnwwwwwwwww",
+    "turn": "black",
+    "best_move": "d6-e5",
+    "solution_sequence": [
+      "d6-e5"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_010_nbbbnbbb",
+    "category": "endgame",
+    "position": "nbbbnbbbbbbbbbnnwnwwwwnwnwnwwwww",
+    "turn": "white",
+    "best_move": "d2-e3",
+    "solution_sequence": [
+      "d2-e3"
+    ],
+    "difficulty": 3,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 8 ед.)."
+  },
+  {
+    "id": "mined_030_nbnbnbnn",
+    "category": "endgame",
+    "position": "nbnbnbnnnbbBbbnnwnnwwwnnwnnnwnnB",
+    "turn": "white",
+    "best_move": "c3-d4",
+    "solution_sequence": [
+      "c3-d4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_036_nbnbnnnn",
+    "category": "endgame",
+    "position": "nbnbnnnnbbnBnbbnnnnbwwnnnnnnwnnB",
+    "turn": "white",
+    "best_move": "a3-b4",
+    "solution_sequence": [
+      "a3-b4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 4 ед.)."
+  },
+  {
+    "id": "mined_003_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbnbbbnbnnwnwnwnnwwwwwwwww",
+    "turn": "black",
+    "best_move": "a7-b6",
+    "solution_sequence": [
+      "a7-b6"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_058_nnnnnnnn",
+    "category": "endgame",
+    "position": "nnnnnnnnbnbwnbnnnnnnwbnnnnwnwnnn",
+    "turn": "white",
+    "best_move": "f2-e3",
+    "solution_sequence": [
+      "f2-e3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_002_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbnbbbbnnnwnnnnwwwwwwwwwww",
+    "turn": "white",
+    "best_move": "b2-a3",
+    "solution_sequence": [
+      "b2-a3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_003_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbbbnbnnnbwnnwnwwnwwwwwwww",
+    "turn": "black",
+    "best_move": "b6-a5",
+    "solution_sequence": [
+      "b6-a5"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 4 ед.)."
+  },
+  {
+    "id": "mined_046_nnnnnnnb",
+    "category": "endgame",
+    "position": "nnnnnnnbnnnnnwnnnwnnnnnnnnnwwnnw",
+    "turn": "white",
+    "best_move": "d4-e5",
+    "solution_sequence": [
+      "d4-e5"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 988 ед.)."
+  },
+  {
+    "id": "mined_049_nnnnnwnn",
+    "category": "endgame",
+    "position": "nnnnnwnnnnbnnnnnnwnnnnnnnnnwwnnw",
+    "turn": "black",
+    "best_move": "f6-g5",
+    "solution_sequence": [
+      "f6-g5"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 988 ед.)."
+  },
+  {
+    "id": "mined_037_nnnbnnnn",
+    "category": "endgame",
+    "position": "nnnbnnnnnnbnnnnnbwnnnnnnwnnwwnww",
+    "turn": "black",
+    "best_move": "b4-a3",
+    "solution_sequence": [
+      "b4-a3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_002_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbnbbbbnnnnnnwwwwnwwwwwwww",
+    "turn": "white",
+    "best_move": "c3-b4",
+    "solution_sequence": [
+      "c3-b4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_018_nbnbbbbn",
+    "category": "endgame",
+    "position": "nbnbbbbnbbbbbnnnwnnwwwwnnnnwwwnw",
+    "turn": "white",
+    "best_move": "c1-b2",
+    "solution_sequence": [
+      "c1-b2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_010_nbbbbbbb",
+    "category": "endgame",
+    "position": "nbbbbbbbnnbbbwnnnnnnnnwwnwwwwwww",
+    "turn": "white",
+    "best_move": "c1-b2",
+    "solution_sequence": [
+      "c1-b2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_018_nbbbnnbb",
+    "category": "endgame",
+    "position": "nbbbnnbbnbbbnnnnbnwwnnnnnnwwwwww",
+    "turn": "white",
+    "best_move": "c1-b2",
+    "solution_sequence": [
+      "c1-b2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_038_nnnbnnnb",
+    "category": "endgame",
+    "position": "nnnbnnnbnnnbnbnnnbnnwnnwnbnnwnnw",
+    "turn": "white",
+    "best_move": "g1-h2",
+    "solution_sequence": [
+      "g1-h2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_042_nnnbnnnb",
+    "category": "endgame",
+    "position": "nnnbnnnbnnnbnnnnnnnwbnbnnbnnwnnw",
+    "turn": "white",
+    "best_move": "g1-h2",
+    "solution_sequence": [
+      "g1-h2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_052_nnnbnnnn",
+    "category": "endgame",
+    "position": "nnnbnnnnnnnnnnnnnwnnnnnnnnnnnBnn",
+    "turn": "white",
+    "best_move": "d4-c5",
+    "solution_sequence": [
+      "d4-c5"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 994 ед.)."
+  },
+  {
+    "id": "mined_053_nnnbnnnn",
+    "category": "endgame",
+    "position": "nnnbnnnnnnnnnnwnnnnnnnnnnnnnnBnn",
+    "turn": "black",
+    "best_move": "c1-g5",
+    "solution_sequence": [
+      "c1-g5"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 1000 ед.)."
+  },
+  {
+    "id": "mined_034_nnnbbnnn",
+    "category": "endgame",
+    "position": "nnnbbnnnnnnnnbbbnnnnwnnwwwnnwnnn",
+    "turn": "white",
+    "best_move": "d2-c3",
+    "solution_sequence": [
+      "d2-c3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_041_nnnbnnnn",
+    "category": "endgame",
+    "position": "nnnbnnnnbnnnnnnnwnnnnwBnnnnnwnnn",
+    "turn": "black",
+    "best_move": "b6-a5",
+    "solution_sequence": [
+      "b6-a5"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_003_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbbbnbnnbnwnnwnwwnwwwwwwww",
+    "turn": "black",
+    "best_move": "e5-f4",
+    "solution_sequence": [
+      "e5-f4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 4 ед.)."
+  },
+  {
+    "id": "mined_038_nnnbnnbn",
+    "category": "endgame",
+    "position": "nnnbnnbnnnnbnnnnnnnnwbnwnnnwwnnw",
+    "turn": "white",
+    "best_move": "g1-f2",
+    "solution_sequence": [
+      "g1-f2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_042_nnnbnnbn",
+    "category": "endgame",
+    "position": "nnnbnnbnnnnnnnnnnnbnwnnnnbnwwnnw",
+    "turn": "white",
+    "best_move": "a3-b4",
+    "solution_sequence": [
+      "a3-b4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_028_bnnbbnnb",
+    "category": "endgame",
+    "position": "bnnbbnnbbnbbnnnnnnwnwnnwnnwnwwnn",
+    "turn": "white",
+    "best_move": "f2-e3",
+    "solution_sequence": [
+      "f2-e3"
+    ],
+    "difficulty": 3,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 8 ед.)."
+  },
+  {
+    "id": "mined_006_bbbbbbnb",
+    "category": "endgame",
+    "position": "bbbbbbnbbnnbnbnbnnwnwnwnwwwwwwww",
+    "turn": "white",
+    "best_move": "b2-c3",
+    "solution_sequence": [
+      "b2-c3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 4 ед.)."
+  },
+  {
+    "id": "mined_040_nnnbbbnn",
+    "category": "endgame",
+    "position": "nnnbbbnnnnnnbnbnbnnwnwnnnnnnwnnn",
+    "turn": "white",
+    "best_move": "c3-d4",
+    "solution_sequence": [
+      "c3-d4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_070_nnWbnnnn",
+    "category": "endgame",
+    "position": "nnWbnnnnnnwnBnnnnnnnnnnnnnbnnBnn",
+    "turn": "white",
+    "best_move": "f8-a3",
+    "solution_sequence": [
+      "f8-a3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 5 ед.)."
+  },
+  {
+    "id": "mined_071_nnWbnnwn",
+    "category": "endgame",
+    "position": "nnWbnnwnnnnnBnnnnnnnnnnnnnbnnBnn",
+    "turn": "black",
+    "best_move": "a5-d8",
+    "solution_sequence": [
+      "a5-d8"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 6 ед.)."
+  },
+  {
+    "id": "mined_016_nbbbbnnb",
+    "category": "endgame",
+    "position": "nbbbbnnbbnbbnnnnnwnnwnnwnnnwwwww",
+    "turn": "white",
+    "best_move": "g3-f4",
+    "solution_sequence": [
+      "g3-f4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_017_nbbbbnnb",
+    "category": "endgame",
+    "position": "nbbbbnnbbnbbnnnnnwnwwnnnnnnwwwww",
+    "turn": "black",
+    "best_move": "f6-g5",
+    "solution_sequence": [
+      "f6-g5"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_067_nnWbnnnn",
+    "category": "endgame",
+    "position": "nnWbnnnnnnnnnnnwnnnnnnnnbnbnnnBn",
+    "turn": "black",
+    "best_move": "f2-g1",
+    "solution_sequence": [
+      "f2-g1"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 3 ед.)."
+  },
+  {
+    "id": "mined_002_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbnbbbnbnnwnnnnwwwwwwwwwww",
+    "turn": "white",
+    "best_move": "b4-a5",
+    "solution_sequence": [
+      "b4-a5"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_036_nnnbnbnn",
+    "category": "endgame",
+    "position": "nnnbnbnnnnnnbnnnnnbnbwnnnnnwwwnn",
+    "turn": "white",
+    "best_move": "c3-d4",
+    "solution_sequence": [
+      "c3-d4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_038_nnnbnbnn",
+    "category": "endgame",
+    "position": "nnnbnbnnnnnnbnnnnnbnnwnnbwnwwnnn",
+    "turn": "white",
+    "best_move": "c3-d4",
+    "solution_sequence": [
+      "c3-d4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_067_nnnnnnnn",
+    "category": "endgame",
+    "position": "nnnnnnnnnnWnbbnnnnnnnnnbnnnBnnnn",
+    "turn": "black",
+    "best_move": "g3-f2",
+    "solution_sequence": [
+      "g3-f2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 5 ед.)."
+  },
+  {
+    "id": "mined_073_nnnnnnnn",
+    "category": "endgame",
+    "position": "nnnnnnnnnnnnbnnnbnnnnnBWnnnnnnnn",
+    "turn": "black",
+    "best_move": "e3-f2",
+    "solution_sequence": [
+      "e3-f2"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 996 ед.)."
+  },
+  {
+    "id": "mined_002_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbbbnbnnbnnnwnwwnwwwwwwwww",
+    "turn": "white",
+    "best_move": "c3-d4",
+    "solution_sequence": [
+      "c3-d4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_025_bnbbbnnn",
+    "category": "endgame",
+    "position": "bnbbbnnnnnbnbbnnnnnwwnnnwnnwwwnn",
+    "turn": "black",
+    "best_move": "f8-g7",
+    "solution_sequence": [
+      "f8-g7"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_042_nnnnnbnn",
+    "category": "endgame",
+    "position": "nnnnnbnnbnbwbnnnnnnwwwnnnnnnnwnn",
+    "turn": "white",
+    "best_move": "c3-d4",
+    "solution_sequence": [
+      "c3-d4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_006_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbnnnbbbnbnnwnwwwwwwwwwwnw",
+    "turn": "white",
+    "best_move": "c3-d4",
+    "solution_sequence": [
+      "c3-d4"
+    ],
+    "difficulty": 3,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 8 ед.)."
+  },
+  {
+    "id": "mined_018_bbbbbnbn",
+    "category": "endgame",
+    "position": "bbbbbnbnnbnbnnnnbwwnnnnnnnwwwwww",
+    "turn": "white",
+    "best_move": "h2-g3",
+    "solution_sequence": [
+      "h2-g3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_040_bnnbbnnb",
+    "category": "endgame",
+    "position": "bnnbbnnbnnnnwnnnnnnnbnnwnbnnwnnw",
+    "turn": "white",
+    "best_move": "g1-h2",
+    "solution_sequence": [
+      "g1-h2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_036_nnnbnnnn",
+    "category": "endgame",
+    "position": "nnnbnnnnnnnbnnnnnnbnwnbnnnnnwwnw",
+    "turn": "white",
+    "best_move": "a3-b4",
+    "solution_sequence": [
+      "a3-b4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_038_nnnbnnnn",
+    "category": "endgame",
+    "position": "nnnbnnnnnnnbnnnnnnbnwnnnnnbwwwnn",
+    "turn": "white",
+    "best_move": "a3-b4",
+    "solution_sequence": [
+      "a3-b4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_016_nbnbbbbb",
+    "category": "endgame",
+    "position": "nbnbbbbbbbbbnnnnnwwnwnnnnwnwwwww",
+    "turn": "white",
+    "best_move": "h2-g3",
+    "solution_sequence": [
+      "h2-g3"
+    ],
+    "difficulty": 3,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 8 ед.)."
+  },
+  {
+    "id": "mined_042_nbnbbnnn",
+    "category": "endgame",
+    "position": "nbnbbnnnbnnnnbbnnnnwwnnnnbnwwBnn",
+    "turn": "white",
+    "best_move": "h4-g5",
+    "solution_sequence": [
+      "h4-g5"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_055_nnbbnnbn",
+    "category": "endgame",
+    "position": "nnbbnnbnnnnnnnwnnnnnnnnnnnnnnnnB",
+    "turn": "black",
+    "best_move": "g1-e3",
+    "solution_sequence": [
+      "g1-e3"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 996 ед.)."
+  },
+  {
+    "id": "mined_059_nnbbnnnn",
+    "category": "endgame",
+    "position": "nnbbnnnnnbnnnnnnwnnnnnnnnnnnnnnn",
+    "turn": "black",
+    "best_move": "f8-e7",
+    "solution_sequence": [
+      "f8-e7"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 996 ед.)."
+  },
+  {
+    "id": "mined_042_nnbbnnbn",
+    "category": "endgame",
+    "position": "nnbbnnbnnnnnnnnnnnbnnnnnwnbwwwnn",
+    "turn": "white",
+    "best_move": "b2-a3",
+    "solution_sequence": [
+      "b2-a3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_048_nnnbnnnn",
+    "category": "endgame",
+    "position": "nnnbnnnnnnbnBwnnnnwwwnnnnnnnnnnn",
+    "turn": "white",
+    "best_move": "c5-d6",
+    "solution_sequence": [
+      "c5-d6"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_016_bbnbbbnb",
+    "category": "endgame",
+    "position": "bbnbbbnbbnbbnnnnnnwnwnnwwnwwwwnn",
+    "turn": "white",
+    "best_move": "f2-e3",
+    "solution_sequence": [
+      "f2-e3"
+    ],
+    "difficulty": 3,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 8 ед.)."
+  },
+  {
+    "id": "mined_002_bbbbbbbb",
+    "category": "endgame",
+    "position": "bbbbbbbbbnbbnbnnnnnwwwwnwwwwwwww",
+    "turn": "white",
+    "best_move": "e3-d4",
+    "solution_sequence": [
+      "e3-d4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_022_nnbbnbbn",
+    "category": "endgame",
+    "position": "nnbbnbbnbbbbwbnwnnwnwnnnwwnnwwwn",
+    "turn": "white",
+    "best_move": "d2-c3",
+    "solution_sequence": [
+      "d2-c3"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_053_nnnnnnnn",
+    "category": "endgame",
+    "position": "nnnnnnnnnnbnbnnnnnwnnbnnnnnnwnnn",
+    "turn": "black",
+    "best_move": "a5-b4",
+    "solution_sequence": [
+      "a5-b4"
+    ],
+    "difficulty": 4,
+    "source": "auto_mined",
+    "description": "Чёрные находят лучший ответ на ошибку соперника (потеря 1000 ед.)."
+  },
+  {
+    "id": "mined_028_nnnbbbnn",
+    "category": "endgame",
+    "position": "nnnbbbnnnbnbbbbnnnwwwnwwwnnnwwnn",
+    "turn": "white",
+    "best_move": "c1-d2",
+    "solution_sequence": [
+      "c1-d2"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  },
+  {
+    "id": "mined_026_nnbbbnnb",
+    "category": "endgame",
+    "position": "nnbbbnnbbnnbnnnnnwnnwnnwnnnwwnnw",
+    "turn": "white",
+    "best_move": "a3-b4",
+    "solution_sequence": [
+      "a3-b4"
+    ],
+    "difficulty": 2,
+    "source": "auto_mined",
+    "description": "Белые находят лучший ответ на ошибку соперника (потеря 2 ед.)."
+  }
+]

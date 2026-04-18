@@ -14,8 +14,12 @@ from pathlib import Path
 
 from draughts.config import Color
 
-# Path to the bundled puzzle database (relative to the project root)
-_BUNDLED_PATH = Path(__file__).parent.parent.parent / ".planning" / "data" / "russian_draughts_puzzles.json"
+# Path to the bundled puzzle database. Primary location is the package
+# resources dir (tracked in git, ships with the wheel); fall back to the
+# historical dev location under .planning/data for backwards compat.
+_RESOURCE_PATH = Path(__file__).parent.parent / "resources" / "russian_draughts_puzzles.json"
+_LEGACY_PATH = Path(__file__).parent.parent.parent / ".planning" / "data" / "russian_draughts_puzzles.json"
+_BUNDLED_PATH = _RESOURCE_PATH if _RESOURCE_PATH.exists() else _LEGACY_PATH
 
 # Category display names (Russian)
 CATEGORY_DISPLAY: dict[str, str] = {

@@ -53,9 +53,9 @@ def _get_all_legal_paths(board: Board, turn: Color) -> list[list[tuple[int, int]
 
 
 def test_load_bundled_puzzles():
-    """All 30 bundled puzzles load without error."""
+    """Bundled puzzles load without error. Post #29: catalog grew beyond 30."""
     ps = load_bundled_puzzles()
-    assert len(ps) == 30, f"Expected 30 puzzles, got {len(ps)}"
+    assert len(ps) >= 30, f"Expected >= 30 puzzles, got {len(ps)}"
 
 
 # ---------------------------------------------------------------------------
@@ -71,9 +71,9 @@ def test_get_by_difficulty():
         subset = ps.get_by_difficulty(d)
         assert all(p.difficulty == d for p in subset), f"Difficulty filter {d} returned puzzles with wrong difficulty"
 
-    # Total across all levels must equal 30
+    # Sum across all difficulties equals the catalog size.
     total = sum(len(ps.get_by_difficulty(d)) for d in range(1, 5))
-    assert total == 30, f"Sum of difficulty buckets should be 30, got {total}"
+    assert total == len(ps), f"Sum of difficulty buckets must equal total ({len(ps)}), got {total}"
 
 
 # ---------------------------------------------------------------------------
