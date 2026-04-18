@@ -518,10 +518,15 @@ class AIEngine:
                 # Book suggested a quiet move but captures are mandatory —
                 # fall through to normal search which always respects captures.
 
-        # Endgame bitbase probe (D9) — O(1) per child, exact WLD result
+        # Endgame bitbase probe (D9) — O(1) per child, exact WLD result.
+        # Threshold follows the loaded bitbase size: 3-piece default, 4-piece
+        # when the larger JSON/gz file is present (#27).
         if self._use_bitbase and self._bitbase is not None:
             piece_count = board.count_pieces(Color.BLACK) + board.count_pieces(Color.WHITE)
-            if piece_count <= 3:
+            # Detect whether a 4-piece bitbase is loaded: size > 500K entries
+            # is a reliable proxy (3-piece = 399K; 4-piece ≈ 12.8M).
+            bitbase_threshold = 4 if len(self._bitbase) > 1_000_000 else 3
+            if piece_count <= bitbase_threshold:
                 bb_move = _bitbase_best_move(board, self.color, self._bitbase)
                 if bb_move is not None:
                     return bb_move

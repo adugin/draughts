@@ -105,9 +105,20 @@ class EndgameBitbase:
 
     @classmethod
     def load(cls, path: str | Path) -> EndgameBitbase:
-        """Load bitbase from JSON produced by :py:meth:`save`."""
-        text = Path(path).read_text(encoding="utf-8")
-        raw: dict[str, int] = json.loads(text)
+        """Load bitbase from JSON (optionally gzip-compressed).
+
+        The 4-piece bitbase is large (~300 MB JSON, ~120 MB gzipped) and
+        is typically shipped in .json.gz form. A `.gz` suffix on the path
+        triggers streaming gzip decoding.
+        """
+        p = Path(path)
+        if p.suffix == ".gz":
+            import gzip
+
+            with gzip.open(p, "rb") as fh:
+                raw = json.loads(fh.read().decode("utf-8"))
+        else:
+            raw = json.loads(p.read_text(encoding="utf-8"))
         entries = {int(h_str): int(r) for h_str, r in raw.items()}
         return cls(entries=entries)
 

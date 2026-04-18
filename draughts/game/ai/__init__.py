@@ -57,20 +57,24 @@ DEFAULT_BITBASE: EndgameBitbase | None = None
 
 
 def load_default_bitbase() -> EndgameBitbase | None:
-    """Load the bundled 3-piece bitbase from draughts/resources/bitbase_3.json.
+    """Load the bundled endgame bitbase.
 
-    Returns the loaded bitbase, or None if the file does not exist.
-    Sets the module-level DEFAULT_BITBASE.
+    Prefers a 4-piece bitbase (bitbase_4.json or bitbase_4.json.gz) if
+    present — massive coverage of two-vs-two endgames. Falls back to the
+    shipped 3-piece bitbase. Returns the loaded bitbase, or None if
+    neither file is available. Sets the module-level DEFAULT_BITBASE.
     """
     global DEFAULT_BITBASE
-    try:
-        ref = importlib.resources.files("draughts.resources").joinpath("bitbase_3.json")
-        with importlib.resources.as_file(ref) as bb_path:
-            if bb_path.exists():
-                DEFAULT_BITBASE = EndgameBitbase.load(bb_path)
-                return DEFAULT_BITBASE
-    except Exception as exc:
-        logging.getLogger(__name__).debug("Could not load default bitbase: %s", exc)
+    candidates = ["bitbase_4.json.gz", "bitbase_4.json", "bitbase_3.json"]
+    for name in candidates:
+        try:
+            ref = importlib.resources.files("draughts.resources").joinpath(name)
+            with importlib.resources.as_file(ref) as bb_path:
+                if bb_path.exists():
+                    DEFAULT_BITBASE = EndgameBitbase.load(bb_path)
+                    return DEFAULT_BITBASE
+        except Exception as exc:
+            logging.getLogger(__name__).debug("Could not load %s: %s", name, exc)
     DEFAULT_BITBASE = None
     return None
 

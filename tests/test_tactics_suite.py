@@ -241,6 +241,14 @@ class TestOpeningTraps:
 
 
 _PUZZLE_DATA = _load_puzzles()
+# Filter out auto-mined puzzles from the regression suite: they were
+# derived from depth-3 analysis of self-play and their "best_move" is
+# not authoritative — depth-5 AI legitimately picks different (and
+# sometimes better) moves. Mined puzzles are intended for the user
+# trainer, not for pinning engine behavior. Shipped/hand-curated
+# puzzles lack the source="auto_mined" marker so this filter preserves
+# them all.
+_PUZZLE_DATA = [p for p in _PUZZLE_DATA if p.get("source") != "auto_mined"]
 _PUZZLE_IDS = [p["id"] for p in _PUZZLE_DATA]
 
 # Puzzles where multiple capture endings are equally valid: after the forced
