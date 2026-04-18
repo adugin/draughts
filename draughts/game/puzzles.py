@@ -96,8 +96,18 @@ class PuzzleSet:
         return list(self._puzzles)
 
 
+_VALID_POSITION_CHARS = frozenset("nbBwW")
+
+
 def _parse_puzzle_entry(entry: dict) -> Puzzle:
-    """Parse a single puzzle dict (from bundled or mined JSON) into a Puzzle."""
+    """Parse a single puzzle dict (from bundled or mined JSON) into a Puzzle.
+
+    Validates the 32-char position string — any entry whose position
+    contains unknown characters or has the wrong length is rejected.
+    This prevents malformed mined files from crashing the trainer with
+    a KeyError deep inside Board.load_from_position_string (audit
+    follow-up to BLK-01).
+    """
     turn_str = entry["turn"]
     if turn_str == "white":
         turn = Color.WHITE
@@ -106,10 +116,17 @@ def _parse_puzzle_entry(entry: dict) -> Puzzle:
     else:
         raise ValueError(f"Unknown turn value {turn_str!r} in puzzle {entry.get('id')}")
 
+    pos = entry["position"]
+    if not isinstance(pos, str) or len(pos) != 32 or not set(pos).issubset(_VALID_POSITION_CHARS):
+        raise ValueError(
+            f"Invalid position string in puzzle {entry.get('id')!r}: "
+            f"expected 32 chars from {sorted(_VALID_POSITION_CHARS)}, got {pos!r}"
+        )
+
     return Puzzle(
         id=entry["id"],
         category=entry["category"],
-        position=entry["position"],
+        position=pos,
         turn=turn,
         best_move=entry["best_move"],
         solution_sequence=list(entry["solution_sequence"]),
@@ -147,11 +164,14 @@ def load_bundled_puzzles() -> PuzzleSet:
         seen_positions.add(p.position)
 
     # Merge in user-mined puzzles (silently skip on any error).
+    # load_mined_puzzles() returns [] for both missing file and malformed
+    # content, so we no longer need a pre-check on .exists().
     try:
-        from draughts.game.puzzle_miner import MINED_PUZZLES_PATH, load_mined_puzzles
+        from draughts.game.puzzle_miner import load_mined_puzzles
 
-        if MINED_PUZZLES_PATH.exists():
-            for entry in load_mined_puzzles():
+        mined_entries = load_mined_puzzles()
+        if mined_entries:
+            for entry in mined_entries:
                 try:
                     p = _parse_puzzle_entry(entry)
                     if p.position not in seen_positions:

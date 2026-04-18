@@ -519,13 +519,17 @@ class AIEngine:
                 # fall through to normal search which always respects captures.
 
         # Endgame bitbase probe (D9) — O(1) per child, exact WLD result.
-        # Threshold follows the loaded bitbase size: 3-piece default, 4-piece
-        # when the larger JSON/gz file is present (#27).
+        # Threshold comes from the bitbase's declared max_pieces (HIGH-06
+        # fix, replacing the brittle "entry count > 1M" heuristic). For
+        # legacy files without metadata we fall back to the old size-
+        # based guess — but the shipped 3-piece has < 500K entries and
+        # any generated 4-piece has > 1M, so the fallback remains
+        # accurate in practice.
         if self._use_bitbase and self._bitbase is not None:
             piece_count = board.count_pieces(Color.BLACK) + board.count_pieces(Color.WHITE)
-            # Detect whether a 4-piece bitbase is loaded: size > 500K entries
-            # is a reliable proxy (3-piece = 399K; 4-piece ≈ 12.8M).
-            bitbase_threshold = 4 if len(self._bitbase) > 1_000_000 else 3
+            bitbase_threshold = self._bitbase.max_pieces
+            if bitbase_threshold is None:
+                bitbase_threshold = 4 if len(self._bitbase) > 1_000_000 else 3
             if piece_count <= bitbase_threshold:
                 bb_move = _bitbase_best_move(board, self.color, self._bitbase)
                 if bb_move is not None:

@@ -132,6 +132,13 @@ def main():
     # skips files whose .pdn already exists. Safe to run on every startup.
     _legacy_converted = _auto_convert_legacy_json(get_data_dir())
 
+    # M6 audit (BLK-01, BLK-02, PO-4) — consolidate user data under
+    # well-known subdirs. Moves files from ~/.draughts/ and
+    # <data_dir>/generated/ into books/, puzzles/. Idempotent.
+    from draughts.user_data import migrate_legacy_paths
+
+    _user_data_migrated = migrate_legacy_paths()
+
     controller = GameController()
 
     # Load saved user preferences (or defaults if no settings file)

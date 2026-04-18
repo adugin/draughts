@@ -288,14 +288,16 @@ class TestMinedPuzzlesMergeWithBundled:
         """A mined puzzle whose position already exists in bundled is skipped."""
         from draughts.game.puzzles import load_bundled_puzzles
 
-        # Load the real bundled set to find an existing position.
-        bundled = load_bundled_puzzles()
+        nonexistent = tmp_path / "does_not_exist.json"
+        # Measure the BUNDLED-only count with user-mined data isolated.
+        with patch("draughts.game.puzzle_miner.MINED_PUZZLES_PATH", nonexistent):
+            bundled = load_bundled_puzzles()
         existing_pos = next(iter(bundled)).position
+        original_len = len(bundled)
 
+        # Write a mined file whose single entry duplicates a bundled position.
         mined_file = tmp_path / "mined_puzzles.json"
         mined_file.write_text(json.dumps(self._fake_mined([existing_pos])), encoding="utf-8")
-
-        original_len = len(bundled)
 
         with patch("draughts.game.puzzle_miner.MINED_PUZZLES_PATH", mined_file):
             ps = load_bundled_puzzles()

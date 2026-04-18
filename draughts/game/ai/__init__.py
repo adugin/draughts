@@ -26,14 +26,33 @@ DEFAULT_BOOK: OpeningBook | None = None
 
 
 def load_default_book() -> OpeningBook | None:
-    """Load the bundled opening book from draughts/resources/opening_book.json.
+    """Load the opening book — user import first, shipped fallback.
 
-    Returns the loaded book, or None if the file does not exist.
-    Sets the module-level DEFAULT_BOOK.
+    Probe order:
+      1. ``<data_dir>/books/book_user.json`` — imported from PDN via the
+         «Инструменты → Импорт книги из PDN…» action. This is what users
+         tune for their personal repertoire.
+      2. ``draughts/resources/opening_book.json`` — shipped with the wheel.
+    First hit wins and is assigned to DEFAULT_BOOK.
     """
     global DEFAULT_BOOK
+
+    # 1. User-imported book.
     try:
-        # importlib.resources handles both installed packages and editable installs
+        from draughts.user_data import user_book_path
+
+        user_path = user_book_path()
+        if user_path.exists():
+            DEFAULT_BOOK = OpeningBook.load(user_path)
+            logging.getLogger(__name__).info("Loaded user opening book: %s", user_path)
+            return DEFAULT_BOOK
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "User opening book unreadable (%s) — falling back to shipped", exc
+        )
+
+    # 2. Shipped resource.
+    try:
         ref = importlib.resources.files("draughts.resources").joinpath("opening_book.json")
         with importlib.resources.as_file(ref) as book_path:
             if book_path.exists():
@@ -41,6 +60,7 @@ def load_default_book() -> OpeningBook | None:
                 return DEFAULT_BOOK
     except Exception as exc:
         logging.getLogger(__name__).debug("Could not load default opening book: %s", exc)
+
     DEFAULT_BOOK = None
     return None
 
@@ -74,12 +94,10 @@ def load_default_bitbase() -> EndgameBitbase | None:
     global DEFAULT_BITBASE
 
     # 1-2: user data dir (downloaded 4-piece).
-    from pathlib import Path as _Path
-
     try:
-        from draughts.config import get_data_dir
+        from draughts.user_data import bitbase_dir
 
-        user_dir = _Path(get_data_dir()) / "bitbase"
+        user_dir = bitbase_dir()
     except Exception:
         user_dir = None
 

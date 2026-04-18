@@ -87,12 +87,15 @@ def _is_lone_king_vs_lone_king(grid: np.ndarray) -> bool:
     bitbase generator.  In reality, 2K vs 1K is usually a WIN for the stronger
     side — it must be determined by retrograde analysis, not assumed drawn.
     """
-    flat = grid.ravel().view(np.uint8)
-    counts = np.bincount(flat, minlength=256)
-    bk = int(counts[2])  # BLACK_KING = +2
-    wk = int(counts[254])  # WHITE_KING = -2, stored as uint8 254
-    bp = int(counts[1])  # BLACK pawn
-    wp = int(counts[255])  # WHITE pawn, stored as uint8 255
+    # MED-08 refactor: explicit element-wise comparisons replace the
+    # int8→uint8 view trick. Same speed, readable at a glance, no
+    # dependence on NumPy's signed/unsigned conversion behaviour.
+    from draughts.config import BLACK, BLACK_KING, WHITE, WHITE_KING
+
+    bp = int(np.sum(grid == BLACK))
+    wp = int(np.sum(grid == WHITE))
+    bk = int(np.sum(grid == BLACK_KING))
+    wk = int(np.sum(grid == WHITE_KING))
     return bp == 0 and wp == 0 and bk == 1 and wk == 1
 
 
@@ -521,7 +524,9 @@ def _build_bitbase(max_iters: int = 100, verbose: bool = True, max_pieces: int =
     if verbose and draw_from_unknown:
         print(f"  {draw_from_unknown:,} unresolved positions assigned DRAW.")
 
-    bb = EndgameBitbase(entries=dict(results.items()))
+    # Persist max_pieces as spec metadata so the engine knows its probe
+    # threshold at load time (HIGH-06).
+    bb = EndgameBitbase(entries=dict(results.items()), max_pieces=max_pieces)
     s = bb.stats()
 
     if verbose:

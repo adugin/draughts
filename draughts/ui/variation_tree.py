@@ -105,10 +105,17 @@ class VariationTreePane(QDockWidget):
                 child_ply: int | None = ply + 1
             else:
                 # Variation — italicized, no ply mapping (can't jump).
+                # MED-03: make the dead-click obvious via tooltip + cursor.
                 font = item.font(0)
                 font.setItalic(True)
                 item.setFont(0, font)
                 item.setForeground(0, self._tree_widget.palette().dark())
+                item.setToolTip(
+                    0,
+                    "Вариант — переход по клику станет доступен "
+                    "в следующей версии (сейчас поддерживается только "
+                    "навигация по основной линии).",
+                )
                 child_ply = None
 
             if parent_item is None:

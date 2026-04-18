@@ -105,6 +105,22 @@ def test_read_frame_partial_returns_bytes_on_eof():
     assert data == b"partial"
 
 
+def test_read_frame_rejects_oversized_input():
+    """HIGH-03: cap frame size to prevent memory exhaustion."""
+    # 10 KB of non-NUL bytes — over the 4 KB cap.
+    buf = io.BytesIO(b"A" * 10_000 + b"\x00")
+    with pytest.raises(DXPProtocolError):
+        read_frame(buf)
+
+
+def test_read_frame_accepts_up_to_cap():
+    """At-boundary frame under cap still works."""
+    buf = io.BytesIO(b"X" * 100 + b"\x00")
+    result = read_frame(buf)
+    assert result.endswith(b"\x00")
+    assert len(result) == 101
+
+
 # ---------------------------------------------------------------------------
 # Server integration — one quick game at low depth
 # ---------------------------------------------------------------------------

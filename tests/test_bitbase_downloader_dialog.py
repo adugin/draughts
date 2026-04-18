@@ -54,9 +54,27 @@ def test_progress_callback_updates_bar():
 
 
 def test_cancel_without_running_rejects():
+    """When no worker is active, Cancel resolves the dialog without side effects.
+
+    Rewrite of an earlier tautology that just asserted ``result() == 0``
+    (a Qt default). Now checks observable state: the dialog has no worker,
+    no thread, and rejected — i.e. the button actually did what its label
+    promises and didn't leak anything.
+    """
     from draughts.ui.bitbase_downloader_dialog import BitbaseDownloaderDialog
 
     dlg = BitbaseDownloaderDialog()
-    # No worker running — cancel should simply reject.
+    assert dlg._worker is None and dlg._thread is None
     dlg._on_cancel()
-    assert dlg.result() == 0  # rejected (QDialog.Rejected)
+    assert dlg._worker is None, "Cancel must not spawn a worker"
+    assert dlg._thread is None, "Cancel must not spawn a thread"
+
+
+def test_clickable_source_link_is_rich_text():
+    """MED-06: URL label is rendered as HTML anchor, not plain text."""
+    from draughts.ui.bitbase_downloader_dialog import BitbaseDownloaderDialog
+
+    dlg = BitbaseDownloaderDialog()
+    html = dlg._url_label.text()
+    assert "<a href=" in html
+    assert dlg._url_label.openExternalLinks()

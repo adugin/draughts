@@ -15,8 +15,24 @@ from pathlib import Path
 
 logger = logging.getLogger("draughts.puzzle_miner")
 
-# Path to the user-specific mined puzzle collection.
-MINED_PUZZLES_PATH = Path.home() / ".draughts" / "mined_puzzles.json"
+
+def _default_mined_path() -> Path:
+    from draughts.user_data import mined_puzzles_path
+
+    return mined_puzzles_path()
+
+
+# Module-level path — assigned lazily on first access AND directly
+# writable by tests via monkey-patch / ``unittest.mock.patch``.
+# Kept as a mutable module attribute (not a property) so existing tests
+# using ``patch("draughts.game.puzzle_miner.MINED_PUZZLES_PATH", ...)``
+# keep working unchanged.
+MINED_PUZZLES_PATH: Path = _default_mined_path()
+
+
+def _mined_puzzles_path() -> Path:
+    """Return the currently-configured path (honours test patches)."""
+    return MINED_PUZZLES_PATH
 
 # Minimum eval-swing to qualify a position as a puzzle.
 # With tuned weights (_PAWN_VALUE ~1.9), losing one pawn ≈ 2 eval units.
@@ -166,17 +182,18 @@ def load_mined_puzzles() -> list[dict]:
 
     Returns an empty list if the file does not exist or is malformed.
     """
-    if not MINED_PUZZLES_PATH.exists():
+    path = _mined_puzzles_path()
+    if not path.exists():
         return []
     try:
-        with MINED_PUZZLES_PATH.open(encoding="utf-8") as fh:
+        with path.open(encoding="utf-8") as fh:
             data = json.load(fh)
         if isinstance(data, list):
             return data
         logger.warning("Mined puzzles file has unexpected format; returning []")
         return []
     except Exception:
-        logger.exception("Failed to load mined puzzles from %s", MINED_PUZZLES_PATH)
+        logger.exception("Failed to load mined puzzles from %s", path)
         return []
 
 
@@ -189,10 +206,11 @@ def save_mined_puzzles(puzzles: list[dict]) -> None:
     Raises:
         OSError: If the directory cannot be created or the file cannot be written.
     """
-    MINED_PUZZLES_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with MINED_PUZZLES_PATH.open("w", encoding="utf-8") as fh:
+    path = _mined_puzzles_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
         json.dump(puzzles, fh, ensure_ascii=False, indent=2)
-    logger.info("Saved %d mined puzzles to %s", len(puzzles), MINED_PUZZLES_PATH)
+    logger.info("Saved %d mined puzzles to %s", len(puzzles), path)
 
 
 def append_mined_puzzles(new_puzzles: list[dict]) -> int:

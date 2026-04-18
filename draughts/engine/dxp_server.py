@@ -66,8 +66,12 @@ def _move_to_dxp(move: AIMove, time_used: float) -> Move:
 def _dxp_to_move_path(m: Move, board: Board, color: Color) -> list[tuple[int, int]] | None:
     """Find our internal move path matching the DXP from/to squares.
 
-    We generate legal moves and pick the one whose first/last square match.
-    Returns None if no legal move matches.
+    HIGH-05 fix: when multiple legal moves share the same from/to
+    (possible for flying kings in multi-capture), disambiguate via the
+    captured-squares list. Returns None if:
+      - no legal move matches from/to (peer sent an illegal move), OR
+      - multiple matches remain and captured list cannot disambiguate
+        (we'd rather abort than silently desync).
     """
     from draughts.game.ai import _generate_all_moves
 
@@ -77,9 +81,43 @@ def _dxp_to_move_path(m: Move, board: Board, color: Color) -> list[tuple[int, in
         tx, ty = square_to_xy(m.to_sq)
     except ValueError:
         return None
-    for kind, path in candidates:
-        if path[0] == (fx, fy) and path[-1] == (tx, ty):
+    endpoint_matches = [
+        (kind, path) for kind, path in candidates
+        if path[0] == (fx, fy) and path[-1] == (tx, ty)
+    ]
+    if not endpoint_matches:
+        return None
+    if len(endpoint_matches) == 1:
+        return endpoint_matches[0][1]
+
+    # Multiple paths share endpoints — use captured squares from peer.
+    if not m.captured:
+        logger.warning(
+            "Ambiguous move %d→%d (%d candidates) and peer sent no "
+            "captured-list — cannot disambiguate",
+            m.from_sq, m.to_sq, len(endpoint_matches),
+        )
+        return None
+
+    expected_captures = set(m.captured)
+    for _kind, path in endpoint_matches:
+        # Interim squares of a capture path are jumped-landing squares
+        # from our side; enemy-piece squares are the intermediates.
+        # For ambiguity resolution we check if the set of intermediate
+        # landing squares' xy → square-number equals the peer-supplied list.
+        path_interim_squares = set()
+        for ix, iy in path[1:-1]:
+            try:
+                path_interim_squares.add(xy_to_square(ix, iy))
+            except ValueError:
+                continue
+        if path_interim_squares == expected_captures:
             return path
+
+    logger.warning(
+        "Ambiguous move %d→%d and captured-list %s did not match any path",
+        m.from_sq, m.to_sq, sorted(m.captured),
+    )
     return None
 
 
@@ -114,7 +152,10 @@ def play_one_game(sock: socket.socket, *, difficulty: int = 4, our_name: str = "
         return "protocol-error"
 
     initiator = msg
-    logger.info("GAMEREQ from %r, wants %s", initiator.name, initiator.color)
+    logger.info(
+        "GAMEREQ from %r, wants %s, %d min, %d moves-to-end",
+        initiator.name, initiator.color, initiator.minutes, initiator.moves_to_end,
+    )
 
     # 2. Send GAMEACC (always accept for now).
     fh.write(encode(GameAcc(name=our_name, accept=0)))
@@ -126,6 +167,17 @@ def play_one_game(sock: socket.socket, *, difficulty: int = 4, our_name: str = "
     engine = AIEngine(difficulty=difficulty, color=our_color, use_book=False, use_bitbase=False)
     turn: Color = Color.WHITE
 
+    # HIGH-04 fix: derive per-move budget from GAMEREQ clock so we
+    # respect the initiator's requested time control. Assume ~40 moves
+    # per game (typical for Russian draughts). minutes=0 means "no
+    # clock" — fall back to engine's default fixed-depth search.
+    if initiator.minutes > 0:
+        total_budget_ms = initiator.minutes * 60 * 1000
+        assumed_moves = max(10, initiator.moves_to_end or 40)
+        per_move_ms = max(100, total_budget_ms // assumed_moves)
+    else:
+        per_move_ms = 0  # fall through to find_move (depth-based)
+
     # 4. Game loop. White moves first always in Russian draughts.
     while True:
         # Check game over before asking for a move.
@@ -136,7 +188,10 @@ def play_one_game(sock: socket.socket, *, difficulty: int = 4, our_name: str = "
 
         if turn == our_color:
             t0 = time.perf_counter()
-            ai_move = engine.find_move(board.copy())
+            if per_move_ms > 0 and hasattr(engine, "find_move_timed"):
+                ai_move = engine.find_move_timed(board.copy(), time_ms=per_move_ms)
+            else:
+                ai_move = engine.find_move(board.copy())
             t1 = time.perf_counter()
             if ai_move is None:
                 fh.write(encode(GameEnd(reason=0, stop=0)))

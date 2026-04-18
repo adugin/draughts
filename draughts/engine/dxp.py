@@ -25,6 +25,12 @@ from dataclasses import dataclass, field
 PROTOCOL_VERSION = "1"
 NULL = b"\x00"
 
+#: Maximum legal DXP frame size in bytes. Real frames are < 200 bytes
+#: (GAMEREQ is ~42, MOVE with 8 captures is ~31). Cap at 4 KB to reject
+#: malicious / malformed input that would exhaust memory via read_frame
+#: (HIGH-03 fix).
+MAX_FRAME_BYTES = 4096
+
 
 @dataclass
 class GameReq:
@@ -167,12 +173,16 @@ def decode(frame: bytes) -> DXPMessage:
     raise DXPProtocolError(f"unknown message code {code!r}: {text!r}")
 
 
-def read_frame(readable) -> bytes:
+def read_frame(readable, max_bytes: int = MAX_FRAME_BYTES) -> bytes:
     """Read one NUL-terminated frame from a byte-oriented source.
 
     ``readable`` must support ``read(n)`` returning bytes (a socket.makefile
     object or BufferedReader works).  Returns the frame INCLUDING the NUL,
     or an empty bytes object on EOF.
+
+    HIGH-03 fix: enforces ``max_bytes`` ceiling. A malicious peer that
+    never sends a NUL cannot exhaust server memory — we raise
+    DXPProtocolError once the cap is reached.
     """
     buf = bytearray()
     while True:
@@ -182,3 +192,8 @@ def read_frame(readable) -> bytes:
         buf.extend(b)
         if b == NULL:
             return bytes(buf)
+        if len(buf) > max_bytes:
+            raise DXPProtocolError(
+                f"Frame exceeded {max_bytes} bytes without NUL terminator — "
+                "refusing to buffer more (possible DoS)"
+            )

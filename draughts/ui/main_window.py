@@ -49,6 +49,11 @@ class MainWindow(QMainWindow):
 
         self._controller = controller
         self._current_theme = controller.settings.board_theme
+        # Keeps non-modal generator progress dialogs alive for their full
+        # run (MED-01). Progress dialogs have WA_DeleteOnClose; this list
+        # only holds references so Python doesn't GC them between the
+        # invoking modal dialog closing and the background work finishing.
+        self._active_generators: list = []
 
         self._build_ui()
         self._build_menus()
@@ -149,12 +154,6 @@ class MainWindow(QMainWindow):
         self._act_options.triggered.connect(self._on_options)
         settings_menu.addAction(self._act_options)
 
-        settings_menu.addSeparator()
-
-        self._act_download_bitbase = QAction("Скачать расширенную базу &эндшпилей...", self)
-        self._act_download_bitbase.triggered.connect(self._on_download_bitbase)
-        settings_menu.addAction(self._act_download_bitbase)
-
         # --- Тренировка ---
         training_menu = menubar.addMenu("&Тренировка")
 
@@ -214,8 +213,10 @@ class MainWindow(QMainWindow):
         self._act_analyze_game.triggered.connect(self._on_analyze_game)
         analysis_menu.addAction(self._act_analyze_game)
 
-        # --- Инструменты (D36) ---
-        tools_menu = menubar.addMenu("&Инструменты")
+        # --- Сервис (D36, MED-04: "Сервис" matches Microsoft Office
+        # Russian convention; groups all "fetch/build additional data"
+        # actions together) ---
+        tools_menu = menubar.addMenu("&Сервис")
 
         self._act_import_book = QAction("&Импорт книги из PDN...", self)
         self._act_import_book.triggered.connect(self._on_import_book)
@@ -224,6 +225,12 @@ class MainWindow(QMainWindow):
         self._act_mine_puzzles = QAction("&Добыча тактических задач...", self)
         self._act_mine_puzzles.triggered.connect(self._on_mine_puzzles)
         tools_menu.addAction(self._act_mine_puzzles)
+
+        tools_menu.addSeparator()
+
+        self._act_download_bitbase = QAction("&Скачать расширенную базу эндшпилей...", self)
+        self._act_download_bitbase.triggered.connect(self._on_download_bitbase)
+        tools_menu.addAction(self._act_download_bitbase)
 
         # --- Справка ---
         help_menu = menubar.addMenu("&Справка")

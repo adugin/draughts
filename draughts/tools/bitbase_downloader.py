@@ -53,6 +53,11 @@ DEFAULT_BITBASE_SHA256_URL = (
 #: without burning RAM on small machines.
 _CHUNK_SIZE = 256 * 1024
 
+#: Hard size ceiling. 4-piece bitbase is ~126 MB; anything >1 GB is
+#: almost certainly a mirror/MITM mistake. User override via
+#: ``max_bytes`` arg. (HIGH-03 fix)
+_DEFAULT_MAX_BYTES = 1024 * 1024 * 1024  # 1 GB
+
 
 class BitbaseDownloadError(RuntimeError):
     """Base for bitbase downloader failures."""
@@ -64,6 +69,21 @@ class BitbaseDownloadCancelled(BitbaseDownloadError):
 
 class BitbaseChecksumMismatch(BitbaseDownloadError):
     """Raised when the downloaded file's SHA256 != advertised."""
+
+
+class BitbaseIntegrityUnavailable(BitbaseDownloadError):
+    """Raised when the .sha256 file cannot be retrieved and the caller
+    required integrity verification (HIGH-02 fix: integrity is ON by
+    default; allow_unverified=True opts out)."""
+
+
+class BitbaseSizeExceeded(BitbaseDownloadError):
+    """Raised when the payload exceeds max_bytes (HIGH-03 fix)."""
+
+
+class BitbaseInsecureURL(BitbaseDownloadError):
+    """Raised when a non-https URL is used without the allow_http escape hatch
+    (HIGH-07 fix)."""
 
 
 @dataclass(frozen=True)
@@ -111,6 +131,20 @@ def _fetch_expected_sha256(sha256_url: str, timeout: float = 10.0) -> str | None
     return None
 
 
+def _validate_url_scheme(url: str, *, allow_http: bool) -> None:
+    """Raise BitbaseInsecureURL if url is non-https and allow_http=False."""
+    scheme = url.split(":", 1)[0].lower()
+    if scheme == "https":
+        return
+    if scheme == "http" and allow_http:
+        logger.warning("Insecure HTTP download allowed via allow_http=True (%s)", url)
+        return
+    raise BitbaseInsecureURL(
+        f"Refusing to download from {scheme!r} URL. "
+        "Pass allow_http=True or set DRAUGHTS_ALLOW_HTTP=1 for local testing."
+    )
+
+
 def download_bitbase(
     url: str | None = None,
     dest_dir: Path | None = None,
@@ -120,33 +154,46 @@ def download_bitbase(
     on_progress: Callable[[int, int], None] | None = None,
     cancel_flag: list[bool] | None = None,
     timeout: float = 30.0,
+    max_bytes: int = _DEFAULT_MAX_BYTES,
+    allow_unverified: bool = False,
+    allow_http: bool | None = None,
 ) -> DownloadResult:
-    """Download the 4-piece bitbase with progress and integrity verification.
+    """Download the 4-piece bitbase with progress, size cap, and integrity.
+
+    Safety contract (post-audit):
+      - **HTTPS only** unless ``allow_http=True`` or env DRAUGHTS_ALLOW_HTTP=1 (HIGH-07).
+      - **Integrity required** — fetches ``sha256_url`` or uses ``expected_sha256``;
+        raises BitbaseIntegrityUnavailable if neither is available and
+        ``allow_unverified`` is False (HIGH-02).
+      - **Size cap** — abort if payload > ``max_bytes`` (default 1 GB) (HIGH-03).
 
     Args:
-        url: Source URL; defaults to GitHub Releases (see module docstring).
+        url: Source URL; defaults to the GitHub Releases URL.
         dest_dir: Where to store the file; defaults to user data dir.
-        sha256_url: URL of the .sha256 text file; skipped when
-            ``expected_sha256`` is provided.
-        expected_sha256: Pre-known hex digest to verify against. When
-            None, we fetch ``sha256_url`` and use that. When both are
-            None (or fetch fails), the download succeeds without
-            verification but logs a warning.
-        on_progress: Optional callback(bytes_done, bytes_total).
-            bytes_total is 0 when the server omits Content-Length.
-        cancel_flag: Optional [False/True] sentinel list — check between
-            chunks; setting to [True] raises BitbaseDownloadCancelled.
+        sha256_url: URL of the .sha256 sibling.
+        expected_sha256: Pre-known hex digest (overrides sha256_url fetch).
+        on_progress: Callback(bytes_done, bytes_total).
+        cancel_flag: [False/True] sentinel; set to [True] to interrupt.
         timeout: Socket timeout per connection.
-
-    Returns:
-        DownloadResult with the final path, size, and computed SHA256.
+        max_bytes: Reject downloads larger than this (default 1 GB).
+        allow_unverified: Opt in to downloads without SHA256 verification.
+        allow_http: Override the HTTPS-only default. None → check env.
 
     Raises:
-        BitbaseDownloadError on network / IO failure.
-        BitbaseChecksumMismatch if expected_sha256 is set and differs.
-        BitbaseDownloadCancelled if cancel_flag[0] becomes True.
+        BitbaseInsecureURL — URL is not https and allow_http is off.
+        BitbaseIntegrityUnavailable — no .sha256 and allow_unverified=False.
+        BitbaseSizeExceeded — payload > max_bytes.
+        BitbaseChecksumMismatch — hash differs from expected.
+        BitbaseDownloadCancelled — cancel_flag[0] became True.
+        BitbaseDownloadError — other network / IO failure.
     """
+    import os as _os
+
     effective_url = resolve_url(url)
+    if allow_http is None:
+        allow_http = _os.environ.get("DRAUGHTS_ALLOW_HTTP") == "1"
+    _validate_url_scheme(effective_url, allow_http=allow_http)
+
     dest_dir = dest_dir or get_destination_dir()
     dest_dir.mkdir(parents=True, exist_ok=True)
     filename = effective_url.rsplit("/", 1)[-1] or "bitbase_4.json.gz"
@@ -154,7 +201,16 @@ def download_bitbase(
     tmp_path = dest_dir / (filename + ".download")
 
     if expected_sha256 is None:
-        expected_sha256 = _fetch_expected_sha256(resolve_sha256_url(sha256_url), timeout=timeout)
+        sha_url = resolve_sha256_url(sha256_url)
+        if allow_http or sha_url.startswith("https://"):
+            expected_sha256 = _fetch_expected_sha256(sha_url, timeout=timeout)
+
+    if expected_sha256 is None and not allow_unverified:
+        raise BitbaseIntegrityUnavailable(
+            "Cannot verify file integrity: no expected SHA-256 available. "
+            "The download was refused. Pass allow_unverified=True to override "
+            "or ensure the .sha256 sibling file is published."
+        )
 
     sha = hashlib.sha256()
     bytes_done = 0
@@ -163,6 +219,10 @@ def download_bitbase(
         with urllib.request.urlopen(effective_url, timeout=timeout) as resp:  # noqa: S310
             length_hdr = resp.headers.get("Content-Length")
             total = int(length_hdr) if length_hdr and length_hdr.isdigit() else 0
+            if total and total > max_bytes:
+                raise BitbaseSizeExceeded(
+                    f"Advertised size {total} bytes exceeds max_bytes={max_bytes}"
+                )
 
             with tmp_path.open("wb") as out:
                 while True:
@@ -174,9 +234,17 @@ def download_bitbase(
                     out.write(chunk)
                     sha.update(chunk)
                     bytes_done += len(chunk)
+                    if bytes_done > max_bytes:
+                        raise BitbaseSizeExceeded(
+                            f"Payload exceeded max_bytes={max_bytes} after "
+                            f"{bytes_done} bytes"
+                        )
                     if on_progress is not None:
                         on_progress(bytes_done, total)
     except BitbaseDownloadCancelled:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    except BitbaseSizeExceeded:
         tmp_path.unlink(missing_ok=True)
         raise
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
@@ -190,7 +258,11 @@ def download_bitbase(
             f"SHA256 mismatch: expected {expected_sha256}, got {actual}"
         )
     if expected_sha256 is None:
-        logger.warning("No expected SHA256 available — accepting file unverified (%s)", actual)
+        logger.warning(
+            "No expected SHA256 available — accepting file unverified "
+            "(allow_unverified=True). SHA256 of received file: %s",
+            actual,
+        )
 
     tmp_path.replace(final_path)  # atomic on POSIX + modern Windows
     return DownloadResult(path=final_path, size_bytes=bytes_done, sha256=actual)
@@ -210,6 +282,22 @@ def _cli() -> int:
     parser.add_argument("--sha256-url", default=None, help=".sha256 URL override")
     parser.add_argument("--expected-sha256", default=None, help="Pre-known SHA256 hex digest")
     parser.add_argument("--dest", default=None, type=Path, help="Output directory (default: user data dir)")
+    parser.add_argument(
+        "--max-bytes",
+        type=int,
+        default=_DEFAULT_MAX_BYTES,
+        help=f"Abort if payload exceeds this many bytes (default {_DEFAULT_MAX_BYTES})",
+    )
+    parser.add_argument(
+        "--allow-unverified",
+        action="store_true",
+        help="Accept downloads without SHA-256 verification (not recommended)",
+    )
+    parser.add_argument(
+        "--allow-http",
+        action="store_true",
+        help="Allow http:// URLs (default: https:// only)",
+    )
     args = parser.parse_args()
 
     def on_progress(done: int, total: int) -> None:
@@ -226,6 +314,9 @@ def _cli() -> int:
             sha256_url=args.sha256_url,
             expected_sha256=args.expected_sha256,
             on_progress=on_progress,
+            max_bytes=args.max_bytes,
+            allow_unverified=args.allow_unverified,
+            allow_http=args.allow_http,
         )
     except BitbaseDownloadError as exc:
         print(f"\nError: {exc}", file=sys.stderr)

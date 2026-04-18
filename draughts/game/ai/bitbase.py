@@ -60,9 +60,24 @@ class EndgameBitbase:
         bb2 = EndgameBitbase.load("bitbase_3.json")
     """
 
-    def __init__(self, entries: dict[int, int] | None = None) -> None:
+    def __init__(
+        self,
+        entries: dict[int, int] | None = None,
+        *,
+        max_pieces: int | None = None,
+    ) -> None:
         # entries maps Zobrist hash → result int (1/0/-1)
         self._entries: dict[int, int] = entries or {}
+        # max_pieces: largest piece-count covered by this bitbase (3/4/5).
+        # Authoritatively tells search.py's probe threshold what to use,
+        # replacing the brittle "entry count > 1M → assume 4-piece"
+        # heuristic flagged in audit HIGH-06. None = legacy / unknown.
+        self._max_pieces: int | None = max_pieces
+
+    @property
+    def max_pieces(self) -> int | None:
+        """Maximum piece count covered, if declared. None = legacy file."""
+        return self._max_pieces
 
     # ------------------------------------------------------------------
     # Core API
@@ -93,14 +108,30 @@ class EndgameBitbase:
     # Persistence (same JSON pattern as book.py)
     # ------------------------------------------------------------------
 
+    # Reserved key: stores spec metadata alongside hash→WDL entries.
+    # Chosen to be visually obvious and never collide with a legitimate
+    # 64-bit integer hash string (leading underscore is not a digit).
+    _META_KEY = "__meta__"
+
     def save(self, path: str | Path) -> None:
         """Serialize bitbase to JSON.
 
-        Format::
+        Format (v1.1)::
 
-            { "<hash>": <result_int>, ... }
+            {
+              "__meta__": {"format": 1, "max_pieces": 4},
+              "<hash>":   <result_int>,
+              ...
+            }
+
+        v1.0 legacy files lack ``__meta__`` and are still accepted by
+        :py:meth:`load`.
         """
-        data = {str(h): r for h, r in self._entries.items()}
+        data: dict = {}
+        if self._max_pieces is not None:
+            data[self._META_KEY] = {"format": 1, "max_pieces": self._max_pieces}
+        for h, r in self._entries.items():
+            data[str(h)] = r
         Path(path).write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
 
     @classmethod
@@ -110,6 +141,10 @@ class EndgameBitbase:
         The 4-piece bitbase is large (~300 MB JSON, ~120 MB gzipped) and
         is typically shipped in .json.gz form. A `.gz` suffix on the path
         triggers streaming gzip decoding.
+
+        Honours the optional ``__meta__`` entry (HIGH-06 fix) so the
+        engine probes at the correct piece-count threshold without
+        guessing from file size.
         """
         p = Path(path)
         if p.suffix == ".gz":
@@ -119,8 +154,16 @@ class EndgameBitbase:
                 raw = json.loads(fh.read().decode("utf-8"))
         else:
             raw = json.loads(p.read_text(encoding="utf-8"))
+
+        max_pieces: int | None = None
+        meta = raw.pop(cls._META_KEY, None)
+        if isinstance(meta, dict):
+            mp = meta.get("max_pieces")
+            if isinstance(mp, int) and 1 <= mp <= 10:
+                max_pieces = mp
+
         entries = {int(h_str): int(r) for h_str, r in raw.items()}
-        return cls(entries=entries)
+        return cls(entries=entries, max_pieces=max_pieces)
 
     # ------------------------------------------------------------------
     # Helpers

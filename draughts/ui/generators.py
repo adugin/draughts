@@ -18,6 +18,7 @@ Data lives in %APPDATA%/DRAUGHTS/generated/ (see ``_output_dir()``).
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -39,13 +40,11 @@ from PyQt6.QtWidgets import (
 logger = logging.getLogger("draughts.generators")
 
 
-def _output_dir() -> Path:
-    """Return (and create) the per-user generated-data directory."""
-    from draughts.config import get_data_dir
-
-    d = Path(get_data_dir()) / "generated"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+# Output paths were previously centralised through ``_output_dir()`` but
+# the audit (BLK-01, BLK-02, PO-4) required splitting per content type:
+# books live under books_dir(), puzzles under puzzles_dir(). The
+# dialogs below import directly from draughts.user_data so the loaders
+# and the generators can never disagree about the target path again.
 
 
 # ---------------------------------------------------------------------------
@@ -76,10 +75,12 @@ class _GeneratorWorker(QObject):
     def __init__(self, fn: GeneratorFn) -> None:
         super().__init__()
         self._fn = fn
-        self._cancel_flag: list[bool] = [False]
+        # HIGH-09: threading.Event — explicit cross-thread semantics,
+        # works under PyPy / nogil Python.
+        self._cancel_event = threading.Event()
 
     def request_cancel(self) -> None:
-        self._cancel_flag[0] = True
+        self._cancel_event.set()
 
     def run(self) -> None:
         try:
@@ -97,7 +98,7 @@ class _GeneratorWorker(QObject):
         self.progress.emit(current, total, message)
 
     def _should_cancel(self) -> bool:
-        return self._cancel_flag[0]
+        return self._cancel_event.is_set()
 
 
 class _GeneratorCancelled(RuntimeError):
@@ -204,16 +205,27 @@ class GeneratorProgressDialog(QDialog):
             self.append_log(message)
 
     def _on_finished(self, result: dict[str, Any] | None, error_msg: str | None) -> None:
-        # Tear down thread safely.
-        if self._thread is not None:
-            self._thread.quit()
-            self._thread.wait()
-        if self._worker is not None:
-            self._worker.deleteLater()
-        if self._thread is not None:
-            self._thread.deleteLater()
-        self._thread = None
+        # Tear down thread+worker.  Important order (HIGH-08):
+        #   1. thread.quit() asks the worker thread's event loop to exit.
+        #   2. thread.wait() blocks until it actually exits (fast — the
+        #      worker's last signal was already delivered before we got
+        #      here).
+        #   3. At that point the worker C++ object is still alive but no
+        #      longer has an event loop to post to — so we deleteLater
+        #      via the PARENT (main) thread's event loop, not the dead
+        #      worker thread.
+        #   4. Same for thread itself.
+        worker = self._worker
+        thread = self._thread
         self._worker = None
+        self._thread = None
+        if thread is not None:
+            thread.quit()
+            thread.wait()
+        if worker is not None:
+            worker.deleteLater()
+        if thread is not None:
+            thread.deleteLater()
 
         self._btn_cancel.setEnabled(False)
         self._btn_close.setEnabled(True)
@@ -319,7 +331,9 @@ class ImportBookFromPdnDialog(QDialog):
         self._btn_ok.setEnabled(True)
 
     def _on_ok(self) -> None:
-        out_path = _output_dir() / "book_user.json"
+        from draughts.user_data import user_book_path
+
+        out_path = user_book_path()
         plies = self._plies.value()
         pdn_paths = list(self._pdn_paths)
 
@@ -330,7 +344,6 @@ class ImportBookFromPdnDialog(QDialog):
 
             book = OpeningBook.load(out_path) if out_path.exists() else OpeningBook()
             total_games = 0
-            total_positions = 0
             for i, pdn_path in enumerate(pdn_paths):
                 if should_cancel():
                     raise _GeneratorCancelled()
@@ -344,7 +357,6 @@ class ImportBookFromPdnDialog(QDialog):
                 import_games(games, plies=plies, book=book)
                 added = len(book) - before_positions
                 total_games += len(games)
-                total_positions += added
                 on_progress(i + 1, len(pdn_paths), f"  {len(games)} партий → +{added} позиций")
                 if should_cancel():
                     raise _GeneratorCancelled()
@@ -353,17 +365,29 @@ class ImportBookFromPdnDialog(QDialog):
             book.save(out_path)
             return {"path": out_path, "games": total_games, "positions": len(book)}
 
+        # MED-01 fix: attach progress dialog to the MainWindow (not to
+        # self, which is about to be accepted and GC'd). This keeps
+        # the non-modal dialog alive for the whole run.
+        parent = self.parent() or self
         self.accept()
-        progress = GeneratorProgressDialog(fn, "Импорт книги из PDN", self.parent())
+        progress = GeneratorProgressDialog(fn, "Импорт книги из PDN", parent)
+        progress.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         progress.completed.connect(self._on_import_completed)
         progress.show()
         progress.start()
-        # Keep a reference so the dialog isn't GC'd while running.
-        self._progress_ref = progress
+        if hasattr(parent, "_active_generators"):
+            parent._active_generators.append(progress)
 
     def _on_import_completed(self, result) -> None:
         if result is None:
             return
+        # Re-init DEFAULT_BOOK so the new file takes effect without restart.
+        try:
+            from draughts.game.ai import load_default_book
+
+            load_default_book()
+        except Exception:
+            logger.exception("Failed to reload default book after import")
         self.imported.emit(result.get("path"))
 
 
@@ -409,11 +433,29 @@ class MinePuzzlesDialog(QDialog):
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Случайное зерно (0 = случайно):"))
         self._seed = QSpinBox()
-        self._seed.setRange(0, 10 ** 6)
+        self._seed.setRange(0, 2 ** 31 - 1)
         self._seed.setValue(0)
         row2.addWidget(self._seed)
         row2.addStretch(1)
         root.addLayout(row2)
+
+        row3 = QHBoxLayout()
+        row3.addWidget(QLabel("Глубина оценки позиций:"))
+        self._depth = QSpinBox()
+        # Depth 4 is the minimum for reliable blunder detection — matches
+        # the batch miner (see draughts/tools/mine_puzzles_batch.py).
+        # Depth 3 was rejected by the M6 audit (MED-02) as under-powered
+        # for the engine that later plays the puzzle at depth 5.
+        self._depth.setRange(4, 8)
+        self._depth.setValue(4)
+        row3.addWidget(self._depth)
+        row3.addWidget(
+            QLabel(
+                "<i>(глубже — точнее, но дольше; рекомендуется 4)</i>"
+            )
+        )
+        row3.addStretch(1)
+        root.addLayout(row3)
 
         btns = QHBoxLayout()
         btns.addStretch(1)
@@ -429,34 +471,29 @@ class MinePuzzlesDialog(QDialog):
     def _on_ok(self) -> None:
         n_games = self._games.value()
         seed_value = self._seed.value()
-
-        out_path = _output_dir() / "mined_puzzles.json"
+        analysis_depth = self._depth.value()
 
         def fn(on_progress, should_cancel) -> dict[str, Any]:
-            import json
             import random as _random
             import time
 
-            from draughts.game.puzzle_miner import mine_puzzles_from_game
+            from draughts.game.puzzle_miner import (
+                append_mined_puzzles,
+                load_mined_puzzles,
+                mine_puzzles_from_game,
+            )
             from draughts.tools.mine_puzzles_batch import play_selfplay_game
             from draughts.ui.game_analyzer import analyze_game_positions
+            from draughts.user_data import mined_puzzles_path
 
             if seed_value:
                 _random.seed(seed_value)
             else:
                 _random.seed(time.time_ns() & 0xFFFFFFFF)
 
-            existing: list[dict] = []
-            if out_path.exists():
-                try:
-                    existing = json.loads(out_path.read_text(encoding="utf-8"))
-                    if not isinstance(existing, list):
-                        existing = []
-                except Exception:
-                    existing = []
-            existing_positions = {p.get("position", "") for p in existing}
+            existing_before = len(load_mined_puzzles())
+            collected: list[dict] = []
 
-            puzzles_added = 0
             for i in range(n_games):
                 if should_cancel():
                     raise _GeneratorCancelled()
@@ -465,34 +502,40 @@ class MinePuzzlesDialog(QDialog):
                 if len(positions) < 4:
                     on_progress(i + 1, n_games, f"партия {i + 1}: слишком короткая")
                     continue
-                result = analyze_game_positions(positions, depth=3)
-                new_puzzles = mine_puzzles_from_game(positions, result.annotations, min_delta_cp=2.0)
-                added_here = 0
-                for p in new_puzzles:
-                    pos = p.get("position", "")
-                    if pos and pos not in existing_positions:
-                        existing.append(p)
-                        existing_positions.add(pos)
-                        added_here += 1
-                puzzles_added += added_here
+                result = analyze_game_positions(positions, depth=analysis_depth)
+                new_puzzles = mine_puzzles_from_game(
+                    positions, result.annotations, min_delta_cp=2.0
+                )
+                collected.extend(new_puzzles)
                 on_progress(
-                    i + 1,
-                    n_games,
-                    f"партия {i + 1}/{n_games}: +{added_here} задач (всего +{puzzles_added})",
+                    i + 1, n_games,
+                    f"партия {i + 1}/{n_games}: +{len(new_puzzles)} задач "
+                    f"(суммарно собрано {len(collected)})",
                 )
 
             if should_cancel():
                 raise _GeneratorCancelled()
-            on_progress(n_games, n_games, f"сохраняю в {out_path}")
-            out_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
-            return {"path": out_path, "added": puzzles_added, "total": len(existing)}
 
+            # append_mined_puzzles handles dedup by position and atomic-
+            # ish write to the single canonical puzzles dir.
+            on_progress(n_games, n_games, "Сохраняю...")
+            added = append_mined_puzzles(collected)
+            total_now = existing_before + added
+            return {
+                "path": mined_puzzles_path(),
+                "added": added,
+                "total": total_now,
+            }
+
+        parent = self.parent() or self
         self.accept()
-        progress = GeneratorProgressDialog(fn, "Добыча задач", self.parent())
+        progress = GeneratorProgressDialog(fn, "Добыча задач", parent)
+        progress.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         progress.completed.connect(self._on_mine_completed)
         progress.show()
         progress.start()
-        self._progress_ref = progress
+        if hasattr(parent, "_active_generators"):
+            parent._active_generators.append(progress)
 
     def _on_mine_completed(self, result) -> None:
         if result is None:
@@ -504,5 +547,8 @@ class MinePuzzlesDialog(QDialog):
         QMessageBox.information(
             self.parent(),
             "Задачи добыты",
-            f"Добавлено новых: {added}\nВсего в файле: {total}\nФайл: {path}",
+            f"Добавлено новых: {added}\n"
+            f"Всего в базе пользователя: {total}\n"
+            f"Файл: {path}\n\n"
+            "Новые задачи будут предложены в тренажёре вместе со встроенными.",
         )

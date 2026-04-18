@@ -9,6 +9,7 @@ re-init DEFAULT_BITBASE so the new file takes effect without restart.
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, QThread, Qt, pyqtSignal
@@ -27,6 +28,9 @@ from draughts.tools.bitbase_downloader import (
     BitbaseChecksumMismatch,
     BitbaseDownloadCancelled,
     BitbaseDownloadError,
+    BitbaseInsecureURL,
+    BitbaseIntegrityUnavailable,
+    BitbaseSizeExceeded,
     DownloadResult,
     download_bitbase,
     get_destination_dir,
@@ -37,7 +41,14 @@ logger = logging.getLogger("draughts.bitbase_downloader_dialog")
 
 
 class _DownloadWorker(QObject):
-    """Runs the blocking download call; emits progress / finished signals."""
+    """Runs the blocking download call; emits progress / finished signals.
+
+    Cancellation uses a ``threading.Event`` (HIGH-09) — explicit
+    cross-thread semantics, works under PyPy / nogil Python, and documents
+    intent clearly. The downloader API still takes a ``list[bool]``
+    sentinel, so we adapt via a tiny wrapper list that we flip when the
+    event is set.
+    """
 
     progress = pyqtSignal(int, int)  # bytes_done, bytes_total
     finished = pyqtSignal(object, object)  # (DownloadResult|None, error_msg|None)
@@ -46,7 +57,17 @@ class _DownloadWorker(QObject):
         super().__init__()
         self._url = url
         self._dest_dir = dest_dir
-        self.cancel_flag: list[bool] = [False]
+        self._cancel_event = threading.Event()
+        # Thin adapter: downloader polls this list each chunk.
+        self._cancel_list: list[bool] = [False]
+
+    def request_cancel(self) -> None:
+        """Main-thread-safe: sets the Event; worker checks it next chunk."""
+        self._cancel_event.set()
+        self._cancel_list[0] = True
+
+    def is_cancelled(self) -> bool:
+        return self._cancel_event.is_set()
 
     def run(self) -> None:
         try:
@@ -54,13 +75,38 @@ class _DownloadWorker(QObject):
                 url=self._url,
                 dest_dir=self._dest_dir,
                 on_progress=lambda d, t: self.progress.emit(d, t),
-                cancel_flag=self.cancel_flag,
+                cancel_flag=self._cancel_list,
             )
         except BitbaseDownloadCancelled:
             self.finished.emit(None, "Скачивание отменено")
             return
         except BitbaseChecksumMismatch as exc:
-            self.finished.emit(None, f"Проверка целостности не пройдена:\n{exc}")
+            self.finished.emit(
+                None,
+                f"Контрольная сумма не совпала — файл не прошёл проверку "
+                f"целостности. Возможная подмена или ошибка передачи.\n\n{exc}",
+            )
+            return
+        except BitbaseIntegrityUnavailable as exc:
+            self.finished.emit(
+                None,
+                f"Файл SHA-256 (.sha256) не опубликован на релизе. "
+                f"Загрузка отменена для безопасности.\n\n{exc}",
+            )
+            return
+        except BitbaseSizeExceeded as exc:
+            self.finished.emit(
+                None,
+                f"Файл слишком большой (больше установленного лимита). "
+                f"Загрузка отменена.\n\n{exc}",
+            )
+            return
+        except BitbaseInsecureURL as exc:
+            self.finished.emit(
+                None,
+                f"Источник использует небезопасный протокол (не HTTPS). "
+                f"Загрузка отменена.\n\n{exc}",
+            )
             return
         except BitbaseDownloadError as exc:
             self.finished.emit(None, f"Ошибка загрузки:\n{exc}")
@@ -110,8 +156,17 @@ class BitbaseDownloaderDialog(QDialog):
         intro.setWordWrap(True)
         root.addWidget(intro)
 
-        self._url_label = QLabel(f"<b>Источник:</b> <code>{self._url}</code>")
-        self._url_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        # MED-06: make URL a clickable hyperlink so the user can inspect
+        # the release page in a browser.
+        self._url_label = QLabel(
+            f'<b>Источник:</b> <a href="{self._url}">{self._url}</a>'
+        )
+        self._url_label.setTextFormat(Qt.TextFormat.RichText)
+        self._url_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+            | Qt.TextInteractionFlag.LinksAccessibleByMouse
+        )
+        self._url_label.setOpenExternalLinks(True)
         root.addWidget(self._url_label)
 
         self._dest_label = QLabel(f"<b>Назначение:</b> <code>{self._dest_dir}</code>")
@@ -160,9 +215,10 @@ class BitbaseDownloaderDialog(QDialog):
 
     def _on_cancel(self) -> None:
         if self._worker is not None and self._thread is not None:
-            # Signal the worker; it will finish and emit finished() with
-            # a cancellation message, and we tear the thread down there.
-            self._worker.cancel_flag[0] = True
+            # Signal the worker via threading.Event; it will raise
+            # BitbaseDownloadCancelled, emit finished(), and the signal
+            # chain from _on_start handles teardown automatically.
+            self._worker.request_cancel()
             self._btn_cancel.setEnabled(False)
             self._status.setText("Отмена...")
         else:
@@ -182,16 +238,20 @@ class BitbaseDownloaderDialog(QDialog):
             self._status.setText(f"Скачано: {done / (1024 * 1024):.1f} МБ")
 
     def _on_finished(self, result: DownloadResult | None, error_msg: str | None) -> None:
-        # Tear down worker/thread safely.
-        if self._thread is not None:
-            self._thread.quit()
-            self._thread.wait()
-        if self._worker is not None:
-            self._worker.deleteLater()
-        if self._thread is not None:
-            self._thread.deleteLater()
+        # HIGH-08 fix: quit → wait → deleteLater in this order.
+        # Clearing refs BEFORE wait() so a re-entrant start() can build
+        # a new thread even while we're still joining the old one.
+        worker = self._worker
+        thread = self._thread
         self._worker = None
         self._thread = None
+        if thread is not None:
+            thread.quit()
+            thread.wait()
+        if worker is not None:
+            worker.deleteLater()
+        if thread is not None:
+            thread.deleteLater()
 
         if error_msg is not None:
             self._status.setText("Не выполнено")

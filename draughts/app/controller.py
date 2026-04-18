@@ -140,6 +140,10 @@ class GameController(QObject):
 
         # Game state
         self._current_turn: Color = Color.WHITE
+        # Side that moved first in THIS game — used by jump_to_ply to
+        # flip turns consistently regardless of which colour started
+        # (HIGH-01 fix: FEN-loaded PDN can start with Black to move).
+        self._game_start_color: Color = Color.WHITE
         self._computer_color: Color = Color.BLACK
         self._player_color: Color = Color.WHITE
         self._selected: tuple[int, int] | None = None
@@ -192,6 +196,9 @@ class GameController(QObject):
         """
         self.board = board
         self._current_turn = turn
+        # Remember the side that starts this game so jump_to_ply can
+        # compute correct turns for FEN-loaded black-to-move games.
+        self._game_start_color = turn
         self._computer_color = Color.BLACK if not self.settings.invert_color else Color.WHITE
         self._player_color = Color.WHITE if not self.settings.invert_color else Color.BLACK
         self._selected = None
@@ -672,12 +679,11 @@ class GameController(QObject):
         self.board.load_from_position_string(self._positions[target])
         self._selected = None
         self._capture_path = []
-        # Side to move flips each ply: even ply = the starting color.
-        if target == 0:
-            start_color = Color.WHITE
-        else:
-            start_color = Color.WHITE  # default assumption for jump
-        self._current_turn = start_color if target % 2 == 0 else start_color.opponent
+        # Side to move flips each ply starting from _game_start_color
+        # (HIGH-01 fix: was hardcoded Color.WHITE, broke FEN-loaded PDN
+        # where Black moves first).
+        start = self._game_start_color
+        self._current_turn = start if target % 2 == 0 else start.opponent
 
         self.last_move_changed.emit(None)
         self.board_changed.emit()
@@ -909,6 +915,9 @@ class GameController(QObject):
             self._position_counts[pos] = self._position_counts.get(pos, 0) + 1
 
         self.board.load_from_position_string(positions[-1])
+        # Remember side-to-move at ply 0 for jump_to_ply correctness
+        # (HIGH-01: FEN-loaded PDN may start with Black to move).
+        self._game_start_color = start_color
         self._current_turn = start_color if self._ply_count % 2 == 0 else start_color.opponent
         self._selected = None
         self._capture_path = []

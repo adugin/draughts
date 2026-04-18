@@ -138,3 +138,43 @@ def test_mine_puzzles_dialog_builds():
     assert dlg.windowTitle()
     assert dlg._games.value() == 30
     assert dlg._seed.value() == 0
+    # MED-02: depth selector present with sane default.
+    assert dlg._depth.value() >= 4
+
+
+def test_mine_puzzles_writes_to_canonical_path():
+    """BLK-01 invariant: mined puzzles land in data_dir/puzzles/, the
+    same directory load_mined_puzzles reads from. No more silent dead-end.
+    """
+    from draughts.game.puzzle_miner import _mined_puzzles_path
+    from draughts.user_data import mined_puzzles_path
+
+    # Whatever the miner writes, the loader reads.
+    assert _mined_puzzles_path() == mined_puzzles_path()
+
+
+def test_imported_book_loader_picks_up_user_file(tmp_path, monkeypatch):
+    """BLK-02 invariant: load_default_book reads the book imported via the
+    Инструменты dialog — they share user_data.user_book_path().
+    """
+    from draughts.game.ai import load_default_book
+    from draughts.game.ai.book import OpeningBook
+    import draughts.user_data
+
+    fake_book = tmp_path / "book_user.json"
+    monkeypatch.setattr(draughts.user_data, "user_book_path", lambda: fake_book)
+
+    OpeningBook().save(fake_book)
+    book = load_default_book()
+    assert book is not None
+    assert len(book) == 0
+
+    # Cleanup: monkeypatch auto-reverts user_book_path AFTER the test,
+    # but DEFAULT_BOOK is still pointing at the empty loaded state.
+    # Register a finalizer that reloads with the un-patched path so
+    # later tests in the suite see the real bundled book again.
+    def _restore():
+        load_default_book()
+
+    monkeypatch.undo()  # revert user_book_path BEFORE reloading
+    _restore()
