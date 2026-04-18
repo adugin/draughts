@@ -408,13 +408,18 @@ class Board:
             if position_counts.get(pos, 0) >= 3:
                 return (None, "draw_repetition")
 
-        # 2K vs 1K — theoretical draw (Petrov triangle), declare immediately
+        # 1K vs 1K — dead position, no mating material (unconditional draw).
+        # NOTE: 2K vs 1K used to short-circuit to a draw here, but that was
+        # wrong per FMJD: the rule only forces a draw via the 15-move kings-
+        # only counter below. 2K vs 1K is usually drawn with best defence,
+        # but winnable in tactical positions (forks, zugzwang). Kingsrow,
+        # Scan and the FMJD code all keep play going; so do we now.
         flat = self.grid.ravel()
         has_pawns = bool(np.any(np.abs(flat) == 1))
         if not has_pawns:
             bk = int(np.count_nonzero(flat == 2))
             wk = int(np.count_nonzero(flat == -2))
-            if (bk == 1 and wk == 1) or (bk == 2 and wk == 1) or (bk == 1 and wk == 2):
+            if bk == 1 and wk == 1:
                 return (None, "draw_endgame")
 
         # 15-move all-kings rule (FMJD): 15 moves = 30 half-moves

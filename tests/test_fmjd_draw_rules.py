@@ -11,7 +11,8 @@ Coverage added here:
 - 3-fold: at count 2, game continues (off-by-one guard).
 - 15-move kings-only rule fires at exactly 30 half-moves (FMJD).
 - 30-move no-progress rule fires at exactly 60 half-moves (FMJD).
-- 2K vs 1K / 2K vs 2K / 1K vs 1K Petrov draw.
+- 1K vs 1K — the only unconditional kings-only draw.
+- 2K vs 1K — game CONTINUES (not auto-draw); 15-move rule applies.
 - Rules do NOT fire prematurely in the presence of pawns.
 """
 
@@ -37,8 +38,8 @@ def test_threefold_repetition_fires_at_count_3():
     b = _lone_kings_board()
     pos = b.to_position_string()
     result = b.check_game_over(position_counts={pos: 3})
-    # This falls through to the 1K vs 1K Petrov draw at line 418 first.
-    # Accept either as long as the game is flagged over with a draw.
+    # 1K vs 1K is also an auto-draw; repetition check runs first and wins
+    # the race, but either reason is acceptable semantically.
     assert result is not None
     winner, reason = result
     assert winner is None
@@ -120,37 +121,50 @@ def test_no_progress_rule_does_not_fire_at_59_half_moves():
 
 
 # ---------------------------------------------------------------------------
-# Petrov's triangle (2K vs 1K) — classic unconditional draw
+# Kings-only draw boundaries — per FMJD, only 1K vs 1K is unconditional.
 # ---------------------------------------------------------------------------
 
 
-def test_one_king_vs_one_king_is_petrov_draw():
+def test_one_king_vs_one_king_is_auto_draw():
+    """1K vs 1K — dead position, no mating material (immediate draw)."""
     b = _lone_kings_board()
     result = b.check_game_over()
     assert result == (None, "draw_endgame")
 
 
-def test_two_kings_vs_one_king_is_petrov_draw():
+def test_two_kings_vs_one_king_game_continues():
+    """2K vs 1K — NOT auto-draw per FMJD.
+
+    2K vs 1K is usually drawn with correct defence but winnable in
+    tactical positions (forks, zugzwang). The rules force a draw via
+    the 15-move kings-only rule, not by material count — so the game
+    continues until that counter fires.
+    """
     b = Board(empty=True)
     b.grid[0, 1] = BLACK_KING   # b8
     b.grid[0, 3] = BLACK_KING   # d8
     b.grid[7, 0] = WHITE_KING   # a1
-    assert b.check_game_over() == (None, "draw_endgame")
+    assert b.check_game_over() is None
+    # After 30 plies of kings-only play, the 15-move rule draws it.
+    assert b.check_game_over(kings_only_plies=30) == (None, "draw_kings_only")
 
 
-def test_one_king_vs_two_kings_is_petrov_draw():
+def test_one_king_vs_two_kings_game_continues():
+    """Mirror of 2K vs 1K — same non-auto-draw rule."""
     b = Board(empty=True)
-    b.grid[2, 1] = BLACK_KING   # b6
+    b.grid[2, 1] = BLACK_KING
     b.grid[7, 0] = WHITE_KING
     b.grid[7, 2] = WHITE_KING
-    assert b.check_game_over() == (None, "draw_endgame")
+    assert b.check_game_over() is None
+    assert b.check_game_over(kings_only_plies=30) == (None, "draw_kings_only")
 
 
-def test_three_kings_vs_one_king_NOT_petrov_draw():
-    """3K vs 1K must be winnable — not a Petrov draw."""
+def test_three_kings_vs_one_king_game_continues():
+    """3K vs 1K must be winnable until the 15-move counter fires."""
     b = Board(empty=True)
     b.grid[0, 1] = BLACK_KING
     b.grid[0, 3] = BLACK_KING
     b.grid[2, 1] = BLACK_KING
     b.grid[7, 0] = WHITE_KING
-    assert b.check_game_over() is None  # game continues
+    assert b.check_game_over() is None
+    assert b.check_game_over(kings_only_plies=30) == (None, "draw_kings_only")

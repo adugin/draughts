@@ -390,26 +390,20 @@ def _has_single_capture_only(grid: np.ndarray) -> bool:
 
 
 def _is_drawn_endgame(grid: np.ndarray) -> bool:
-    """Detect trivially drawn endgame positions (FMJD rules).
+    """Detect the single unconditionally drawn endgame (FMJD rules).
 
-    Drawn patterns (no pawns, kings only):
-    - 1K vs 1K — dead position, no mating material.
-    - 2K vs 1K — theoretical draw (Petrov triangle defense:
-      the lone king oscillates within a1-c1-c3 or mirror and
-      cannot be captured).
+    Only 1K vs 1K with no pawns is a dead position — neither side has
+    mating material. 2K vs 1K is NOT a dead position: it is usually
+    drawn with best defence but winnable in tactical positions (fork,
+    zugzwang). The FMJD 15-move kings-only counter handles those via
+    ``Board.check_game_over``; do not short-circuit here.
     """
     flat = grid.ravel().view(np.uint8)
     counts = np.bincount(flat, minlength=256)
     bp, bk, wp, wk = int(counts[1]), int(counts[2]), int(counts[255]), int(counts[254])
     if bp != 0 or wp != 0:
-        return False  # pawns present — not a trivial endgame
-    # 1K vs 1K
-    if bk == 1 and wk == 1:
-        return True
-    # 2K vs 1K (either side)
-    if (bk == 2 and wk == 1) or (bk == 1 and wk == 2):
-        return True
-    return False
+        return False
+    return bk == 1 and wk == 1
 
 
 def _diagonal_distance(dx: int, dy: int) -> float:
