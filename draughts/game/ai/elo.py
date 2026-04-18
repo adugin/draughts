@@ -3,9 +3,17 @@
 Maps the six difficulty levels to approximate Elo ratings, search depths,
 and human-readable labels.
 
-NOTE: Elo numbers are placeholder calibration to be refined by self-play
-tournaments (D6 in DECISIONS.md). Initial values are reasonable estimates
-and will be updated after running tournament gauntlets in M1.
+Calibration notes (#30, 2026-04-18):
+    An anchor-only gauntlet vs L4 (6 games per pair, 30 total games)
+    produced the following observed ratings — anchored to L4=1700:
+        L1: 1509, L2: 1700, L3: 1700, L4: 1700, L5: 1642, L6: 1758
+    The spread is much narrower than the labels below suggest. However
+    6 games per pair has wide error bars (±~200 Elo at 50% rate), so
+    these numbers are directional only. A 100+ game per-pair tournament
+    is still needed to finalise authoritative numbers — the labels below
+    remain the USER-FACING targets, not the measured strength. Users
+    who want a challenge should select L5/L6 expecting depth-driven
+    tactical strength, not strict Elo accuracy.
 """
 
 from __future__ import annotations
