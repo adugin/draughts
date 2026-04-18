@@ -597,17 +597,29 @@ def _bitbase_best_move(
 ) -> AIMove | None:
     """Pick the best move using bitbase probe instead of alpha-beta search.
 
-    Used when piece_count <= 3 and a bitbase is available.  Each legal move
-    is applied; the resulting position is probed.  The move leading to the
-    best outcome is selected:
-        opponent LOSS  → we WIN  (best)
-        DRAW           → draw
-        opponent WIN   → we LOSS (last resort)
+    Used when piece_count <= bitbase.max_pieces. Each legal move is applied;
+    the resulting position is probed. The move is selected by a two-level
+    priority:
 
-    Ties within the same category are broken by move ordering (captures first,
-    then center control) for consistency with the normal search.
+    1. **Bitbase result** — opp LOSS (we win) > DRAW > opp WIN (we lose).
+       A known-winning move is always preferred over any other.
+    2. **Static eval among equal-verdict moves** — among winning moves we
+       prefer the one whose resulting position has the best static eval
+       from our side's perspective. This prevents the pathological
+       behavior where the engine voluntarily sacrifices material to reach
+       "just as winning" positions (the bitbase only stores the WDL label,
+       not distance-to-conversion, so without this tie-break the engine
+       would treat "win in 1" and "win in 40 after losing material" as
+       interchangeable).
+
+    The refinement was required after the audit found that with bitbases
+    containing occasional mislabelled DRAW entries, the engine would pick
+    a WIN move that traded down material through a mandatory-capture
+    exchange, looking like a blunder to the human even though the final
+    WDL outcome was correct.
     """
-    from draughts.game.ai.bitbase import DRAW, LOSS, WIN  # avoid circular at module level
+    from draughts.game.ai.bitbase import DRAW, LOSS, WIN
+    from draughts.game.ai.eval import _evaluate_fast
 
     opp = Color.WHITE if color == Color.BLACK else Color.BLACK
     moves = _generate_all_moves(board, color)
@@ -615,31 +627,33 @@ def _bitbase_best_move(
         return None
 
     # Score each move from our perspective: opp LOSS=2 (best), DRAW=1, opp WIN=0 (worst), unknown=-1
-    score_map = {LOSS: 2, DRAW: 1, WIN: 0}  # opponent's result → our score
+    score_map = {LOSS: 2, DRAW: 1, WIN: 0}
 
     best_score = -1
-    best_moves: list[tuple[str, list[tuple[int, int]]]] = []
+    best_eval = float("-inf")
+    best_move: tuple[str, list[tuple[int, int]]] | None = None
 
     for kind, path in moves:
         child = _apply_move(board, kind, path)
         child_h = _zobrist_hash(child.grid, opp)
         opp_result = bitbase.probe_hash(child_h)
-
         score = -1 if opp_result is None else score_map.get(opp_result, -1)
 
-        if score > best_score:
-            best_score = score
-            best_moves = [(kind, path)]
-        elif score == best_score:
-            best_moves.append((kind, path))
+        # Static eval of resulting position from our side.
+        # For LOSS moves (we're losing anyway), we still pick the eval-
+        # best loss to delay defeat.
+        ev = _evaluate_fast(child.grid, color)
 
-    if not best_moves or best_score == -1:
-        # All children unknown — fall back to normal search
+        if score > best_score or (score == best_score and ev > best_eval):
+            best_score = score
+            best_eval = ev
+            best_move = (kind, path)
+
+    if best_move is None or best_score == -1:
+        # All children unknown — fall back to normal search.
         return None
 
-    # Tie-break by move ordering
-    ordered = _order_moves(best_moves, board, color, None)
-    kind, path = ordered[0]
+    kind, path = best_move
     return AIMove(kind, path)
 
 
