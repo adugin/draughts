@@ -166,6 +166,36 @@ class TestMineFromBlunderGame:
         puzzles = mine_puzzles_from_game(positions, annotations)
         assert puzzles == []
 
+    def test_black_first_game_turn_is_inverted(self):
+        """When the game starts with Black (FEN-loaded), ply 0 is black's.
+
+        Regression: _turn_string hard-coded white-on-even-ply, so a
+        black-starting game stored the wrong side in "turn" — the puzzle
+        trainer would then prompt the wrong colour to solve. Passing
+        start_color=Color.BLACK must map ply 0 → "black".
+        """
+        from draughts.config import Color
+
+        positions = [_START_POS, _OTHER_POS, _START_POS]
+        # Ply 0 is the blunder — in a black-starting game this is black.
+        annotations = [
+            _make_annotation(0, "??", delta_cp=500.0, best_notation="c3:e5"),
+        ]
+        puzzles = mine_puzzles_from_game(
+            positions, annotations, start_color=Color.BLACK
+        )
+        assert len(puzzles) == 1
+        assert puzzles[0]["turn"] == "black"
+        # And ply 1 for the same game is white.
+        annotations2 = [
+            _make_annotation(1, "??", delta_cp=500.0, best_notation="c3:e5"),
+        ]
+        puzzles2 = mine_puzzles_from_game(
+            positions, annotations2, start_color=Color.BLACK
+        )
+        assert len(puzzles2) == 1
+        assert puzzles2[0]["turn"] == "white"
+
 
 # ---------------------------------------------------------------------------
 # 2. no_puzzles_from_clean_game

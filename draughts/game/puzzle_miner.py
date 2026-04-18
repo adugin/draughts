@@ -62,16 +62,29 @@ def _delta_to_difficulty(delta_cp: float) -> int:
     return 2  # minimum for any blunder (400 ≤ delta < 600)
 
 
-def _turn_string(ply: int) -> str:
-    """Return 'white' or 'black' for the side that moves on *ply*."""
-    # White moves on even plies (0, 2, 4, …), black on odd.
-    return "white" if ply % 2 == 0 else "black"
+def _turn_string(ply: int, start_color=None) -> str:
+    """Return 'white' or 'black' for the side that moves on *ply*.
+
+    ``start_color`` names the side that moved at ply 0 (games loaded
+    from a black-to-move FEN start with Black). Defaults to White for
+    backward compat with self-play pipelines that always start with
+    the standard opening.
+    """
+    from draughts.config import Color
+
+    if start_color is None:
+        start_color = Color.WHITE
+
+    if start_color == Color.WHITE:
+        return "white" if ply % 2 == 0 else "black"
+    return "black" if ply % 2 == 0 else "white"
 
 
 def mine_puzzles_from_game(
     positions: list[str],
     annotations: list,  # list[MoveAnnotation] from game_analyzer
     min_delta_cp: float = _DEFAULT_MIN_DELTA,
+    start_color=None,
 ) -> list[dict]:
     """Extract puzzle candidates from an analyzed game.
 
@@ -90,6 +103,10 @@ def mine_puzzles_from_game(
         annotations: List of MoveAnnotation objects from
             draughts.ui.game_analyzer.analyze_game_positions().
         min_delta_cp: Minimum eval swing in centipawn units to qualify.
+        start_color: Side to move at positions[0]. Defaults to White.
+            For FEN-loaded black-to-move games the "turn" field on each
+            puzzle would otherwise be inverted, so the trainer would
+            prompt the wrong side to solve.
 
     Returns:
         List of puzzle dicts matching the russian_draughts_puzzles.json
@@ -124,7 +141,7 @@ def mine_puzzles_from_game(
         seen_positions.add(pos_str)
 
         # The blunderer is the side to move at ply N.
-        blunderer_turn = _turn_string(ply)
+        blunderer_turn = _turn_string(ply, start_color)
         # The solver plays AS the blunderer: the puzzle asks "what should
         # you have played instead?" from the pre-blunder position.  The
         # best_move in the annotation is the engine's recommendation for

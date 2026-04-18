@@ -145,6 +145,7 @@ def analyze_game_positions(
     positions: list[str],
     depth: int = ANALYSIS_DEPTH,
     progress_callback=None,
+    start_color=None,
 ) -> GameAnalysisResult:
     """Analyze a list of position strings (game history) and return annotations.
 
@@ -153,6 +154,12 @@ def analyze_game_positions(
             positions[0] is the start; positions[i+1] is after ply i.
         depth: AI search depth (default 4).
         progress_callback: Optional callable(current, total) for progress.
+        start_color: Side to move at positions[0]. Defaults to White
+            (standard opening). Must be supplied for games loaded from
+            a FEN-carrying PDN where Black moves first — otherwise every
+            ply's colour is inverted, yielding wrong eval deltas, wrong
+            "best move" comparisons, and blunder annotations attached
+            to the wrong side.
 
     Returns:
         GameAnalysisResult with per-move annotations and eval curve data.
@@ -168,6 +175,9 @@ def analyze_game_positions(
     if n_moves <= 0:
         return result
 
+    if start_color is None:
+        start_color = Color.WHITE
+
     for ply in range(n_moves):
         if progress_callback is not None:
             progress_callback(ply, n_moves)
@@ -175,8 +185,8 @@ def analyze_game_positions(
         pos_before = positions[ply]
         pos_after = positions[ply + 1]
 
-        # Determine side to move: white moves on even plies (0, 2, …)
-        color = Color.WHITE if ply % 2 == 0 else Color.BLACK
+        # Side to move at ``ply``: alternates from ``start_color``.
+        color = start_color if ply % 2 == 0 else start_color.opponent
 
         # Analyze position BEFORE the move was played
         hg_before = HeadlessGame(position=pos_before, auto_ai=False)
@@ -265,7 +275,7 @@ def analyze_game_positions(
     if positions:
         try:
             hg_final = HeadlessGame(position=positions[-1], auto_ai=False)
-            last_color = Color.WHITE if n_moves % 2 == 0 else Color.BLACK
+            last_color = start_color if n_moves % 2 == 0 else start_color.opponent
             hg_final._turn = last_color
             final_analysis = get_ai_analysis(hg_final, depth=depth)
             result.evals.append(final_analysis.score)
@@ -285,10 +295,17 @@ def run_game_analysis(controller: GameController, parent=None) -> None:
     from PyQt6.QtCore import QObject, QThread, pyqtSignal
     from PyQt6.QtWidgets import QMessageBox, QProgressDialog
 
+    from draughts.config import Color
+
     positions = list(controller._positions)
     if len(positions) < 2:
         QMessageBox.information(parent, "Анализ партии", "Партия ещё не начата.")
         return
+
+    # Side-to-move at positions[0]. FEN-loaded PDN games may start with
+    # Black to move — without this, every ply's colour is inverted and
+    # blunder annotations attach to the wrong side.
+    start_color = getattr(controller, "_game_start_color", Color.WHITE)
 
     n_moves = len(positions) - 1
 
@@ -303,9 +320,10 @@ def run_game_analysis(controller: GameController, parent=None) -> None:
         progress_updated = pyqtSignal(int, int)
         finished = pyqtSignal(object)
 
-        def __init__(self, positions_: list[str]):
+        def __init__(self, positions_: list[str], start_color_):
             super().__init__()
             self._positions = positions_
+            self._start_color = start_color_
             self._cancelled = False
 
         def cancel(self):
@@ -318,29 +336,53 @@ def run_game_analysis(controller: GameController, parent=None) -> None:
                 self.progress_updated.emit(current, total)
 
             try:
-                result = analyze_game_positions(self._positions, progress_callback=_cb)
+                result = analyze_game_positions(
+                    self._positions,
+                    progress_callback=_cb,
+                    start_color=self._start_color,
+                )
             except Exception:
                 logger.exception("Game analysis worker crashed")
                 result = GameAnalysisResult()
             self.finished.emit(result)
 
     thread = QThread()
-    worker = _Worker(positions)
+    worker = _Worker(positions, start_color)
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
     worker.progress_updated.connect(lambda cur, total: progress.setValue(cur))
-    worker.finished.connect(lambda r: _on_analysis_done(r, controller, parent, progress, thread, worker))
+    worker.finished.connect(
+        lambda r: _on_analysis_done(r, controller, parent, progress, thread, worker, start_color)
+    )
     progress.canceled.connect(worker.cancel)
     thread.start()
     progress.exec()
 
 
-def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, thread, worker) -> None:
-    """Called when analysis thread finishes -- show results."""
+def _on_analysis_done(
+    result: GameAnalysisResult,
+    controller,
+    parent,
+    progress,
+    thread,
+    worker,
+    start_color=None,
+) -> None:
+    """Called when analysis thread finishes -- show results.
+
+    ``start_color`` is the side-to-move at positions[0]; passed through
+    so the (ply → move number) pairing in the display matches the game
+    (otherwise a black-starting FEN game would show "1. — black_move"
+    shifted by one). Defaults to White for backward compatibility.
+    """
     from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
+    from draughts.config import Color
     from draughts.ui.theme_engine import apply_theme as _apply_engine_theme
     from draughts.ui.theme_engine import get_theme_colors
+
+    if start_color is None:
+        start_color = Color.WHITE
 
     progress.close()
     thread.quit()
@@ -399,13 +441,23 @@ def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, 
         "": tc["ann_normal"],
     }
 
-    # Group into pairs (white + black per move number)
+    # Group into pairs (white + black per move number).
+    # For a black-starting FEN game, ply 0 is black's and the first row
+    # must be emitted as "1. … black_move" with an empty white slot.
     annotations = result.annotations
     i = 0
     move_num = 1
+    starts_with_black = start_color == Color.BLACK
     while i < len(annotations):
-        white_ann = annotations[i] if i < len(annotations) else None
-        black_ann = annotations[i + 1] if i + 1 < len(annotations) else None
+        if starts_with_black and move_num == 1 and i == 0:
+            # First printed row: no white move, black's ply 0 goes right.
+            white_ann = None
+            black_ann = annotations[0]
+            consumed = 1
+        else:
+            white_ann = annotations[i] if i < len(annotations) else None
+            black_ann = annotations[i + 1] if i + 1 < len(annotations) else None
+            consumed = 2
 
         row = QHBoxLayout()
         num_lbl = QLabel(f"{move_num}.")
@@ -433,7 +485,7 @@ def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, 
         wrapper.setLayout(row)
         move_layout.addWidget(wrapper)
 
-        i += 2
+        i += consumed
         move_num += 1
 
     move_layout.addStretch()
@@ -451,19 +503,35 @@ def _on_analysis_done(result: GameAnalysisResult, controller, parent, progress, 
     dlg.exec()
 
     # --- Puzzle mining ---
-    _offer_puzzle_mining(result, list(controller._positions), parent)
+    _offer_puzzle_mining(result, list(controller._positions), parent, start_color=start_color)
 
 
-def _offer_puzzle_mining(result: GameAnalysisResult, positions: list[str], parent) -> None:
-    """If the game contains blunders, offer to mine them as puzzles."""
+def _offer_puzzle_mining(
+    result: GameAnalysisResult,
+    positions: list[str],
+    parent,
+    start_color=None,
+) -> None:
+    """If the game contains blunders, offer to mine them as puzzles.
+
+    ``start_color`` is forwarded to :func:`mine_puzzles_from_game` so that
+    the "turn" field on each puzzle matches the side that actually moved
+    at the blunder ply. Defaults to White.
+    """
     from PyQt6.QtWidgets import QMessageBox
 
+    from draughts.config import Color
     from draughts.game.puzzle_miner import append_mined_puzzles, mine_puzzles_from_game
+
+    if start_color is None:
+        start_color = Color.WHITE
 
     if result.blunder_count == 0:
         return
 
-    candidates = mine_puzzles_from_game(positions, result.annotations)
+    candidates = mine_puzzles_from_game(
+        positions, result.annotations, start_color=start_color
+    )
     if not candidates:
         return
 
