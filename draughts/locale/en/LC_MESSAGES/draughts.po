@@ -1,0 +1,32 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: DRAUGHTS 4.0\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+# English translations of the Russian source strings.
+# Compile: python -m draughts.tools.compile_translations
+# Use:     DRAUGHTS_LOCALE=en python main.py
+
+msgid "Новая игра"
+msgstr "New game"
+
+msgid "Открыть..."
+msgstr "Open..."
+
+msgid "Сохранить..."
+msgstr "Save..."
+
+msgid "Выход"
+msgstr "Exit"
+
+msgid "Сдаться"
+msgstr "Resign"
+
+msgid "Подсказка"
+msgstr "Hint"
+
+msgid "Сменить сторону"
+msgstr "Flip sides"

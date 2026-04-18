@@ -1,0 +1,32 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: DRAUGHTS 4.0\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+# Source language is Russian — identity translations (msgid == msgstr).
+# This file exists so tooling (xgettext, msgfmt) has a baseline catalog
+# to compile. Real translations live in other-language catalogs (en, etc.).
+
+msgid "Новая игра"
+msgstr "Новая игра"
+
+msgid "Открыть..."
+msgstr "Открыть..."
+
+msgid "Сохранить..."
+msgstr "Сохранить..."
+
+msgid "Выход"
+msgstr "Выход"
+
+msgid "Сдаться"
+msgstr "Сдаться"
+
+msgid "Подсказка"
+msgstr "Подсказка"
+
+msgid "Сменить сторону"
+msgstr "Сменить сторону"

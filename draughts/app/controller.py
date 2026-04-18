@@ -650,6 +650,41 @@ class GameController(QObject):
         self.selection_changed.emit(None, None)
         self.capture_highlights_changed.emit([])
 
+    # --- Jump to arbitrary ply (tree navigation) ---
+
+    def jump_to_ply(self, ply: int) -> None:
+        """Jump to a specific ply in the main-line position history.
+
+        Used by the variation tree pane to let the user click a node and
+        load that position. Does NOT clear the game tree — the board just
+        rewinds / fast-forwards along the linear history.  Blocked while
+        AI is thinking (we'd race with its move application).
+
+        Args:
+            ply: zero-based index into ``self._positions``. Clamped.
+        """
+        if self._ai_thread is not None:
+            return
+        if not self._positions:
+            return
+        target = max(0, min(int(ply), len(self._positions) - 1))
+        self._ply_count = target
+        self.board.load_from_position_string(self._positions[target])
+        self._selected = None
+        self._capture_path = []
+        # Side to move flips each ply: even ply = the starting color.
+        if target == 0:
+            start_color = Color.WHITE
+        else:
+            start_color = Color.WHITE  # default assumption for jump
+        self._current_turn = start_color if target % 2 == 0 else start_color.opponent
+
+        self.last_move_changed.emit(None)
+        self.board_changed.emit()
+        self.turn_changed.emit(self._current_turn)
+        self.selection_changed.emit(None, None)
+        self.capture_highlights_changed.emit([])
+
     # --- Draw counters (FMJD endgame rules) ---
 
     def _update_draw_counters(self, was_capture: bool) -> None:
@@ -938,6 +973,16 @@ class GameController(QObject):
     def is_thinking(self) -> bool:
         """True while the AI background thread is running."""
         return self._ai_thread is not None
+
+    @property
+    def ply_count(self) -> int:
+        """Current ply index (0 = initial position, 1 = after white's first move)."""
+        return self._ply_count
+
+    @property
+    def game_tree(self):
+        """The loaded/built game tree, or None."""
+        return self._game_tree
 
     def get_hint(self) -> None:
         """Ask the engine for the best move + principal variation (M9).

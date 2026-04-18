@@ -108,6 +108,11 @@ class MainWindow(QMainWindow):
         self._act_save.triggered.connect(self._on_save)
         game_menu.addAction(self._act_save)
 
+        self._act_browse_db = QAction("&База партий (PDN)...", self)
+        self._act_browse_db.setShortcut(QKeySequence("Ctrl+D"))
+        self._act_browse_db.triggered.connect(self._on_browse_pdn_db)
+        game_menu.addAction(self._act_browse_db)
+
         game_menu.addSeparator()
 
         self._act_undo = QAction("О&тмена хода", self)
@@ -190,6 +195,13 @@ class MainWindow(QMainWindow):
         self._act_toggle_pane.triggered.connect(self._on_toggle_analysis_pane)
         analysis_menu.addAction(self._act_toggle_pane)
 
+        self._act_toggle_tree = QAction("&Дерево вариантов", self)
+        self._act_toggle_tree.setShortcut(QKeySequence("F4"))
+        self._act_toggle_tree.setCheckable(True)
+        self._act_toggle_tree.setChecked(False)
+        self._act_toggle_tree.triggered.connect(self._on_toggle_tree_pane)
+        analysis_menu.addAction(self._act_toggle_tree)
+
         analysis_menu.addSeparator()
 
         self._act_analyze_game = QAction("&Проанализировать партию...", self)
@@ -215,6 +227,15 @@ class MainWindow(QMainWindow):
         self._analysis_pane.hide()
         # Keep the menu checkbox in sync when user closes the dock with the X button
         self._analysis_pane.visibilityChanged.connect(self._on_pane_visibility_changed)
+
+        # Variation tree pane (M5 #35) — shows loaded PDN variation tree.
+        from draughts.ui.variation_tree import VariationTreePane
+
+        self._tree_pane = VariationTreePane(self)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._tree_pane)
+        self._tree_pane.hide()
+        self._tree_pane.visibilityChanged.connect(self._on_tree_pane_visibility_changed)
+        self._tree_pane.node_clicked.connect(self._on_tree_node_clicked)
 
     # --- Connect controller signals ---
 
@@ -251,6 +272,10 @@ class MainWindow(QMainWindow):
         # and engine is not already thinking for the game).
         if self._analysis_pane.isVisible() and not self._controller.is_thinking:
             self._analysis_pane.set_position(self._controller.board, self._controller.current_turn)
+        # Keep the variation-tree pane in sync with the loaded game.
+        if hasattr(self, "_tree_pane") and self._tree_pane.isVisible():
+            self._tree_pane.set_tree(self._controller.game_tree)
+            self._tree_pane.set_current_ply(self._controller.ply_count)
 
     def _on_turn_changed(self, color: str):
         self.board_widget.set_turn_indicator(color)
@@ -499,11 +524,83 @@ class MainWindow(QMainWindow):
         if not visible and hasattr(self, "_pane_saved_size"):
             self.setFixedSize(self._pane_saved_size)
 
+    def _on_toggle_tree_pane(self, checked: bool) -> None:
+        """Show or hide the variation tree pane."""
+        if checked:
+            self._tree_pane_saved_size = self.size()
+            self.setMinimumSize(0, 0)
+            self.setMaximumSize(16777215, 16777215)
+            self._tree_pane.show()
+            tree = getattr(self._controller, "_game_tree", None)
+            self._tree_pane.set_tree(tree)
+            self._tree_pane.set_current_ply(self._controller.ply_count)
+        else:
+            self._tree_pane.hide()
+            if hasattr(self, "_tree_pane_saved_size"):
+                self.setFixedSize(self._tree_pane_saved_size)
+
+    def _on_tree_pane_visibility_changed(self, visible: bool) -> None:
+        self._act_toggle_tree.setChecked(visible)
+        if not visible and hasattr(self, "_tree_pane_saved_size"):
+            self.setFixedSize(self._tree_pane_saved_size)
+
+    def _on_tree_node_clicked(self, ply: int) -> None:
+        """User clicked a main-line node — jump the board to that ply."""
+        self._controller.jump_to_ply(ply)
+
     def _on_analyze_game(self) -> None:
         """Run full-game analysis and show annotations + summary."""
         from draughts.ui.game_analyzer import run_game_analysis
 
         run_game_analysis(self._controller, self)
+
+    def _on_browse_pdn_db(self) -> None:
+        """Open the PDN database browser (#36)."""
+        from draughts.ui.pdn_browser import PDNBrowserDialog
+
+        dlg = PDNBrowserDialog(self)
+        dlg.game_selected.connect(self._on_pdn_db_game_selected)
+        dlg.exec()
+
+    def _on_pdn_db_game_selected(self, game) -> None:
+        """Load a game from the PDN DB browser into the controller."""
+        from draughts.app.controller import _apply_pdn_move
+        from draughts.config import Color
+        from draughts.game.board import Board
+        from draughts.game.fen import parse_fen
+
+        fen_str = game.headers.get("FEN")
+        setup = game.headers.get("SetUp", "0")
+        if setup == "1" and fen_str:
+            start_board, start_color = parse_fen(fen_str)
+        else:
+            start_board, start_color = Board(), Color.WHITE
+
+        positions: list[str] = [start_board.to_position_string()]
+        board = start_board.copy()
+        for mv in game.moves:
+            try:
+                _apply_pdn_move(board, mv)
+                positions.append(board.to_position_string())
+            except Exception:
+                logger.warning("Could not replay PDN move %r from DB browser", mv)
+                break
+
+        c = self._controller
+        c._positions = positions
+        c._replay_history = list(positions)
+        c._ply_count = len(positions) - 1
+        c._game_tree = game.tree
+        c._position_counts = {}
+        for pos in positions:
+            c._position_counts[pos] = c._position_counts.get(pos, 0) + 1
+        c.board.load_from_position_string(positions[-1])
+        c._current_turn = start_color if c._ply_count % 2 == 0 else start_color.opponent
+        c._selected = None
+        c._capture_path = []
+        c._game_started = c._ply_count > 0
+        c.board_changed.emit()
+        c.turn_changed.emit(c._current_turn)
 
     # --- Board editor ---
 
