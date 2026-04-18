@@ -116,3 +116,56 @@ def test_load_game_from_pdn_sets_start_color(controller, tmp_path: Path):
 
     controller.jump_to_ply(1)
     assert controller.current_turn == Color.WHITE
+
+
+def test_load_saved_game_resets_start_color_after_black_first_pdn(
+    controller, tmp_path: Path
+):
+    """Regression: loading a JSON save after a black-first PDN must reset
+    _game_start_color back to White.
+
+    Previously the controller never cleared _game_start_color on JSON
+    load, so a prior black-to-move PDN left it at BLACK and subsequent
+    jump_to_ply calls on the JSON game returned wrong colours, which
+    in turn corrupted PDN re-export of the loaded game.
+    """
+    import json
+
+    from draughts.config import Color
+    from draughts.game.board import Board
+
+    # 1) Load a black-first PDN to poison _game_start_color.
+    pdn_text = (
+        '[Event "Test"]\n[Site "?"]\n[Date "?"]\n[Round "?"]\n'
+        '[White "A"]\n[Black "B"]\n[Result "*"]\n[GameType "25"]\n'
+        '[SetUp "1"]\n'
+        '[FEN "B:W24:B1"]\n'
+        "\n*\n"
+    )
+    pdn_path = tmp_path / "bstart.pdn"
+    pdn_path.write_text(pdn_text, encoding="utf-8")
+    controller.load_game_from_pdn(str(pdn_path))
+    assert controller._game_start_color == Color.BLACK
+
+    # 2) Load a legacy JSON save (standard starting position).
+    start_board = Board()
+    pos0 = start_board.to_position_string()
+    data = {
+        "difficulty": 2,
+        "speed": 1,
+        "remind": True,
+        "sound_effect": False,
+        "pause": 1.0,
+        "invert_color": False,
+        "positions": [pos0],
+        "replay_positions": [pos0],
+    }
+    json_path = tmp_path / "g.json"
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+    controller.load_saved_game(str(json_path))
+
+    # _game_start_color must now match the JSON-save convention (White first).
+    assert controller._game_start_color == Color.WHITE
+    assert controller.current_turn == Color.WHITE
+    # And the stale game tree from the PDN must not survive either.
+    assert controller._game_tree is None

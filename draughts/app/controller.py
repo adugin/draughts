@@ -862,12 +862,23 @@ class GameController(QObject):
         for pos in self._positions:
             self._position_counts[pos] = self._position_counts.get(pos, 0) + 1
 
+        # JSON saves always start from the standard opening (White moves
+        # first) — they predate PDN/FEN support. Explicitly reset
+        # _game_start_color so a prior load of a FEN-black-to-move PDN
+        # doesn't leak into jump_to_ply / save_game_as_pdn for the newly
+        # loaded JSON game.
+        self._game_start_color = Color.WHITE
         self._current_turn = Color.WHITE if self._ply_count % 2 == 0 else Color.BLACK
         self._selected = None
         self._capture_path = []
         self._quiet_plies = 0
         self._kings_only_plies = 0
         self._game_started = self._ply_count > 0
+        # Any imported variation tree is from the previous game and must
+        # not bleed into the newly loaded one (a later save_game_as_pdn
+        # would otherwise write out a tree whose moves don't match the
+        # current main-line positions).
+        self._game_tree = None
 
         self.board_changed.emit()
         self.turn_changed.emit(self._current_turn)
