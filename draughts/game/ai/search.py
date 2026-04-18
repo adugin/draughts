@@ -309,6 +309,7 @@ def _search_best_move(
     max_depth: int,
     deadline: float | None = None,
     ctx: SearchContext | None = None,
+    game_position_hashes: frozenset[int] | set[int] | None = None,
 ) -> AIMove | None:
     """Iterative deepening search with alpha-beta minimax.
 
@@ -331,6 +332,15 @@ def _search_best_move(
     AnalysisWorker, analysis.compute_pv, analysis.get_ai_analysis,
     engine.session) all pass explicit ctx — only dev scripts and
     sequential tests still rely on _default_ctx.
+
+    ``game_position_hashes`` is the set of Zobrist hashes of positions
+    that already appeared at least twice in the real game history.
+    Entering any such position during search would be the 3rd appearance,
+    i.e. an immediate 3-fold-repetition draw by rule. Without this
+    seeding the search only sees the path it generates internally
+    (``path_hashes`` in :func:`_alphabeta`), so in a winning position
+    with a prior twofold repetition the engine would happily walk back
+    into the repeated position, throwing away the advantage.
     """
     # Use module-level default context when none supplied — matches the old
     # behaviour where _tt / _killers / _history were shared module globals.
@@ -346,6 +356,20 @@ def _search_best_move(
     if not moves:
         _state._last_search_score = float("nan")
         return None
+
+    # Seed path_hashes for the root's children with the set of positions
+    # that already appeared twice in the real game. Any child that lands on
+    # one of those positions would be the 3rd occurrence, which the rule
+    # treats as a draw — not a win for the side with a winning eval.
+    root_path_hashes: frozenset[int] | None
+    if game_position_hashes is None:
+        root_path_hashes = None
+    else:
+        root_path_hashes = (
+            game_position_hashes
+            if isinstance(game_position_hashes, frozenset)
+            else frozenset(game_position_hashes)
+        )
 
     opp = _opponent(color)
     best_kind, best_path = moves[0]
@@ -375,7 +399,10 @@ def _search_best_move(
             try:
                 for kind, path in moves:
                     child = _apply_move(board, kind, path)
-                    score = _alphabeta(child, depth - 1, alpha, beta, False, opp, color, ctx)
+                    score = _alphabeta(
+                        child, depth - 1, alpha, beta, False, opp, color, ctx,
+                        path_hashes=root_path_hashes,
+                    )
                     depth_scores.append((score, kind, path))
 
                     if score > best_score:
@@ -484,7 +511,12 @@ class AIEngine:
         else:
             self._bitbase = bitbase  # type: ignore[assignment]
 
-    def find_move(self, board: Board, deadline: float | None = None) -> AIMove | None:
+    def find_move(
+        self,
+        board: Board,
+        deadline: float | None = None,
+        game_position_hashes: frozenset[int] | set[int] | None = None,
+    ) -> AIMove | None:
         """Find the best move for the current board state.
 
         Consults the opening book first (O(1) lookup); if a book move is
@@ -504,6 +536,13 @@ class AIEngine:
                 last fully completed iterative-deepening depth. A depth-1
                 sweep is always attempted, so a legal move is always returned
                 if any exists.
+            game_position_hashes: Zobrist hashes of positions that already
+                appeared at least twice in the real game. The search treats
+                entering any such position as a draw (3-fold repetition rule)
+                so the AI does not voluntarily repeat into a drawn position
+                when it has a winning eval. Callers that do not track game
+                history (one-shot puzzle solvers, analysis tools) may pass
+                ``None`` to keep the legacy behaviour.
         """
         # Opening book probe — O(1), no eval/search
         # Only use the book move if it respects mandatory captures:
@@ -541,7 +580,11 @@ class AIEngine:
         self._ctx.clear()
         base = self.search_depth if self.search_depth > 0 else _DIFFICULTY_DEPTH.get(self.difficulty, 5)
         depth = adaptive_depth(base, board)
-        best = _search_best_move(board, self.color, depth, deadline=deadline, ctx=self._ctx)
+        best = _search_best_move(
+            board, self.color, depth,
+            deadline=deadline, ctx=self._ctx,
+            game_position_hashes=game_position_hashes,
+        )
 
         # Blunder injection (D7): at low levels, occasionally pick a non-best
         # move from the ranked root list so beginners face winnable mistakes.
@@ -570,7 +613,13 @@ class AIEngine:
 
         return best
 
-    def find_move_timed(self, board: Board, time_ms: int, deadline: float | None = None) -> AIMove | None:
+    def find_move_timed(
+        self,
+        board: Board,
+        time_ms: int,
+        deadline: float | None = None,
+        game_position_hashes: frozenset[int] | set[int] | None = None,
+    ) -> AIMove | None:
         """Iterative deepening under a time budget (D10 — time-based search).
 
         Runs search up to a large depth cap; iterative deepening stops when
@@ -583,11 +632,16 @@ class AIEngine:
             deadline: Optional external deadline (perf_counter seconds).
                 The effective deadline is the earlier of the time_ms budget
                 and the supplied deadline.
+            game_position_hashes: See :meth:`find_move`.
         """
         budget_deadline = time.perf_counter() + time_ms / 1000.0
         effective_deadline = min(budget_deadline, deadline) if deadline is not None else budget_deadline
         self._ctx.clear()
-        return _search_best_move(board, self.color, 16, deadline=effective_deadline, ctx=self._ctx)
+        return _search_best_move(
+            board, self.color, 16,
+            deadline=effective_deadline, ctx=self._ctx,
+            game_position_hashes=game_position_hashes,
+        )
 
 
 def _bitbase_best_move(

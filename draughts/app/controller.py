@@ -12,7 +12,7 @@ from typing import ClassVar
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 from draughts.config import AUTOSAVE_FILENAME, BOARD_SIZE, Color, GameSettings, get_data_dir, migrate_difficulty
-from draughts.game.ai import AIEngine, AIMove
+from draughts.game.ai import AIEngine, AIMove, _zobrist_hash
 from draughts.game.board import Board
 from draughts.game.pdn import PDNGame, load_pdn_file, write_pdn, xy_to_square
 from draughts.game.save import GameSave, autosave, load_game, save_game
@@ -161,15 +161,25 @@ class AIWorker(QObject):
 
     finished = pyqtSignal(object, int)  # (AIMove | None, generation)
 
-    def __init__(self, board: Board, engine: AIEngine, generation: int):
+    def __init__(
+        self,
+        board: Board,
+        engine: AIEngine,
+        generation: int,
+        game_position_hashes: frozenset[int] | None = None,
+    ):
         super().__init__()
         self._board = board
         self._engine = engine
         self._generation = generation
+        self._game_position_hashes = game_position_hashes
 
     def run(self):
         try:
-            result = self._engine.find_move(self._board.copy())
+            result = self._engine.find_move(
+                self._board.copy(),
+                game_position_hashes=self._game_position_hashes,
+            )
         except Exception:
             logger.exception("AI crashed during find_move")
             result = None
@@ -470,6 +480,29 @@ class GameController(QObject):
 
     # --- Computer turn ---
 
+    def _compute_repeated_game_hashes(self) -> frozenset[int]:
+        """Return Zobrist hashes of game positions that already appeared >= 2 times.
+
+        Decodes each string in ``self._positions`` back into a Board, infers
+        the side to move from index parity (starting from
+        ``self._game_start_color``) and computes its Zobrist hash. The set
+        of hashes with count >= 2 is then passed to the AI so it treats
+        entering any such position during search as a 3-fold-repetition
+        draw instead of a winning leaf.
+
+        Called only once per AI turn (not in any hot path), so the O(N)
+        decode cost is acceptable — N is the game length, usually <200.
+        """
+        counts: dict[int, int] = {}
+        start = self._game_start_color
+        for i, s in enumerate(self._positions):
+            turn_i = start if i % 2 == 0 else start.opponent
+            tmp = Board(empty=True)
+            tmp.load_from_position_string(s)
+            h = _zobrist_hash(tmp.grid, turn_i)
+            counts[h] = counts.get(h, 0) + 1
+        return frozenset(h for h, c in counts.items() if c >= 2)
+
     def _start_computer_turn(self):
         """Start the AI computation in a background thread.
 
@@ -490,7 +523,14 @@ class GameController(QObject):
             use_bitbase=self.settings.use_endgame_bitbase,
             hash_size_mb=self.settings.hash_size_mb,
         )
-        self._ai_worker = AIWorker(self.board, engine, generation)
+        # Feed the AI the set of positions already seen twice in this
+        # game so it refuses to walk into a 3-fold repetition when a
+        # non-repeating alternative is available (QA-FIX for P2).
+        game_hashes = self._compute_repeated_game_hashes()
+        self._ai_worker = AIWorker(
+            self.board, engine, generation,
+            game_position_hashes=game_hashes if game_hashes else None,
+        )
         self._ai_worker.moveToThread(self._ai_thread)
         self._ai_thread.started.connect(self._ai_worker.run)
         self._ai_worker.finished.connect(self._on_ai_finished)

@@ -19,6 +19,7 @@ from draughts.game.ai import (
     AIEngine,
     AIMove,
     _generate_all_moves,
+    _zobrist_hash,
     evaluate_position,
 )
 
@@ -103,6 +104,16 @@ class HeadlessGame:
         self._moves: list[MoveRecord] = []
         self._position_history: list[str] = [self._board.to_position_string()]
         self._position_counts: dict[str, int] = {self._board.to_position_string(): 1}
+        # Parallel Zobrist-hash counts — used to feed the AI's search with
+        # positions that already appeared twice, so it will not voluntarily
+        # walk into a 3-fold repetition draw when it has a winning eval.
+        # The initial position's hash is computed with ``self._turn`` (the
+        # side to move) because Zobrist includes side-to-move; later hashes
+        # use ``self._turn.opponent`` because _record_move stores the
+        # post-move board before flipping self._turn.
+        self._position_hash_counts: dict[int, int] = {
+            _zobrist_hash(self._board.grid, self._turn): 1,
+        }
         # Quiet half-moves counter (reset on any capture). Used by
         # play_full_game to detect sterile endgames (draughts' analogue
         # of the chess 50-move rule).
@@ -179,7 +190,23 @@ class HeadlessGame:
 
         deadline = time.perf_counter() + move_timeout if move_timeout > 0 else None
         t0 = time.perf_counter()
-        move = engine.find_move(self._board.copy(), deadline=deadline)
+        # Feed the engine the set of positions that already appeared
+        # twice in game history — a 3rd appearance is an automatic draw
+        # by rule, so the search must treat "enter that position" as a
+        # draw score, not a winning-eval leaf.
+        game_hashes: frozenset[int] = frozenset(
+            h for h, c in self._position_hash_counts.items() if c >= 2
+        )
+        try:
+            move = engine.find_move(
+                self._board.copy(), deadline=deadline,
+                game_position_hashes=game_hashes if game_hashes else None,
+            )
+        except TypeError:
+            # Legacy engines (pre-P2-fix snapshot used by head2head) do
+            # not accept game_position_hashes. Fall back gracefully so
+            # the tournament harness can still pit NEW vs OLD.
+            move = engine.find_move(self._board.copy(), deadline=deadline)
         self._last_move_time_s = time.perf_counter() - t0
 
         if move is None:
@@ -538,6 +565,13 @@ class HeadlessGame:
         pos = self._board.to_position_string()
         self._position_history.append(pos)
         self._position_counts[pos] = self._position_counts.get(pos, 0) + 1
+
+        # Parallel Zobrist counter — the side-to-move stored here is
+        # ``self._turn.opponent`` (turn flip happens after this block) so
+        # the hash matches what the AI will see when it is called next.
+        opp_color = self._turn.opponent
+        h = _zobrist_hash(self._board.grid, opp_color)
+        self._position_hash_counts[h] = self._position_hash_counts.get(h, 0) + 1
 
         # Check for game over (delegates to Board — shared with controller)
         game_over = self._board.check_game_over(
