@@ -113,6 +113,61 @@ def test_progress_dialog_cancel(qt_app):
     assert dlg._btn_close.isEnabled()
 
 
+def test_progress_dialog_close_event_while_idle_accepts(qt_app):
+    """With no worker running, [X] closes the dialog immediately."""
+    from PyQt6.QtGui import QCloseEvent
+    from draughts.ui.generators import GeneratorProgressDialog
+
+    dlg = GeneratorProgressDialog(lambda p, c: {}, "Idle")
+    evt = QCloseEvent()
+    dlg.closeEvent(evt)
+    assert evt.isAccepted()
+    assert not dlg._close_pending
+
+
+def test_progress_dialog_close_event_while_running_defers(qt_app):
+    """Pressing [X] while the worker is running must cancel and defer close,
+    not leak the QThread by ignoring the dismissal."""
+    from PyQt6.QtCore import QDeadlineTimer
+    from PyQt6.QtGui import QCloseEvent
+    from draughts.ui.generators import GeneratorProgressDialog, _GeneratorCancelled
+
+    def fn(on_progress, should_cancel):
+        for i in range(1_000_000):
+            if should_cancel():
+                raise _GeneratorCancelled()
+            on_progress(i, 0, "")
+        return {}
+
+    dlg = GeneratorProgressDialog(fn, "Running")
+    closed_signals: list = []
+    dlg.finished.connect(lambda code: closed_signals.append(code))
+    dlg.start()
+
+    # Let the worker tick a bit.
+    for _ in range(20):
+        qt_app.processEvents()
+
+    evt = QCloseEvent()
+    dlg.closeEvent(evt)
+    assert not evt.isAccepted(), "close must be deferred while worker runs"
+    assert dlg._close_pending is True
+
+    # Pump events until _on_finished auto-closes via accept().
+    deadline = QDeadlineTimer(3000)
+    while dlg.isVisible() is False and dlg._thread is not None and not deadline.hasExpired():
+        qt_app.processEvents()
+    while dlg._thread is not None and not deadline.hasExpired():
+        qt_app.processEvents()
+    # Give _on_finished a chance to run.
+    for _ in range(10):
+        qt_app.processEvents()
+
+    assert dlg._thread is None, "worker thread was not reaped"
+    # The dialog must have self-accepted/rejected after cancellation.
+    assert closed_signals, "dialog did not emit finished() after cancel-close"
+
+
 # ---------------------------------------------------------------------------
 # Import / Mine dialogs build
 # ---------------------------------------------------------------------------

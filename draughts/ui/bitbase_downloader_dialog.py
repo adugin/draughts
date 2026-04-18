@@ -142,6 +142,10 @@ class BitbaseDownloaderDialog(QDialog):
         self._worker: _DownloadWorker | None = None
         self._thread: QThread | None = None
         self._result_path: Path | None = None
+        # Set when the user closes the window via its [X] while a
+        # download is in flight; read in _on_finished so the dialog
+        # self-closes once the worker wraps up, regardless of outcome.
+        self._close_pending: bool = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 16, 16, 12)
@@ -253,6 +257,15 @@ class BitbaseDownloaderDialog(QDialog):
         if thread is not None:
             thread.deleteLater()
 
+        # User closed the window via [X] while the download was in
+        # flight — honour that intent unconditionally, regardless of
+        # whether the worker finished cleanly, errored out, or was
+        # cancelled. Skipping the outcome dialogs avoids re-focusing a
+        # window the user already dismissed.
+        if self._close_pending:
+            self.reject()
+            return
+
         if error_msg is not None:
             self._status.setText("Не выполнено")
             QMessageBox.warning(self, "Загрузка не выполнена", error_msg)
@@ -281,3 +294,27 @@ class BitbaseDownloaderDialog(QDialog):
     @property
     def result_path(self) -> Path | None:
         return self._result_path
+
+    # ------------------------------------------------------------------
+    # Window lifecycle
+    # ------------------------------------------------------------------
+
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        """Handle [X]/Alt-F4 while a download may still be running.
+
+        Without this hook, closing the window via the title-bar button
+        left the worker thread alive and the _DownloadWorker C++ object
+        pending deletion — the next start() on a subsequent open would
+        see ``_thread is not None`` and silently no-op. Now we request
+        cancellation, suppress the close, and let ``_on_finished`` call
+        ``reject()`` once the worker exits cleanly.
+        """
+        if self._thread is not None and self._thread.isRunning():
+            self._close_pending = True
+            if self._worker is not None and not self._worker.is_cancelled():
+                self._worker.request_cancel()
+                self._status.setText("Отмена...")
+                self._btn_cancel.setEnabled(False)
+            event.ignore()
+            return
+        event.accept()

@@ -78,3 +78,62 @@ def test_clickable_source_link_is_rich_text():
     html = dlg._url_label.text()
     assert "<a href=" in html
     assert dlg._url_label.openExternalLinks()
+
+
+def test_close_event_idle_accepts():
+    """[X] closes immediately when no download is in flight."""
+    from PyQt6.QtGui import QCloseEvent
+    from draughts.ui.bitbase_downloader_dialog import BitbaseDownloaderDialog
+
+    dlg = BitbaseDownloaderDialog()
+    evt = QCloseEvent()
+    dlg.closeEvent(evt)
+    assert evt.isAccepted()
+    assert not dlg._close_pending
+
+
+def test_close_event_while_running_defers_and_cancels(qt_app, monkeypatch):
+    """[X] mid-download must request cancel and ignore the close.
+
+    Uses a fake ``download_bitbase`` that honours ``cancel_flag`` so we
+    can exercise the closeEvent path without real network traffic.
+    """
+    import time
+    from PyQt6.QtCore import QDeadlineTimer
+    from PyQt6.QtGui import QCloseEvent
+
+    import draughts.ui.bitbase_downloader_dialog as dd_mod
+    from draughts.tools.bitbase_downloader import (
+        BitbaseDownloadCancelled,
+        DownloadResult,
+    )
+
+    def fake_download(url, dest_dir, on_progress, cancel_flag):
+        for i in range(200):
+            if cancel_flag[0]:
+                raise BitbaseDownloadCancelled("cancelled")
+            on_progress(i * 1024, 200 * 1024)
+            time.sleep(0.01)
+        return DownloadResult(path=dest_dir / "bogus.bbz", size_bytes=0, sha256="0" * 64)
+
+    monkeypatch.setattr(dd_mod, "download_bitbase", fake_download)
+
+    dlg = dd_mod.BitbaseDownloaderDialog()
+    dlg._on_start()
+
+    # Let worker run a few iterations.
+    for _ in range(20):
+        qt_app.processEvents()
+
+    evt = QCloseEvent()
+    dlg.closeEvent(evt)
+    assert not evt.isAccepted(), "close must be deferred while download runs"
+    assert dlg._close_pending is True
+    assert dlg._worker is None or dlg._worker.is_cancelled()
+
+    # Wait for the worker to wind down and _on_finished to fire reject().
+    deadline = QDeadlineTimer(3000)
+    while dlg._thread is not None and not deadline.hasExpired():
+        qt_app.processEvents()
+
+    assert dlg._thread is None, "worker thread was not reaped"

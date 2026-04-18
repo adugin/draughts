@@ -133,6 +133,11 @@ class GeneratorProgressDialog(QDialog):
         self._thread: QThread | None = None
         self._worker: _GeneratorWorker | None = None
         self._result: dict[str, Any] | None = None
+        # Flag set by closeEvent when [X] is pressed mid-run so the
+        # dialog self-dismisses in _on_finished instead of sitting
+        # around with a cancelled status after the user already asked
+        # it to go away.
+        self._close_pending: bool = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 16, 16, 12)
@@ -230,6 +235,15 @@ class GeneratorProgressDialog(QDialog):
         self._btn_cancel.setEnabled(False)
         self._btn_close.setEnabled(True)
 
+        # User dismissed the window mid-run — self-close now that the
+        # worker has exited. We skip firing `completed` because callers
+        # associate that signal with visible results (they pop up
+        # follow-up dialogs, write files, etc.). Closing silently
+        # mirrors what [Cancel]+[Close] would have done manually.
+        if self._close_pending:
+            self.accept()
+            return
+
         if error_msg == "cancelled":
             self._status.setText("Отменено пользователем.")
             self.append_log("— отмена —")
@@ -257,6 +271,26 @@ class GeneratorProgressDialog(QDialog):
             self._on_cancel_clicked()
             return
         self.accept()
+
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        """Handle [X]/Alt-F4 while the generator may still be running.
+
+        A non-modal generation dialog can be dismissed at any time. If
+        the worker thread is still alive we must:
+          1. request cancellation,
+          2. suppress the close so the QThread isn't GC'd under the
+             running worker (would segfault),
+          3. let _on_finished self-close via the _close_pending flag.
+        """
+        if self._thread is not None and self._thread.isRunning():
+            self._close_pending = True
+            if self._worker is not None:
+                self._worker.request_cancel()
+                self._status.setText("Отмена...")
+                self._btn_cancel.setEnabled(False)
+            event.ignore()
+            return
+        event.accept()
 
 
 # ---------------------------------------------------------------------------
