@@ -28,39 +28,105 @@ logger = logging.getLogger("draughts.controller")
 def _infer_pdn_move_from_boards(before: Board, after: Board) -> str | None:
     """Infer a PDN numeric move token from two consecutive board states.
 
-    Returns a string like '22-17' or '9x18' or None on failure.
+    Returns a string like '22-17', '9x18' or the full capture chain
+    '9x18x25' when the move is a multi-jump.
+
+    Implementation note (fix for PDN-WRITER-1): the previous version
+    diffed the two grids and classified each vanished piece as either
+    "source" or "capture" — but it treated every vanished piece as a
+    source, making multi-jump captures ambiguous and returning None.
+    Multi-jump plies were then silently dropped from the saved PDN,
+    shifting every subsequent ply by one and breaking color alternation.
+
+    The correct approach — and what we do now — is to enumerate every
+    legal move from the *before* board and return the one whose
+    resulting position matches *after*. This always recovers the full
+    path (including intermediate landing squares for multi-jumps) and
+    naturally rejects impossible state transitions.
     """
     import numpy as np
 
+    from draughts.config import Color
+    from draughts.game.ai import _generate_all_moves
+    from draughts.game.ai.moves import _apply_move
+
     diff = before.grid != after.grid
-    changed_yx = list(zip(*np.where(diff), strict=False))
-    if not changed_yx:
+    if not np.any(diff):
         return None
 
-    sources = []
-    dests = []
-    for y, x in changed_yx:
-        b_piece = int(before.grid[y, x])
-        a_piece = int(after.grid[y, x])
-        if b_piece != 0 and a_piece == 0:
-            sources.append((int(x), int(y)))
-        elif b_piece == 0 and a_piece != 0:
-            dests.append((int(x), int(y)))
-        elif b_piece != 0 and a_piece != 0 and abs(b_piece) != abs(a_piece):
-            # King promotion in place — counts as a dest (source is same square)
-            dests.append((int(x), int(y)))
+    changed = list(zip(*np.where(diff), strict=False))
 
-    if len(sources) == 1 and len(dests) == 1:
-        sx, sy = sources[0]
-        tx, ty = dests[0]
+    # Fast path for a plain non-capture (exactly 2 squares changed:
+    # one vanished, one appeared). The OLD inferrer was correct for
+    # this case; we keep it to preserve round-trip on imported PDNs
+    # whose pieces may not match the expected side-to-move (e.g.
+    # post-flip/post-load sequences).
+    sources: list[tuple[int, int]] = []
+    dests: list[tuple[int, int]] = []
+    captures: list[tuple[int, int]] = []
+    for y, x in changed:
+        bp = int(before.grid[y, x])
+        ap = int(after.grid[y, x])
+        if bp != 0 and ap == 0:
+            # Piece gone — could be source OR captured. Defer decision.
+            sources.append((int(x), int(y)))
+        elif bp == 0 and ap != 0:
+            dests.append((int(x), int(y)))
+        elif bp != 0 and ap != 0 and abs(bp) != abs(ap):
+            dests.append((int(x), int(y)))  # in-place promotion
+
+    if len(dests) != 1:
+        # Unexpected — multi-piece appearance shouldn't happen in one ply.
+        return None
+    tx, ty = dests[0]
+    dest_piece = int(after.grid[ty, tx])
+    color = Color.WHITE if dest_piece < 0 else Color.BLACK
+
+    # The source of the mover has the same colour as the destination
+    # piece (modulo pawn→king promotion). Captures have the opposite
+    # colour. Partition `sources` by colour:
+    own: list[tuple[int, int]] = []
+    opp: list[tuple[int, int]] = []
+    for sx, sy in sources:
+        bp = int(before.grid[sy, sx])
+        if (bp < 0) == (dest_piece < 0):
+            own.append((sx, sy))
+        else:
+            opp.append((sx, sy))
+            captures.append((sx, sy))
+
+    # In simple move there is 1 own-source, 0 captures. In a capture
+    # there is 1 own-source (may be 0 if the destination square also
+    # appears in own-sources for in-place promotion) and ≥1 captures.
+    if not captures and len(own) == 1 and len(sources) == 1:
+        # Pure simple move.
         try:
-            src_sq = xy_to_square(sx, sy)
-            dst_sq = xy_to_square(tx, ty)
+            return f"{xy_to_square(*own[0])}-{xy_to_square(tx, ty)}"
         except ValueError:
             return None
-        is_capture = len(changed_yx) > 2
-        sep = "x" if is_capture else "-"
-        return f"{src_sq}{sep}{dst_sq}"
+
+    # Capture — possibly multi-jump. Enumerate legal captures from
+    # *before* that end at (tx, ty); match against the exact resulting
+    # grid. This recovers the full intermediate-square path (the bug
+    # that silently dropped multi-jump plies from saved PDN).
+    #
+    # We try the deduced colour first, then the opposite colour as a
+    # defensive fallback (some legacy PDN states have inconsistent
+    # side-to-move due to the pre-audit writer bugs).
+    colour_order: list[Color] = [color, color.opponent]
+    for c in colour_order:
+        for kind, path in _generate_all_moves(before, c):
+            if kind != "capture":
+                continue
+            if path[-1] != (tx, ty):
+                continue
+            child = _apply_move(before, kind, path)
+            if np.array_equal(child.grid, after.grid):
+                try:
+                    squares = [xy_to_square(x, y) for x, y in path]
+                    return "x".join(str(sq) for sq in squares)
+                except ValueError:
+                    return None
 
     return None
 
