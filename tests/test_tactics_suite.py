@@ -392,8 +392,15 @@ class TestMasterGames:
             report_lines.extend(mismatches_log[:5])
         print("\n".join(report_lines))
 
-        # Always passes — informational only
-        assert total_positions >= 0  # vacuously true; just here so pytest registers a pass
+        # Minimal contract (informational test stays permissive):
+        # - We actually processed SOME positions (detects e.g. empty
+        #   fixture data or iteration bug).
+        # - AI returned a move for each — implicit via total_positions
+        #   increment guard above.
+        # Match rate is informational only; the real strength regression
+        # is guarded by TestOpeningTraps and TestTacticalPuzzles with
+        # strict asserts.
+        assert total_positions > 0, "Master-game loop processed zero positions"
 
 
 # ===========================================================================

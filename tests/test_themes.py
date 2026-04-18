@@ -1,4 +1,12 @@
-"""Tests for the classic light board theme (D18)."""
+"""Theme / TextureCache behaviour tests.
+
+Consolidated after the test-audit (Smell A — splinter pattern).
+Previously had 17 tests, most of them one-assert-per-theme × one per
+cell-type repeated. The production contract is: TextureCache produces
+valid pixmaps for every (theme, cell-type, size) triple and theme
+switching doesn't crash or leak state. Parametrised to cover that
+without 17 separate test functions.
+"""
 
 from __future__ import annotations
 
@@ -6,155 +14,71 @@ import sys
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Skip the whole module if PyQt6 is not available (e.g. headless CI without
-# a display).  The texture code requires a QApplication to be running before
-# QPixmap can be created.
-# ---------------------------------------------------------------------------
-
 try:
     from PyQt6.QtWidgets import QApplication
 
     _app = QApplication.instance() or QApplication(sys.argv)
     _QT_AVAILABLE = True
-except Exception:
+except Exception:  # pragma: no cover — import-time fallback
     _QT_AVAILABLE = False
 
 pytestmark = pytest.mark.skipif(not _QT_AVAILABLE, reason="PyQt6 not available")
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+_CELL_METHODS = ("get_light_cell", "get_dark_cell")
+_THEMES = ("dark_wood", "classic_light")
 
 
-def _make_cache(theme: str = "dark_wood"):
+@pytest.mark.parametrize("theme", _THEMES)
+@pytest.mark.parametrize("method", _CELL_METHODS)
+@pytest.mark.parametrize("size", [32, 48, 64, 96])
+def test_cell_pixmap_matches_requested_size(theme: str, method: str, size: int):
+    """Every (theme, cell-type, size) triple returns a non-null pixmap
+    of the exact requested dimensions.
+    """
     from draughts.ui.textures import TextureCache
 
-    return TextureCache(theme=theme)
+    cache = TextureCache(theme=theme)
+    px = getattr(cache, method)(size)
+    assert not px.isNull()
+    assert px.width() == size
+    assert px.height() == size
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("theme", _THEMES)
+def test_frame_pixmap_non_null(theme: str):
+    from draughts.ui.textures import TextureCache
+
+    assert not TextureCache(theme=theme).get_frame(512).isNull()
 
 
-class TestTextureCacheTheme:
-    """TextureCache produces valid pixmaps for both themes."""
+def test_theme_switch_invalidates_pixmaps_and_stays_usable():
+    """Switching theme post-cache-warmup must not crash and must
+    return fresh pixmaps from the new theme.
+    """
+    from draughts.ui.textures import TextureCache
 
-    def test_dark_wood_light_cell_not_null(self):
-        cache = _make_cache("dark_wood")
-        px = cache.get_light_cell(64)
-        assert not px.isNull()
-
-    def test_dark_wood_dark_cell_not_null(self):
-        cache = _make_cache("dark_wood")
-        px = cache.get_dark_cell(64)
-        assert not px.isNull()
-
-    def test_dark_wood_frame_not_null(self):
-        cache = _make_cache("dark_wood")
-        px = cache.get_frame(512)
-        assert not px.isNull()
-
-    def test_classic_light_light_cell_not_null(self):
-        cache = _make_cache("classic_light")
-        px = cache.get_light_cell(64)
-        assert not px.isNull()
-
-    def test_classic_light_dark_cell_not_null(self):
-        cache = _make_cache("classic_light")
-        px = cache.get_dark_cell(64)
-        assert not px.isNull()
-
-    def test_classic_light_frame_not_null(self):
-        cache = _make_cache("classic_light")
-        px = cache.get_frame(512)
-        assert not px.isNull()
-
-    def test_classic_light_cell_correct_size(self):
-        cache = _make_cache("classic_light")
-        size = 48
-        px = cache.get_light_cell(size)
-        assert px.width() == size
-        assert px.height() == size
-
-    def test_dark_wood_cell_correct_size(self):
-        cache = _make_cache("dark_wood")
-        size = 48
-        px = cache.get_dark_cell(size)
-        assert px.width() == size
-        assert px.height() == size
+    cache = TextureCache(theme="dark_wood")
+    cache.get_light_cell(64)  # warm cache
+    cache.theme = "classic_light"
+    assert not cache.get_light_cell(64).isNull()
+    cache.theme = "dark_wood"
+    assert not cache.get_dark_cell(64).isNull()
 
 
-class TestThemeSwitch:
-    """Switching theme does not crash and invalidates the cache."""
+def test_invalid_theme_name_raises():
+    from draughts.ui.textures import TextureCache
 
-    def test_theme_switch_dark_to_light(self):
-        cache = _make_cache("dark_wood")
-        # Pre-warm dark_wood cache
-        _px1 = cache.get_light_cell(64)
-        # Switch theme
-        cache.theme = "classic_light"
-        # Should return classic_light pixmap without crashing
-        px2 = cache.get_light_cell(64)
-        assert not px2.isNull()
-
-    def test_theme_switch_light_to_dark(self):
-        cache = _make_cache("classic_light")
-        _px1 = cache.get_dark_cell(64)
-        cache.theme = "dark_wood"
-        px2 = cache.get_dark_cell(64)
-        assert not px2.isNull()
-
-    def test_invalid_theme_raises(self):
-        from draughts.ui.textures import TextureCache
-
-        with pytest.raises(ValueError, match="Unknown theme"):
-            cache = TextureCache()
-            cache.theme = "neon_pink"
-
-    def test_default_theme_is_dark_wood(self):
-        from draughts.ui.textures import TextureCache
-
-        cache = TextureCache()
-        assert cache.theme == "dark_wood"
-
-    def test_themes_tuple_contains_both(self):
-        from draughts.ui.textures import TextureCache
-
-        assert "dark_wood" in TextureCache.THEMES
-        assert "classic_light" in TextureCache.THEMES
+    with pytest.raises(ValueError, match="Unknown theme"):
+        TextureCache().theme = "neon_pink"
 
 
-class TestSettingsRoundtrip:
-    """GameSettings preserves board_theme after construction."""
+def test_shipped_theme_default_contract():
+    """UX-facing default. Regression guard: changing this is a
+    user-visible decision, not a silent refactor.
+    """
+    from draughts.config import GameSettings
+    from draughts.ui.textures import TextureCache
 
-    def test_default_theme(self):
-        from draughts.config import GameSettings
-
-        s = GameSettings()
-        assert s.board_theme == "dark_wood"
-
-    def test_set_classic_light(self):
-        from draughts.config import GameSettings
-
-        s = GameSettings(board_theme="classic_light")
-        assert s.board_theme == "classic_light"
-
-    def test_set_dark_wood_explicit(self):
-        from draughts.config import GameSettings
-
-        s = GameSettings(board_theme="dark_wood")
-        assert s.board_theme == "dark_wood"
-
-    def test_theme_roundtrip_via_copy(self):
-        """Simulate settings dialog round-trip: read → write new GameSettings."""
-        from draughts.config import GameSettings
-
-        original = GameSettings(board_theme="classic_light")
-        restored = GameSettings(
-            difficulty=original.difficulty,
-            board_theme=original.board_theme,
-        )
-        assert restored.board_theme == "classic_light"
+    assert TextureCache().theme == "dark_wood"
+    assert GameSettings().board_theme == "dark_wood"

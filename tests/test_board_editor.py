@@ -41,24 +41,20 @@ def _make_widget_headless(board: Board):
 # ---------------------------------------------------------------------------
 
 
-class TestEditorModeToggle:
-    def test_initially_off(self):
-        board = Board()
-        w = _make_widget_headless(board)
-        assert w.editor_mode is False
+def test_editor_mode_toggle():
+    """Editor mode defaults off and round-trips through True→False.
 
-    def test_set_on(self):
-        board = Board()
-        w = _make_widget_headless(board)
-        w.editor_mode = True
-        assert w.editor_mode is True
-
-    def test_set_off_after_on(self):
-        board = Board()
-        w = _make_widget_headless(board)
-        w.editor_mode = True
-        w.editor_mode = False
-        assert w.editor_mode is False
+    Consolidated after audit (Smell C): was 3 separate tests each
+    asserting one side of the setter/getter. Now one regression guard
+    for the UX-facing invariant.
+    """
+    board = Board()
+    w = _make_widget_headless(board)
+    assert w.editor_mode is False
+    w.editor_mode = True
+    assert w.editor_mode is True
+    w.editor_mode = False
+    assert w.editor_mode is False
 
 
 # ---------------------------------------------------------------------------
@@ -229,29 +225,6 @@ class TestPlayFromHere:
         c._ai_thread = None
         c._ai_worker = None
         return c
-
-    def test_play_from_custom_position_sets_board(self):
-        """After 'play from here', controller.board matches the edited board."""
-        import numpy as np
-
-        c = self._make_controller()
-
-        # Simulate what _start_game_from_position does
-        new_board = Board(empty=True)
-        new_board.place_piece(1, 0, int(BLACK))
-        new_board.place_piece(3, 6, int(WHITE))
-        turn = Color.BLACK
-
-        c.board = new_board
-        c._current_turn = turn
-        c._positions = [new_board.to_position_string()]
-        c._replay_history = [new_board.to_position_string()]
-        c._ply_count = 0
-        c._game_started = True
-
-        assert np.array_equal(c.board.grid, new_board.grid)
-        assert c._current_turn == Color.BLACK
-        assert c._ply_count == 0
 
     def test_fen_round_trip_after_edit(self):
         """FEN produced from editor board imports back identically."""

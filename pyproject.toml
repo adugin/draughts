@@ -44,8 +44,10 @@ skip-magic-trailing-comma = false
 
 [tool.pytest.ini_options]
 markers = [
-    "tactics: tactical regression suite (can be skipped with -m 'not tactics')",
-    "slow: slow tests that should be skipped in normal CI (can be run with -m slow)",
+    "tactics: tactical regression suite (skip with -m 'not tactics')",
+    "slow: tests taking > 2 s (skip with -m 'not slow')",
+    "qt: requires a running QApplication (use -m 'not qt' on headless CI)",
+    "integration: cross-module full-flow scenarios",
 ]
 
 [tool.mypy]
