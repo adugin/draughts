@@ -65,8 +65,14 @@ def play_one_game(
                 if ai_move is None:
                     fh.write(encode(GameEnd(reason=0, stop=0)))
                     return "ok"
+                # Snapshot the pre-move board so _move_to_dxp can recover
+                # the enemy-piece squares for flying-king captures (the
+                # DXP spec requires jumped-piece squares, not landing
+                # points — they differ when a king flies past empty
+                # squares before landing on an enemy).
+                pre_move_board = board.copy()
                 _apply_move_to_board(board, ai_move.path, ai_move.kind == "capture")
-                fh.write(encode(_move_to_dxp(ai_move, t1 - t0)))
+                fh.write(encode(_move_to_dxp(ai_move, t1 - t0, pre_move_board)))
             else:
                 frame = read_frame(fh)
                 if not frame:
