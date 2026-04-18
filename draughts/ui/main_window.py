@@ -214,6 +214,17 @@ class MainWindow(QMainWindow):
         self._act_analyze_game.triggered.connect(self._on_analyze_game)
         analysis_menu.addAction(self._act_analyze_game)
 
+        # --- Инструменты (D36) ---
+        tools_menu = menubar.addMenu("&Инструменты")
+
+        self._act_import_book = QAction("&Импорт книги из PDN...", self)
+        self._act_import_book.triggered.connect(self._on_import_book)
+        tools_menu.addAction(self._act_import_book)
+
+        self._act_mine_puzzles = QAction("&Добыча тактических задач...", self)
+        self._act_mine_puzzles.triggered.connect(self._on_mine_puzzles)
+        tools_menu.addAction(self._act_mine_puzzles)
+
         # --- Справка ---
         help_menu = menubar.addMenu("&Справка")
 
@@ -574,6 +585,20 @@ class MainWindow(QMainWindow):
 
         dlg = BitbaseDownloaderDialog(self)
         dlg.downloaded.connect(self._on_bitbase_downloaded)
+        dlg.exec()
+
+    def _on_import_book(self) -> None:
+        """Open the import-book-from-PDN dialog (D36)."""
+        from draughts.ui.generators import ImportBookFromPdnDialog
+
+        dlg = ImportBookFromPdnDialog(self)
+        dlg.exec()
+
+    def _on_mine_puzzles(self) -> None:
+        """Open the puzzle-mining dialog (D36)."""
+        from draughts.ui.generators import MinePuzzlesDialog
+
+        dlg = MinePuzzlesDialog(self)
         dlg.exec()
 
     def _on_bitbase_downloaded(self, path) -> None:
