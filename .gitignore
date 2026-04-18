@@ -110,3 +110,7 @@ ANALYSIS.md
 
 # Временные файлы отладки
 crash.log
+
+# Ad-hoc PDN в корне (bug-repro артефакты сессии); реальные fixture
+# лежат в tests/fixtures/, а не в корне.
+/*.pdn
