@@ -99,3 +99,62 @@ def test_import_multiple_files_keeps_weights(tmp_path: Path):
     h = _zobrist_hash(Board().grid, Color.WHITE)
     entry = book._entries[h]
     assert len(entry.moves) == 2
+
+
+def test_import_honours_setup_fen_black_to_move(tmp_path: Path):
+    """A game with [SetUp "1"] + [FEN "B:..."] must be keyed against the
+    FEN position with Black to move — not the hardcoded start hash."""
+    from draughts.config import Color
+    from draughts.game.ai.tt import _zobrist_hash
+    from draughts.game.board import Board
+    from draughts.game.fen import parse_fen
+    from draughts.game.pdn import load_pdn_file
+
+    # Non-standard position: one white pawn at 28 (c3), one black pawn
+    # at 5 (h7), black to move. Black plays 5-9 (h7-b6) — a legal pawn
+    # move for this isolated position.
+    fen = "B:W28:B5"
+    start_board, start_color = parse_fen(fen)
+    expected_hash = _zobrist_hash(start_board.grid, start_color)
+
+    pdn_text = (
+        '[Event "FEN test"]\n'
+        '[GameType "25"]\n'
+        '[SetUp "1"]\n'
+        f'[FEN "{fen}"]\n'
+        "\n"
+        "1... 5-9 *\n"
+    )
+    p = tmp_path / "fen.pdn"
+    p.write_text(pdn_text, encoding="utf-8")
+    games = load_pdn_file(p)
+    assert games and games[0].moves == ["5-9"]
+
+    book = import_games(games, plies=1)
+    # The imported move must sit under the FEN-derived hash, not the
+    # default Board()+White hash.
+    default_hash = _zobrist_hash(Board().grid, Color.WHITE)
+    assert expected_hash in book._entries
+    assert default_hash not in book._entries
+
+
+def test_import_falls_back_when_fen_malformed(tmp_path: Path):
+    from draughts.config import Color
+    from draughts.game.ai.tt import _zobrist_hash
+    from draughts.game.board import Board
+    from draughts.game.pdn import load_pdn_file
+
+    pdn_text = (
+        '[Event "bad fen"]\n'
+        '[GameType "25"]\n'
+        '[SetUp "1"]\n'
+        '[FEN "not-a-fen"]\n'
+        "\n"
+        "1. 22-17 *\n"
+    )
+    p = tmp_path / "bad.pdn"
+    p.write_text(pdn_text, encoding="utf-8")
+    games = load_pdn_file(p)
+    book = import_games(games, plies=1)
+    default_hash = _zobrist_hash(Board().grid, Color.WHITE)
+    assert default_hash in book._entries

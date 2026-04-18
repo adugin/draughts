@@ -57,13 +57,20 @@ def import_games(
     """Merge opening plies from each game into ``book`` (or a fresh one).
 
     Returns the same book object so callers can chain import_games() calls.
+
+    Honours the ``[SetUp "1"]`` + ``[FEN "..."]`` tag pair: games that
+    carry a FEN start from that position with the FEN-supplied side to
+    move. Ignoring these headers (as the pre-audit importer did) keyed
+    every FEN game at the standard opening hash, corrupting both the
+    hash-table lookups and the per-ply colour alternation.
     """
+    from draughts.game.fen import parse_fen
+
     if book is None:
         book = OpeningBook()
 
     for g in games:
-        board = Board()
-        color = Color.WHITE
+        board, color = _start_state_from_headers(g.headers, parse_fen)
         applied = 0
         for move_str in g.moves:
             if applied >= plies:
@@ -87,6 +94,18 @@ def import_games(
             color = color.opponent
             applied += 1
     return book
+
+
+def _start_state_from_headers(headers: dict[str, str], parse_fen) -> tuple[Board, Color]:
+    """Return (start_board, start_color) honouring SetUp/FEN tags."""
+    if headers.get("SetUp") == "1":
+        fen = headers.get("FEN", "").strip()
+        if fen:
+            try:
+                return parse_fen(fen)
+            except ValueError:
+                logger.warning("Malformed FEN in game %r — using start position", headers.get("Event"))
+    return Board(), Color.WHITE
 
 
 def cli() -> int:
