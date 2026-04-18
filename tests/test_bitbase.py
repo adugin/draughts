@@ -322,7 +322,11 @@ def test_build_script_smoke(tmp_path: Path):
     assert isinstance(data, dict), "JSON root must be a dict"
     assert len(data) > 0, "Bitbase must contain at least one entry"
 
-    # All values must be valid WLD integers
+    # All values must be valid WLD integers (ignore the optional __meta__
+    # header introduced in v1.1).
     for k, v in data.items():
+        if k == "__meta__":
+            assert isinstance(v, dict), "__meta__ must be a dict"
+            continue
         assert isinstance(k, str), f"Key {k!r} must be string"
         assert v in (WIN, DRAW, LOSS), f"Value {v!r} for key {k!r} is not a valid WLD result"

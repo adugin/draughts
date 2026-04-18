@@ -133,17 +133,48 @@ _BLACK_PIECE_TYPES = [int(BLACK), int(BLACK_KING)]  # 1, 2
 _WHITE_PIECE_TYPES = [int(WHITE), int(WHITE_KING)]  # -1, -2
 
 
+def _enumerate_lopsided_same_side(
+    out: list[tuple[list[tuple[int, int, int]], Color]],
+    n: int,
+    color_side: str,
+) -> None:
+    """Enumerate positions with N pieces of one side and 0 of the other.
+
+    Required for retrograde propagation correctness (BITBASE-ENUM fix):
+    when a capture removes the opponent's last piece, the resulting child
+    position has 0 pieces on that side. If that child isn't in the
+    bitbase, the propagation can't learn that the opponent has lost, and
+    parent positions get mislabeled DRAW.
+
+    ``color_side`` is "black" for N black pieces / 0 white (or "white"
+    for the mirror). Both side-to-move options are emitted for each.
+    """
+    piece_types = _BLACK_PIECE_TYPES if color_side == "black" else _WHITE_PIECE_TYPES
+    sq = DARK_SQUARES
+    for combo in itertools.combinations(range(len(sq)), n):
+        coords = [sq[i] for i in combo]
+        type_options = [
+            [p for p in piece_types if _can_be_pawn(x, y, p)]
+            for x, y in coords
+        ]
+        if any(not opts for opts in type_options):
+            continue
+        for types in itertools.product(*type_options):
+            pieces = [(x, y, pt) for (x, y), pt in zip(coords, types, strict=True)]
+            for turn_color in (Color.BLACK, Color.WHITE):
+                out.append((pieces, turn_color))
+
+
 def _enumerate_all_positions(max_pieces: int = 3) -> list[tuple[list[tuple[int, int, int]], Color]]:
     """Enumerate all legal positions with 1..max_pieces pieces total.
 
-    Includes:
-    - 1-piece positions (one side has a piece, other has none)
-    - 2-piece positions (1 vs 1, both sides have one piece each)
-    - 3-piece positions (2 vs 1 in either orientation)
-
-    Including smaller positions is essential: when a capture in a 3-piece
-    position removes one piece, the resulting 2-piece child position must
-    be in the bitbase for the retrograde to propagate wins correctly.
+    Covers EVERY piece-count split (N_black, N_white) with
+    N_black + N_white ∈ [1, max_pieces], including lopsided positions
+    like "2 black + 0 white" and "3 black + 0 white" — these are
+    reachable as children of capture sequences and MUST be in the
+    bitbase for retrograde propagation to correctly identify wins
+    (BITBASE-ENUM fix, previously only "A vs B" splits with A,B >= 1
+    were enumerated, causing mislabelled DRAW entries).
 
     Each position is represented as (pieces, color_to_move) where:
     - pieces: [(x, y, piece_value), ...]
@@ -169,6 +200,12 @@ def _enumerate_all_positions(max_pieces: int = 3) -> list[tuple[list[tuple[int, 
                 continue
             for color in (Color.BLACK, Color.WHITE):
                 positions.append(([(wx, wy, wpt)], color))
+
+    # --- N-piece lopsided positions (one side has 0). Required for
+    # retrograde correctness (see BITBASE-ENUM fix note above). ---
+    for n in range(2, max_pieces + 1):
+        _enumerate_lopsided_same_side(positions, n, "black")
+        _enumerate_lopsided_same_side(positions, n, "white")
 
     # --- 2 pieces: 1 black + 1 white ---
     for bi, wi in itertools.product(range(len(sq)), range(len(sq))):
