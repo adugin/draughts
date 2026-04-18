@@ -662,43 +662,95 @@ def _today_date_str() -> str:
 
 
 def _infer_pdn_move(before: Board, after: Board) -> str | None:
-    """Try to infer the PDN numeric move between two board states.
+    """Infer a PDN numeric move token between two board states.
 
-    Returns a PDN move string like '22-17' or '11x18' or None if inference fails.
-    This is best-effort for migration purposes.
+    Returns a string like '22-17', '9x18', or the full multi-jump chain
+    '9x18x27' when the move is a multi-jump capture. Returns ``None`` if
+    the transition cannot be explained by a single legal ply.
+
+    This is the migration-path inferrer used by :func:`json_to_pdn`.
+    Previous implementation diffed the two grids and classified every
+    vanished piece as a source — for a single capture (1 source + 1
+    captured) the diff has 3 changed cells and two "sources", so the
+    function returned ``None`` and the capture was silently dropped
+    from the converted PDN (same bug as PDN-WRITER-1 in controller.py).
+    Multi-jumps were likewise lost. Every subsequent ply then shifted
+    by one, corrupting the colour alternation in the resulting file.
+
+    The correct approach — shared with
+    :func:`draughts.app.controller._infer_pdn_move_from_boards` — is to:
+
+    1. Identify the destination by the unique square that went from empty
+       (or in-place promoted) to non-empty. This unambiguously tells us
+       the moving side's colour.
+    2. Partition vanished pieces into own-colour (source) and
+       opposite-colour (captured).
+    3. For simple moves emit ``src-dst``; for captures enumerate all
+       legal capture paths from *before* that end at the destination
+       and match the full resulting grid, producing the intermediate
+       landing chain.
     """
     import numpy as np
 
-    # Find squares that changed
-    diff = before.grid != after.grid
-    changed_yx = list(zip(*np.where(diff), strict=False))
+    from draughts.config import Color
+    from draughts.game.ai import _generate_all_moves
+    from draughts.game.ai.moves import _apply_move
 
-    if not changed_yx:
+    diff = before.grid != after.grid
+    if not np.any(diff):
         return None
 
-    # Find source (piece disappeared) and dest (piece appeared from empty/different)
-    sources = []
-    dests = []
-    for y, x in changed_yx:
-        b_piece = int(before.grid[y, x])
-        a_piece = int(after.grid[y, x])
-        if b_piece != 0 and a_piece == 0:
-            sources.append((x, y))
-        elif (b_piece == 0 and a_piece != 0) or (b_piece != 0 and a_piece != 0 and abs(b_piece) != abs(a_piece)):
-            dests.append((x, y))
+    changed = list(zip(*np.where(diff), strict=False))
 
-    if len(sources) == 1 and len(dests) == 1:
-        sx, sy = sources[0]
-        tx, ty = dests[0]
+    sources: list[tuple[int, int]] = []
+    dests: list[tuple[int, int]] = []
+    for y, x in changed:
+        bp = int(before.grid[y, x])
+        ap = int(after.grid[y, x])
+        if bp != 0 and ap == 0:
+            sources.append((int(x), int(y)))
+        elif bp == 0 and ap != 0:
+            dests.append((int(x), int(y)))
+        elif bp != 0 and ap != 0 and abs(bp) != abs(ap):
+            dests.append((int(x), int(y)))  # in-place promotion
+
+    if len(dests) != 1:
+        return None
+    tx, ty = dests[0]
+    dest_piece = int(after.grid[ty, tx])
+    color = Color.WHITE if dest_piece < 0 else Color.BLACK
+
+    own: list[tuple[int, int]] = []
+    captures: list[tuple[int, int]] = []
+    for sx, sy in sources:
+        bp = int(before.grid[sy, sx])
+        if (bp < 0) == (dest_piece < 0):
+            own.append((sx, sy))
+        else:
+            captures.append((sx, sy))
+
+    if not captures and len(own) == 1 and len(sources) == 1:
         try:
-            src_sq = xy_to_square(sx, sy)
-            dst_sq = xy_to_square(tx, ty)
+            return f"{xy_to_square(*own[0])}-{xy_to_square(tx, ty)}"
         except ValueError:
             return None
-        # Detect capture: if more than 2 cells changed, it was a capture
-        is_capture = len(changed_yx) > 2
-        sep = "x" if is_capture else "-"
-        return f"{src_sq}{sep}{dst_sq}"
+
+    # Capture — possibly multi-jump. Try the deduced side first, then the
+    # opposite as a defensive fallback for legacy states with inconsistent
+    # side-to-move.
+    for c in (color, color.opponent):
+        for kind, path in _generate_all_moves(before, c):
+            if kind != "capture":
+                continue
+            if path[-1] != (tx, ty):
+                continue
+            child = _apply_move(before, kind, path)
+            if np.array_equal(child.grid, after.grid):
+                try:
+                    squares = [xy_to_square(x, y) for x, y in path]
+                    return "x".join(str(sq) for sq in squares)
+                except ValueError:
+                    return None
 
     return None
 
