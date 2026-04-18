@@ -31,7 +31,14 @@ class EvalCurveWidget(QWidget):
     _MARGIN_R = 10
     _MARGIN_T = 10
     _MARGIN_B = 18
-    _CLIP_SCORE = 600.0  # clamp displayed score to +/-this value
+    # Clip at ~5 pawns of advantage. Scored in raw _evaluate_fast units,
+    # which after Texel tuning sit at ~2.0 per pawn (_PAWN_VALUE ≈ 1.9).
+    # The previous value (600) was calibrated for the pre-tuning scale
+    # where _PAWN_VALUE=5.0 and scores were often displayed in 1/100-pawn
+    # units; with tuned weights it produced an effectively flat curve
+    # (real game-altering swings of 3-4 pawns rendered as ≤1% of the
+    # vertical range, so blunders visually disappeared).
+    _CLIP_SCORE = 10.0  # clamp displayed score to +/-this value (≈5 pawns)
     _WHITE_AREA_COLOR = QColor(255, 255, 200, 40)
     _BLACK_AREA_COLOR = QColor(0, 0, 80, 40)
 
