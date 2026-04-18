@@ -41,20 +41,54 @@ logger = logging.getLogger("draughts.dxp.server")
 DEFAULT_PORT = 27531
 
 
-def _move_to_dxp(move: AIMove, time_used: float) -> Move:
-    """Convert our AIMove into a DXP Move frame."""
+def _enemy_square_numbers(path: list[tuple[int, int]], before: Board) -> list[int]:
+    """Return DXP square numbers of enemy pieces jumped over by *path*.
+
+    The DXP spec defines the ``captured`` field of a MOVE frame as the
+    list of squares where the OPPONENT'S pieces were sitting, not the
+    landing squares of our own piece between jumps. For a short hop
+    (a1→c3) with an enemy on b2 both happen to be the same square,
+    but for a flying-king path (a1→d4→...) they are different: the
+    enemy square is somewhere on the a1-d4 diagonal and must be
+    derived from the pre-move board.
+
+    Implementation mirrors Board.execute_capture_path: on each segment
+    scan the diagonal from src→dst and capture the first non-empty
+    square seen.
+    """
+    enemy_squares: list[int] = []
+    for i in range(len(path) - 1):
+        x1, y1 = path[i]
+        x2, y2 = path[i + 1]
+        dx = 1 if x2 > x1 else -1
+        dy = 1 if y2 > y1 else -1
+        cx, cy = x1 + dx, y1 + dy
+        while (cx, cy) != (x2, y2):
+            if before.piece_at(cx, cy) != 0:
+                try:
+                    enemy_squares.append(xy_to_square(cx, cy))
+                except ValueError:
+                    pass
+                break
+            cx += dx
+            cy += dy
+    return enemy_squares
+
+
+def _move_to_dxp(move: AIMove, time_used: float, before: Board) -> Move:
+    """Convert our AIMove into a DXP Move frame.
+
+    *before* is the board state prior to applying *move*: needed to
+    recover enemy-piece squares for flying-king captures where the
+    landing points differ from the squares of the jumped pieces.
+    """
     start_x, start_y = move.path[0]
     end_x, end_y = move.path[-1]
     from_sq = xy_to_square(start_x, start_y)
     to_sq = xy_to_square(end_x, end_y)
     captured: list[int] = []
     if move.kind == "capture":
-        # Intermediate squares along the capture path are jumped-over
-        # enemy pieces' squares for DXP purposes. We approximate with the
-        # intermediate path squares; many GUIs accept either the enemy
-        # squares or the landing squares.
-        for ix, iy in move.path[1:-1]:
-            captured.append(xy_to_square(ix, iy))
+        captured = _enemy_square_numbers(move.path, before)
     return Move(
         time_centis=max(0, int(time_used * 100)),
         from_sq=from_sq,
@@ -101,17 +135,11 @@ def _dxp_to_move_path(m: Move, board: Board, color: Color) -> list[tuple[int, in
 
     expected_captures = set(m.captured)
     for _kind, path in endpoint_matches:
-        # Interim squares of a capture path are jumped-landing squares
-        # from our side; enemy-piece squares are the intermediates.
-        # For ambiguity resolution we check if the set of intermediate
-        # landing squares' xy → square-number equals the peer-supplied list.
-        path_interim_squares = set()
-        for ix, iy in path[1:-1]:
-            try:
-                path_interim_squares.add(xy_to_square(ix, iy))
-            except ValueError:
-                continue
-        if path_interim_squares == expected_captures:
+        # Compare enemy-piece squares per DXP spec, not landing
+        # squares. Pre-audit code compared interim landing squares,
+        # which only agreed with the spec for short hops — flying
+        # kings with large gaps would fail to disambiguate.
+        if set(_enemy_square_numbers(path, board)) == expected_captures:
             return path
 
     logger.warning(
@@ -196,8 +224,12 @@ def play_one_game(sock: socket.socket, *, difficulty: int = 4, our_name: str = "
             if ai_move is None:
                 fh.write(encode(GameEnd(reason=0, stop=0)))
                 return "ok"
+            # Snapshot the pre-move board for enemy-square recovery;
+            # _move_to_dxp needs the unmutated position to locate
+            # jumped pieces.
+            pre_move_board = board.copy()
             _apply_move_to_board(board, ai_move.path, ai_move.kind == "capture")
-            dxp_move = _move_to_dxp(ai_move, t1 - t0)
+            dxp_move = _move_to_dxp(ai_move, t1 - t0, pre_move_board)
             fh.write(encode(dxp_move))
         else:
             frame = read_frame(fh)
