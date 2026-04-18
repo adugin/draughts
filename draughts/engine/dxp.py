@@ -123,13 +123,49 @@ class DXPProtocolError(ValueError):
     """Raised when a DXP frame cannot be parsed."""
 
 
+#: Hard upper bound on captured-square count in a single MOVE.
+#: Russian draughts has 32 dark squares; a theoretical maximum capture
+#: is bounded by 12 pieces per side. 24 gives slack without letting a
+#: hostile peer force us to allocate a huge list for a malformed frame.
+_MAX_CAPTURED = 24
+
+
+def _parse_int(text: str, start: int, end: int, field: str) -> int:
+    """Parse a fixed-width decimal slice; wrap ValueError as DXPProtocolError.
+
+    Bare ``int()`` would leak ``ValueError`` to callers that only catch
+    ``DXPProtocolError``, crashing the server / client loop on any
+    non-digit byte in a fixed-width field.
+    """
+    slice_ = text[start:end]
+    try:
+        return int(slice_)
+    except ValueError as exc:
+        raise DXPProtocolError(
+            f"{field}: expected integer in columns {start}:{end}, got {slice_!r}"
+        ) from exc
+
+
 def decode(frame: bytes) -> DXPMessage:
-    """Parse a single DXP frame (trailing NUL optional)."""
+    """Parse a single DXP frame (trailing NUL optional).
+
+    Every malformed input — empty body, non-ASCII bytes, bad digits in a
+    numeric field, absurd capture count, unexpected color/setup letter —
+    raises :class:`DXPProtocolError` so the server/client loops (which
+    only handle that one exception type) terminate the connection
+    cleanly instead of crashing the worker thread.
+    """
     if not frame:
         raise DXPProtocolError("empty frame")
     if frame.endswith(NULL):
         frame = frame[:-1]
-    text = frame.decode("ascii")
+    try:
+        text = frame.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise DXPProtocolError(f"non-ASCII byte in frame: {exc}") from exc
+
+    if not text:
+        raise DXPProtocolError("frame body is empty after NUL strip")
 
     code = text[0]
     if code == "R":
@@ -138,36 +174,47 @@ def decode(frame: bytes) -> DXPMessage:
         _version = text[1]
         name = text[2:34].rstrip()
         color = text[34]
-        minutes = int(text[35:38])
-        moves_to_end = int(text[38:41])
+        if color not in ("W", "B"):
+            raise DXPProtocolError(f"GAMEREQ: invalid color field {color!r}")
+        minutes = _parse_int(text, 35, 38, "GAMEREQ.minutes")
+        moves_to_end = _parse_int(text, 38, 41, "GAMEREQ.moves_to_end")
         setup = text[41]
+        if setup not in ("A", "S"):
+            raise DXPProtocolError(f"GAMEREQ: invalid setup field {setup!r}")
         return GameReq(name=name, color=color, minutes=minutes, moves_to_end=moves_to_end, setup=setup)
 
     if code == "A":
         if len(text) < 1 + 32 + 1:
             raise DXPProtocolError(f"short GAMEACC: {text!r}")
         name = text[1:33].rstrip()
-        accept = int(text[33])
+        accept = _parse_int(text, 33, 34, "GAMEACC.accept")
         return GameAcc(name=name, accept=accept)
 
     if code == "M":
         if len(text) < 1 + 4 + 2 + 2 + 2:
             raise DXPProtocolError(f"short MOVE: {text!r}")
-        time_centis = int(text[1:5])
-        from_sq = int(text[5:7])
-        to_sq = int(text[7:9])
-        n_cap = int(text[9:11])
+        time_centis = _parse_int(text, 1, 5, "MOVE.time_centis")
+        from_sq = _parse_int(text, 5, 7, "MOVE.from_sq")
+        to_sq = _parse_int(text, 7, 9, "MOVE.to_sq")
+        n_cap = _parse_int(text, 9, 11, "MOVE.n_cap")
+        if n_cap > _MAX_CAPTURED:
+            raise DXPProtocolError(
+                f"MOVE: implausible capture count {n_cap} (cap = {_MAX_CAPTURED})"
+            )
         expected_len = 11 + 2 * n_cap
         if len(text) < expected_len:
             raise DXPProtocolError(f"MOVE captures truncated: {text!r}")
-        captured = [int(text[11 + 2 * i : 13 + 2 * i]) for i in range(n_cap)]
+        captured = [
+            _parse_int(text, 11 + 2 * i, 13 + 2 * i, f"MOVE.captured[{i}]")
+            for i in range(n_cap)
+        ]
         return Move(time_centis=time_centis, from_sq=from_sq, to_sq=to_sq, captured=captured)
 
     if code == "E":
         if len(text) < 3:
             raise DXPProtocolError(f"short GAMEEND: {text!r}")
-        reason = int(text[1])
-        stop = int(text[2])
+        reason = _parse_int(text, 1, 2, "GAMEEND.reason")
+        stop = _parse_int(text, 2, 3, "GAMEEND.stop")
         return GameEnd(reason=reason, stop=stop)
 
     raise DXPProtocolError(f"unknown message code {code!r}: {text!r}")
