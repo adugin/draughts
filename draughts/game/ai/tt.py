@@ -39,6 +39,23 @@ _TT_UPPER = 2  # score <= alpha (fail-low)
 
 _TT_MAX = 500_000
 
+# Rough bytes per dict entry in CPython 3.12+ (key + tuple value + hash slot).
+# Empirical, conservative — actual usage is slightly lower. Used to convert
+# the user-facing "hash size in MB" setting into an entry cap.
+_TT_BYTES_PER_ENTRY = 128
+
+
+def tt_entries_for_mb(mb: int) -> int:
+    """Convert a user-facing MB budget into an entry cap for TT sizing.
+
+    Minimum floor of 50_000 entries so a near-zero MB setting does not
+    degenerate the search — the constant is small enough to fit in any
+    practical configuration.
+    """
+    mb = max(1, int(mb))
+    entries = (mb * 1024 * 1024) // _TT_BYTES_PER_ENTRY
+    return max(50_000, entries)
+
 
 # ---------------------------------------------------------------------------
 # Transposition table helpers (operate on a ctx.tt dict)
@@ -74,9 +91,10 @@ def _tt_store(
     score: float,
     flag: int,
     best_idx: int,
+    tt_max: int = _TT_MAX,
 ) -> None:
     old = tt.get(h)
     if old is None or old[0] <= depth:
         tt[h] = (depth, score, flag, best_idx)
-    if len(tt) > _TT_MAX:
+    if len(tt) > tt_max:
         tt.clear()

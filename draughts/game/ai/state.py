@@ -27,6 +27,9 @@ class SearchContext:
     history: dict[tuple, int] = field(default_factory=dict)
     deadline: float | None = None
     last_score: float = float("nan")
+    # Maximum number of TT entries before a full clear. Default matches the
+    # legacy fixed cap; UI settings (hash_size_mb) override via set_tt_size_mb.
+    tt_max: int = 500_000
     # Scored root moves from the last completed depth iteration.
     # Each entry is (score, kind, path) sorted best-first (descending score).
     # Populated by _search_best_move after each fully completed depth so that
@@ -40,6 +43,17 @@ class SearchContext:
         self.history.clear()
         self.last_score = float("nan")
         self.root_move_scores.clear()
+
+    def set_tt_size_mb(self, mb: int) -> None:
+        """Resize the TT cap from a user-facing MB budget.
+
+        Caller is responsible for clearing the TT if the new cap is smaller
+        than the current population (we clear lazily in _tt_store when the
+        next insert would exceed the cap).
+        """
+        from draughts.game.ai.tt import tt_entries_for_mb
+
+        self.tt_max = tt_entries_for_mb(mb)
 
 
 # ---------------------------------------------------------------------------

@@ -401,6 +401,7 @@ class GameController(QObject):
             search_depth=self.settings.search_depth,
             use_book=self.settings.use_opening_book,
             use_bitbase=self.settings.use_endgame_bitbase,
+            hash_size_mb=self.settings.hash_size_mb,
         )
         self._ai_worker = AIWorker(self.board, engine, generation)
         self._ai_worker.moveToThread(self._ai_thread)

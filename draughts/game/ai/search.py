@@ -298,7 +298,7 @@ def _alphabeta(
         flag = _TT_LOWER
     else:
         flag = _TT_EXACT
-    _tt_store(ctx.tt, h, depth, value, flag, best_idx)
+    _tt_store(ctx.tt, h, depth, value, flag, best_idx, tt_max=ctx.tt_max)
 
     return value
 
@@ -458,11 +458,14 @@ class AIEngine:
         bitbase: EndgameBitbase | None | object = _USE_DEFAULT_BITBASE,
         use_book: bool = True,
         use_bitbase: bool = True,
+        hash_size_mb: int | None = None,
     ):
         self.difficulty = difficulty
         self.color = color
         self.search_depth = search_depth  # 0 = auto (derived from difficulty)
         self._ctx = SearchContext()
+        if hash_size_mb is not None:
+            self._ctx.set_tt_size_mb(hash_size_mb)
         self._use_book: bool = use_book
         self._use_bitbase: bool = use_bitbase
 

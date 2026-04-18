@@ -10,6 +10,7 @@ Usage:
 """
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -18,6 +19,51 @@ from draughts.app.controller import GameController
 from draughts.config import AUTOSAVE_FILENAME, get_data_dir
 from draughts.ui.main_window import MainWindow
 from PyQt6.QtWidgets import QApplication
+
+logger = logging.getLogger("draughts.main")
+
+
+def _auto_convert_legacy_json(data_dir: Path) -> list[str]:
+    """Scan data_dir for legacy JSON game saves and emit PDN companions.
+
+    For every *.json that looks like a GameSave (has `positions` key) and
+    whose *.pdn companion does NOT exist, write a PDN file next to it via
+    json_to_pdn. The original JSON is kept untouched (idempotent, safe).
+
+    Skips settings.json and autosave.json: settings is not a game, and
+    the autosave is the active JSON format — its PDN would go stale on
+    the next autosave write. Returns the list of filenames converted so
+    the caller can show a one-time notification.
+    """
+    import json as _json
+
+    from draughts.config import AUTOSAVE_FILENAME, SETTINGS_FILENAME
+    from draughts.game.pdn import json_to_pdn
+
+    converted: list[str] = []
+    if not data_dir.is_dir():
+        return converted
+
+    skip = {SETTINGS_FILENAME, AUTOSAVE_FILENAME}
+    for json_path in data_dir.glob("*.json"):
+        if json_path.name in skip:
+            continue
+        pdn_path = json_path.with_suffix(".pdn")
+        if pdn_path.exists():
+            continue
+        try:
+            data = _json.loads(json_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(data, dict) or "positions" not in data:
+            continue
+        try:
+            json_to_pdn(json_path, pdn_path)
+            converted.append(json_path.name)
+        except Exception:
+            logger.warning("Could not convert %s to PDN", json_path, exc_info=True)
+            continue
+    return converted
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -81,6 +127,11 @@ def main():
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(draughts.__version__)
 
+    # One-time migration: legacy JSON saves in the data dir get PDN
+    # companions so they're readable by external tools. Idempotent —
+    # skips files whose .pdn already exists. Safe to run on every startup.
+    _legacy_converted = _auto_convert_legacy_json(get_data_dir())
+
     controller = GameController()
 
     # Load saved user preferences (or defaults if no settings file)
@@ -95,6 +146,16 @@ def main():
 
     window = MainWindow(controller)
     window.show()
+
+    if _legacy_converted:
+        from PyQt6.QtWidgets import QMessageBox
+
+        msg = (
+            "Найдены старые JSON-сохранения. Для совместимости с внешними "
+            "инструментами автоматически созданы PDN-копии:\n\n"
+            + "\n".join(f"  • {name}" for name in _legacy_converted)
+        )
+        QMessageBox.information(window, "Обновление формата сохранений", msg)
 
     # Load saved game or start new
     if load_path:
