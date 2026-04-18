@@ -277,8 +277,20 @@ class EngineSession:
             self._go_movetime(self._move_time_ms, out)
 
     def _cmd_stop(self, out: IO[str]) -> None:
-        """Request the running infinite search to terminate."""
+        """Request the running infinite search to terminate.
+
+        The _stop_event is checked only BETWEEN iterative-deepening
+        iterations, so a worker that is mid-search at a high depth
+        can ignore the event for minutes. To terminate the current
+        depth quickly we also move the search deadline into the past
+        — the cooperative cancel in _alphabeta watches ctx.deadline
+        and raises SearchCancelledError on the next check. Without
+        this, ``go infinite`` + ``stop`` leaves the worker hogging
+        the TT while a subsequent ``go`` races with it (corrupted TT
+        contents, stale `last_score`, etc.).
+        """
         self._stop_event.set()
+        self._ctx.deadline = time.perf_counter() - 1.0
         if self._worker_thread is not None:
             self._worker_thread.join(timeout=2.0)
             self._worker_thread = None
@@ -385,7 +397,16 @@ class EngineSession:
             for d in range(1, _MAX_INFINITE_DEPTH + 1):
                 if self._stop_event.is_set():
                     break
-                move = _search_best_move(board, color, d, ctx=local_ctx)
+                # Pass a far-future deadline so _search_best_move keeps
+                # ctx.deadline writable. Without this, each iteration
+                # resets ctx.deadline to None, which means a ``stop``
+                # command arriving mid-iteration cannot interrupt the
+                # alpha-beta cooperative cancel (ctx.deadline = None
+                # short-circuits the deadline check in _alphabeta).
+                infinite_deadline = time.perf_counter() + 86400.0
+                move = _search_best_move(
+                    board, color, d, deadline=infinite_deadline, ctx=local_ctx
+                )
                 if move is None:
                     break
                 best = move
