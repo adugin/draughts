@@ -144,19 +144,29 @@ class BoardWidget(QWidget):
     def cycle_piece(self, x: int, y: int) -> None:
         """Cycle the piece at (x, y) through the editor piece sequence.
 
-        Sequence: empty → BLACK → BLACK_KING → WHITE → WHITE_KING → empty.
+        Sequence: empty -> BLACK -> BLACK_KING -> WHITE -> WHITE_KING -> empty.
         Only works on dark squares. No-op on light squares or when board is None.
+
+        Pawn-on-promotion-row is impossible in Russian draughts (any pawn
+        reaching y=0 as white or y=7 as black becomes a king), so on those
+        rows the cycle skips the matching pawn variant.
         """
         if self._board is None:
             return
         if x % 2 == y % 2:  # light square — not playable
             return
         current = int(self._board.piece_at(x, y))
+        # White pawns cannot legally sit on y=0; black pawns cannot sit on y=7.
+        forbidden = {
+            0: int(WHITE),
+            BOARD_SIZE - 1: int(BLACK),
+        }.get(y)
+        cycle = [p for p in _EDITOR_CYCLE if p != forbidden] if forbidden is not None else _EDITOR_CYCLE
         try:
-            idx = _EDITOR_CYCLE.index(current)
+            idx = cycle.index(current)
         except ValueError:
-            idx = 0
-        next_piece = _EDITOR_CYCLE[(idx + 1) % len(_EDITOR_CYCLE)]
+            idx = -1  # current piece not in allowed cycle — start at the beginning
+        next_piece = cycle[(idx + 1) % len(cycle)]
         self._board.place_piece(x, y, next_piece)
         self.update()
 

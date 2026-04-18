@@ -66,10 +66,15 @@ _CYCLE = [int(EMPTY), int(BLACK), int(BLACK_KING), int(WHITE), int(WHITE_KING)]
 
 
 class TestCyclePiece:
-    """Cycle through all five states on a single dark square."""
+    """Cycle through all five states on a single dark square.
 
-    # (1,0) is a dark square: 1%2 != 0%2 → True
-    _X, _Y = 1, 0
+    We pick an interior dark square (not on a promotion row): y=3 is
+    neither y=0 (white promote) nor y=7 (black promote), so the full
+    5-state cycle is legal.
+    """
+
+    # (0, 3) is a dark square (0%2 != 3%2) on an interior row.
+    _X, _Y = 0, 3
 
     def _widget(self) -> object:
         board = Board(empty=True)
@@ -107,6 +112,46 @@ class TestCyclePiece:
         w._board = None
         # Must not raise
         w.cycle_piece(self._X, self._Y)
+
+
+class TestCyclePromotionRowGuard:
+    """Russian-draughts pawn-on-promotion-row is illegal: a pawn on the
+    opposite end of the board would have been promoted to a king. The
+    editor must not let the user place one via the cycle."""
+
+    def test_white_pawn_skipped_on_y0(self):
+        # Dark square on y=0: (1, 0)
+        board = Board(empty=True)
+        w = _make_widget_headless(board)
+        # Cycle once through every slot; WHITE pawn (-1) must never appear.
+        seen: set[int] = set()
+        for _ in range(8):
+            w.cycle_piece(1, 0)
+            seen.add(int(board.piece_at(1, 0)))
+        assert int(WHITE) not in seen
+        # BLACK, BLACK_KING, WHITE_KING, EMPTY should all be reachable.
+        assert {int(EMPTY), int(BLACK), int(BLACK_KING), int(WHITE_KING)} <= seen
+
+    def test_black_pawn_skipped_on_y7(self):
+        # Dark square on y=7: (0, 7)
+        board = Board(empty=True)
+        w = _make_widget_headless(board)
+        seen: set[int] = set()
+        for _ in range(8):
+            w.cycle_piece(0, 7)
+            seen.add(int(board.piece_at(0, 7)))
+        assert int(BLACK) not in seen
+        assert {int(EMPTY), int(WHITE), int(BLACK_KING), int(WHITE_KING)} <= seen
+
+    def test_forbidden_current_piece_cycles_to_allowed_state(self):
+        """If the board somehow already holds a forbidden pawn (e.g. a
+        bad FEN), cycling forward must not loop indefinitely on the
+        forbidden value — it should step to the first allowed state."""
+        board = Board(empty=True)
+        board.place_piece(1, 0, int(WHITE))  # illegal but possible via load
+        w = _make_widget_headless(board)
+        w.cycle_piece(1, 0)
+        assert int(board.piece_at(1, 0)) != int(WHITE)
 
 
 # ---------------------------------------------------------------------------
