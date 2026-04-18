@@ -149,6 +149,12 @@ class MainWindow(QMainWindow):
         self._act_options.triggered.connect(self._on_options)
         settings_menu.addAction(self._act_options)
 
+        settings_menu.addSeparator()
+
+        self._act_download_bitbase = QAction("Скачать расширенную базу &эндшпилей...", self)
+        self._act_download_bitbase.triggered.connect(self._on_download_bitbase)
+        settings_menu.addAction(self._act_download_bitbase)
+
         # --- Тренировка ---
         training_menu = menubar.addMenu("&Тренировка")
 
@@ -561,6 +567,38 @@ class MainWindow(QMainWindow):
         dlg = PDNBrowserDialog(self)
         dlg.game_selected.connect(self._on_pdn_db_game_selected)
         dlg.exec()
+
+    def _on_download_bitbase(self) -> None:
+        """Open the bitbase downloader dialog (D37)."""
+        from draughts.ui.bitbase_downloader_dialog import BitbaseDownloaderDialog
+
+        dlg = BitbaseDownloaderDialog(self)
+        dlg.downloaded.connect(self._on_bitbase_downloaded)
+        dlg.exec()
+
+    def _on_bitbase_downloaded(self, path) -> None:
+        """Re-init DEFAULT_BITBASE after a successful download."""
+        from draughts.game.ai import load_default_bitbase
+
+        try:
+            bb = load_default_bitbase()
+        except Exception:
+            logger.exception("Failed to re-init bitbase after download")
+            bb = None
+
+        if bb is not None:
+            QMessageBox.information(
+                self,
+                "Эндшпильная база",
+                f"База загружена и подключена.\nПозиций: {len(bb):,}\nФайл: {path}",
+            )
+        else:
+            QMessageBox.warning(
+                self,
+                "Эндшпильная база",
+                "Файл скачан, но движок не смог его загрузить. "
+                "Проверьте лог и перезапустите программу.",
+            )
 
     def _on_pdn_db_game_selected(self, game) -> None:
         """Load a game from the PDN DB browser into the controller."""

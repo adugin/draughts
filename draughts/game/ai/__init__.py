@@ -57,16 +57,47 @@ DEFAULT_BITBASE: EndgameBitbase | None = None
 
 
 def load_default_bitbase() -> EndgameBitbase | None:
-    """Load the bundled endgame bitbase.
+    """Load the bundled or user-downloaded endgame bitbase.
 
-    Prefers a 4-piece bitbase (bitbase_4.json or bitbase_4.json.gz) if
-    present — massive coverage of two-vs-two endgames. Falls back to the
-    shipped 3-piece bitbase. Returns the loaded bitbase, or None if
-    neither file is available. Sets the module-level DEFAULT_BITBASE.
+    Probe order (first match wins):
+      1. ``%APPDATA%/DRAUGHTS/bitbase/bitbase_4.json.gz`` — user-downloaded
+         4-piece base via the D37 downloader.
+      2. ``%APPDATA%/DRAUGHTS/bitbase/bitbase_4.json``
+      3. ``draughts/resources/bitbase_4.json.gz`` — shipped with the wheel
+         (currently absent; reserved for future bundling).
+      4. ``draughts/resources/bitbase_4.json``
+      5. ``draughts/resources/bitbase_3.json`` — shipped 3-piece default.
+
+    Returns the loaded bitbase or None if nothing is available. Sets
+    the module-level ``DEFAULT_BITBASE``.
     """
     global DEFAULT_BITBASE
-    candidates = ["bitbase_4.json.gz", "bitbase_4.json", "bitbase_3.json"]
-    for name in candidates:
+
+    # 1-2: user data dir (downloaded 4-piece).
+    from pathlib import Path as _Path
+
+    try:
+        from draughts.config import get_data_dir
+
+        user_dir = _Path(get_data_dir()) / "bitbase"
+    except Exception:
+        user_dir = None
+
+    if user_dir is not None and user_dir.is_dir():
+        for name in ("bitbase_4.json.gz", "bitbase_4.json"):
+            bb_path = user_dir / name
+            if bb_path.exists():
+                try:
+                    DEFAULT_BITBASE = EndgameBitbase.load(bb_path)
+                    logging.getLogger(__name__).info("Loaded user bitbase: %s", bb_path)
+                    return DEFAULT_BITBASE
+                except Exception as exc:
+                    logging.getLogger(__name__).warning(
+                        "Failed to load user bitbase %s: %s (falling back to shipped)", bb_path, exc
+                    )
+
+    # 3-5: shipped resources.
+    for name in ("bitbase_4.json.gz", "bitbase_4.json", "bitbase_3.json"):
         try:
             ref = importlib.resources.files("draughts.resources").joinpath(name)
             with importlib.resources.as_file(ref) as bb_path:
@@ -75,6 +106,7 @@ def load_default_bitbase() -> EndgameBitbase | None:
                     return DEFAULT_BITBASE
         except Exception as exc:
             logging.getLogger(__name__).debug("Could not load %s: %s", name, exc)
+
     DEFAULT_BITBASE = None
     return None
 
