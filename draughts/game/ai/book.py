@@ -84,9 +84,12 @@ class OpeningBook:
 
         _rng = rng or random
         chosen: tuple[tuple[int, int], ...] = _rng.choices(paths, weights=weights, k=1)[0]
-        # Reconstruct the kind from the path length / board state:
-        # A move is a capture when any intermediate square differs from
-        # the straight line between start and end by more than 1 step.
+        # Re-classify capture/move against the live board: the stored
+        # kind in older books is unreliable because the pre-audit
+        # geometric classifier marked any 2+-square king slide as a
+        # capture. A wrong "capture" label would defeat the mandatory-
+        # capture guard in search.find_move and silently play a quiet
+        # king fly when a capture is required.
         kind = _infer_kind(board, chosen)
         return AIMove(kind=kind, path=list(chosen))
 
@@ -119,6 +122,8 @@ class OpeningBook:
             return []
         result: list[tuple[AIMove, int]] = []
         for path_tuple, weight in entry.moves:
+            # Re-classify against the live board for the same reason as
+            # probe(): stored kind is advisory only.
             kind = _infer_kind(board, path_tuple)
             result.append((AIMove(kind=kind, path=list(path_tuple)), weight))
         result.sort(key=lambda item: item[1], reverse=True)
@@ -138,18 +143,16 @@ class OpeningBook:
               ...
             }
 
-        We derive *kind* from move data at save time so that the JSON is
-        self-describing without needing a Board reference.
+        The stored *kind* is advisory: probe() always re-classifies with
+        board context. We only label a path as "capture" when its shape
+        is unambiguous (>= 3 waypoints = multi-jump).
         """
         data: dict[str, list] = {}
         for h, entry in self._entries.items():
             moves_json = []
             for path_tuple, w in entry.moves:
                 path_list = [list(xy) for xy in path_tuple]
-                # Detect kind: a capture path has ≥ 3 points OR start/end
-                # are more than 1 step apart.
-                is_cap = _path_is_capture(path_tuple)
-                kind_str = "capture" if is_cap else "move"
+                kind_str = "capture" if _path_is_capture_geometric(path_tuple) else "move"
                 moves_json.append([kind_str, path_list, w])
             data[str(h)] = moves_json
 
@@ -189,18 +192,66 @@ class OpeningBook:
 
 
 def _infer_kind(board: Board, path: tuple[tuple[int, int], ...]) -> str:
-    """Infer 'capture' or 'move' from the path without searching the board."""
-    return "capture" if _path_is_capture(path) else "move"
+    """Infer 'capture' or 'move' for *path* evaluated against *board*.
+
+    Board context is required because a two-point path with distance > 1
+    is ambiguous on its own: a pawn can only move that far by capturing,
+    but a king can slide freely along an empty diagonal. The previous
+    geometry-only classifier labelled every 2+-square king slide as
+    "capture", which falsely satisfied the mandatory-capture guard in
+    AIEngine.find_move and let the engine play a quiet king fly when a
+    real capture was required.
+    """
+    return "capture" if _path_is_capture_on_board(board, path) else "move"
 
 
-def _path_is_capture(path: tuple[tuple[int, int], ...]) -> bool:
-    """A path is a capture if it has ≥ 3 waypoints, or if the distance
-    between consecutive waypoints is > 2 squares diagonally."""
+def _path_is_capture_on_board(board: Board, path: tuple[tuple[int, int], ...]) -> bool:
+    """Board-aware capture classifier for a stored book path.
+
+    Rules:
+      - A path with ≥ 3 waypoints is always a multi-jump capture (a
+        plain move has exactly two endpoints).
+      - A 2-point path with distance == 1 is always a quiet move.
+      - A 2-point path with distance > 1 is a capture iff the source
+        square on *board* is a pawn, OR the source is a king and at
+        least one intermediate square is occupied (a quiet king fly
+        requires all intermediate squares to be empty).
+    """
     if len(path) >= 3:
         return True
-    if len(path) == 2:
-        x1, _y1 = path[0]
-        x2, _y2 = path[1]
-        # Captures land 2+ squares away; normal moves land 1 square away
-        return abs(x2 - x1) > 1
+    if len(path) != 2:
+        return False
+    (x1, y1), (x2, y2) = path[0], path[1]
+    dist = abs(x2 - x1)
+    if dist <= 1:
+        return False
+    source_piece = board.piece_at(x1, y1)
+    # Unknown source (empty square, corrupt book entry): fall back to
+    # the permissive geometric answer to preserve prior behaviour.
+    if source_piece == 0:
+        return True
+    if not Board.is_king(source_piece):
+        # Pawns only reach a 2-square target via a single capture.
+        return True
+    # King: quiet fly iff every intermediate square is empty.
+    dx = 1 if x2 > x1 else -1
+    dy = 1 if y2 > y1 else -1
+    cx, cy = x1 + dx, y1 + dy
+    while (cx, cy) != (x2, y2):
+        if board.piece_at(cx, cy) != 0:
+            return True
+        cx += dx
+        cy += dy
     return False
+
+
+def _path_is_capture_geometric(path: tuple[tuple[int, int], ...]) -> bool:
+    """Board-free heuristic used only by :py:meth:`OpeningBook.save`.
+
+    Conservative: only a path with ≥ 3 waypoints is confidently a
+    capture (multi-jump). Two-point paths are written as "move" — the
+    stored kind is advisory because probe() always re-classifies with
+    board context, so under-labelling is harmless while over-labelling
+    would bake the quiet-king-fly bug back into the shipped book.
+    """
+    return len(path) >= 3
