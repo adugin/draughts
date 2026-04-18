@@ -1,32 +1,49 @@
 """Entry point for ``python -m draughts.engine``.
 
-Starts an interactive engine session reading commands from stdin and
-writing responses to stdout.
+Two modes:
 
-Sample session::
+1. UCI-like text protocol (default) — reads commands from stdin, writes
+   responses to stdout::
 
-    $ python -m draughts.engine
-    uci
-    id name DRAUGHTS-engine
-    id author Andrey Dugin
-    option name Hash type spin default 64 min 1 max 1024
-    option name Threads type spin default 1 min 1 max 1
-    option name Level type spin default 4 min 1 max 6
-    option name MoveTime type spin default 3000 min 100 max 60000
-    udriok
-    isready
-    readyok
-    position startpos
-    go depth 4
-    info depth 1 score cp 0 nodes 12 nps 12000 time 1 pv c3-d4
-    info depth 2 score cp 0 nodes 45 nps 22500 time 2 pv c3-d4
-    info depth 3 score cp 20 nodes 210 nps 70000 time 3 pv c3-d4
-    info depth 4 score cp 15 nodes 890 nps 89000 time 10 pv c3-d4
-    bestmove c3-d4
-    quit
+       $ python -m draughts.engine
+
+2. DXP server (item #33) — listens on a TCP port for FMJD DXP-formatted
+   game negotiations::
+
+       $ python -m draughts.engine --dxp [--port 27531] [--level 4]
+
+DXP lets external draughts GUIs (CheckerBoard, Dam 3.0, …) host this
+engine, and enables self-play tournaments via the FMJD-standard protocol.
 """
 
+from __future__ import annotations
+
+import argparse
+import logging
+import sys
+
 from draughts.engine import run_engine_main
+from draughts.engine.dxp_server import DEFAULT_PORT, serve_forever
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="draughts.engine")
+    parser.add_argument("--dxp", action="store_true", help="start a DXP TCP server instead of the UCI-like protocol")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="port for --dxp mode (default %(default)s)")
+    parser.add_argument("--host", default="127.0.0.1", help="bind address for --dxp mode")
+    parser.add_argument("--level", type=int, default=4, help="engine difficulty 1-6 (default 4)")
+    parser.add_argument("--max-games", type=int, default=None, help="serve only N games then exit (useful for tests)")
+    parser.add_argument("-v", "--verbose", action="store_true", help="log to stderr at INFO level")
+    args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(asctime)s %(name)s %(message)s")
+
+    if args.dxp:
+        serve_forever(host=args.host, port=args.port, difficulty=args.level, max_games=args.max_games)
+    else:
+        run_engine_main()
+
 
 if __name__ == "__main__":
-    run_engine_main()
+    main()
