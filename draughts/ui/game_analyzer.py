@@ -225,20 +225,30 @@ def analyze_game_positions(
         board_after_obj = Board()
         board_after_obj.load_from_position_string(pos_after)
 
-        # Infer notation from the board diff
+        # Infer notation from the board diff. _infer_pdn_move_from_boards
+        # returns the PDN numeric form (e.g. '22x15'); convert to
+        # algebraic so both played_notation and best_notation use the
+        # same convention (CLAUDE.md requires algebraic a1..h8 across
+        # UI, CLI, and logs).
         from draughts.app.controller import _infer_pdn_move_from_boards
+        from draughts.game.pdn import pdn_move_to_notation
 
         played_pdn = _infer_pdn_move_from_boards(board_before, board_after_obj)
-        played_notation = played_pdn if played_pdn else f"ход {ply + 1}"
+        if played_pdn:
+            try:
+                played_notation = pdn_move_to_notation(played_pdn)
+            except ValueError:
+                played_notation = played_pdn  # fall back rather than hide the move
+        else:
+            played_notation = f"ход {ply + 1}"
 
         # Best move notation in algebraic form (same format as _notation_from_move)
         best_notation = _notation_from_move(analysis_before.best_move)
 
         # Compare moves by applying best move and checking if positions match,
-        # since played_notation (PDN numeric) and best_notation (algebraic)
-        # use different formats and direct string comparison would never match.
-        # Also use delta_cp as a secondary check: moves within a tiny margin
-        # of the best are functionally equivalent.
+        # since string comparison across notations would miss equivalent
+        # moves; delta_cp is a secondary check for functionally
+        # equivalent near-best plays.
         is_best = False
         if analysis_before.best_move is not None:
             try:

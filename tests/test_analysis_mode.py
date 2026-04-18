@@ -123,6 +123,30 @@ class TestFullGameAnalysisShape:
         assert isinstance(summary, str)
         assert len(summary) > 0
 
+    def test_played_notation_is_algebraic_not_pdn(self):
+        """Played-move notation must use algebraic (a1..h8 with - / :)
+        so it matches the best-move notation format. Previously
+        played_notation leaked PDN numeric form (e.g. '22-17') while
+        best_notation was already algebraic, making the tooltip show
+        two incompatible strings side-by-side and blocking any naive
+        string comparison in downstream callers."""
+        positions = self._make_positions(4)
+        result = analyze_game_positions(positions, depth=2)
+        for ann in result.annotations:
+            if ann.notation.startswith("ход "):
+                continue  # fallback for positions we couldn't infer
+            # Algebraic tokens are letters a-h followed by digits 1-8.
+            # PDN numeric would be pure digits — reject those.
+            head = ann.notation.split("-")[0].split(":")[0].strip()
+            assert not head.isdigit(), (
+                f"played notation {ann.notation!r} is PDN numeric — "
+                f"expected algebraic like 'c3-b4'"
+            )
+            # Positive check: first char is a column letter a-h.
+            assert head[0] in "abcdefgh", (
+                f"played notation {ann.notation!r} not algebraic"
+            )
+
 
 # ---------------------------------------------------------------------------
 # 3. MoveRecord.annotation field
