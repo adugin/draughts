@@ -214,6 +214,8 @@ class HeadlessGame:
 
         eval_before = evaluate_position(self._board.grid, self._turn)
 
+        was_pawn_move = not Board.is_king(piece)
+
         # Check captures first (mandatory)
         if self._board.has_any_capture(self._turn):
             captures = self._board.get_captures(x1, y1)
@@ -222,7 +224,9 @@ class HeadlessGame:
                     self._board.execute_capture_path(path)
                     notation = ":".join(Board.pos_to_notation(x, y) for x, y in path)
                     eval_after = evaluate_position(self._board.grid, self._turn)
-                    return self._record_move("capture", path, notation, eval_before, eval_after)
+                    return self._record_move(
+                        "capture", path, notation, eval_before, eval_after, was_pawn_move=was_pawn_move,
+                    )
             return None  # invalid capture
 
         # Normal move
@@ -234,7 +238,9 @@ class HeadlessGame:
         path = [(x1, y1), (x2, y2)]
         notation = f"{Board.pos_to_notation(x1, y1)}-{Board.pos_to_notation(x2, y2)}"
         eval_after = evaluate_position(self._board.grid, self._turn)
-        return self._record_move("move", path, notation, eval_before, eval_after)
+        return self._record_move(
+            "move", path, notation, eval_before, eval_after, was_pawn_move=was_pawn_move,
+        )
 
     def make_capture(self, path: Sequence[str | tuple[int, int]]) -> MoveRecord | None:
         """Make a multi-step capture with explicit path.
@@ -256,11 +262,14 @@ class HeadlessGame:
 
         captures = self._board.get_captures(x1, y1)
         if parsed in captures:
+            was_pawn_move = not Board.is_king(piece)
             eval_before = evaluate_position(self._board.grid, self._turn)
             self._board.execute_capture_path(parsed)
             notation = ":".join(Board.pos_to_notation(x, y) for x, y in parsed)
             eval_after = evaluate_position(self._board.grid, self._turn)
-            return self._record_move("capture", parsed, notation, eval_before, eval_after)
+            return self._record_move(
+                "capture", parsed, notation, eval_before, eval_after, was_pawn_move=was_pawn_move,
+            )
         return None
 
     def step(self) -> MoveRecord | None:
@@ -462,6 +471,11 @@ class HeadlessGame:
 
     def _execute_ai_move(self, move: AIMove, eval_before: float) -> MoveRecord:
         """Execute an AIMove on the board and record it."""
+        # Capture mover type BEFORE mutation: the FMJD no-progress
+        # counter resets on pawn advances as well as captures, and
+        # after execute_*() the source square is empty.
+        sx, sy = move.path[0]
+        was_pawn_move = not Board.is_king(self._board.piece_at(sx, sy))
         if move.kind == "capture":
             self._board.execute_capture_path(move.path)
             notation = ":".join(Board.pos_to_notation(x, y) for x, y in move.path)
@@ -472,7 +486,9 @@ class HeadlessGame:
             notation = f"{Board.pos_to_notation(x1, y1)}-{Board.pos_to_notation(x2, y2)}"
 
         eval_after = evaluate_position(self._board.grid, self._turn)
-        return self._record_move(move.kind, move.path, notation, eval_before, eval_after)
+        return self._record_move(
+            move.kind, move.path, notation, eval_before, eval_after, was_pawn_move=was_pawn_move,
+        )
 
     def _record_move(
         self,
@@ -481,8 +497,16 @@ class HeadlessGame:
         notation: str,
         eval_before: float,
         eval_after: float,
+        *,
+        was_pawn_move: bool = False,
     ) -> MoveRecord:
-        """Record move, update state, check game over."""
+        """Record move, update state, check game over.
+
+        ``was_pawn_move`` must reflect the *pre-move* piece type: FMJD
+        no-progress resets on captures or pawn advances, not on king
+        slides. Callers capture this before executing the move since
+        the source square is empty afterwards.
+        """
         record = MoveRecord(
             ply=self._ply,
             color=self._turn,
@@ -495,10 +519,11 @@ class HeadlessGame:
         self._moves.append(record)
         self._ply += 1
 
-        # Draw rule counters (FMJD)
+        # Draw rule counters (FMJD no-progress rule = 30 full moves
+        # without a capture OR a pawn advance).
         import numpy as np
 
-        if kind == "capture":
+        if kind == "capture" or was_pawn_move:
             self._quiet_plies = 0
         else:
             self._quiet_plies += 1

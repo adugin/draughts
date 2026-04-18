@@ -388,9 +388,14 @@ class GameController(QObject):
         if (tx, ty) not in valid_moves:
             return
 
+        # Sample mover type BEFORE mutation: FMJD no-progress resets
+        # on pawn advances and execute_move wipes the source square.
+        was_pawn_move = not Board.is_king(self.board.piece_at(sx, sy))
         notation = f"{Board.pos_to_notation(sx, sy)}-{Board.pos_to_notation(tx, ty)}"
         self.board.execute_move(sx, sy, tx, ty)
-        self._finish_player_move(notation, from_sq=(sx, sy), to_sq=(tx, ty), was_capture=False)
+        self._finish_player_move(
+            notation, from_sq=(sx, sy), to_sq=(tx, ty), was_capture=False, was_pawn_move=was_pawn_move,
+        )
 
     def _try_capture_move(self, sx: int, sy: int, tx: int, ty: int):
         """Try a capture move."""
@@ -411,10 +416,18 @@ class GameController(QObject):
             return
 
         best_path = matching[0]
+        # Sample mover type BEFORE execute_capture_path clears the source.
+        was_pawn_move = not Board.is_king(self.board.piece_at(best_path[0][0], best_path[0][1]))
         self.board.execute_capture_path(best_path)
 
         notation = ":".join(Board.pos_to_notation(x, y) for x, y in best_path)
-        self._finish_player_move(notation, from_sq=best_path[0], to_sq=best_path[-1], was_capture=True)
+        self._finish_player_move(
+            notation,
+            from_sq=best_path[0],
+            to_sq=best_path[-1],
+            was_capture=True,
+            was_pawn_move=was_pawn_move,
+        )
 
     def _finish_player_move(
         self,
@@ -422,10 +435,11 @@ class GameController(QObject):
         from_sq: tuple[int, int] | None = None,
         to_sq: tuple[int, int] | None = None,
         was_capture: bool = False,
+        was_pawn_move: bool = False,
     ):
         """Finalize player's move — record, switch turns, start AI."""
         self._ply_count += 1
-        self._update_draw_counters(was_capture)
+        self._update_draw_counters(was_capture, was_pawn_move=was_pawn_move)
         self._game_started = True
         self._selected = None
         self._capture_path = []
@@ -534,6 +548,10 @@ class GameController(QObject):
         ai_from = result.path[0]
         ai_to = result.path[-1]
 
+        # Sample mover type BEFORE mutation so the no-progress counter
+        # resets on AI pawn advances, not just captures.
+        was_pawn_move = not Board.is_king(self.board.piece_at(ai_from[0], ai_from[1]))
+
         if result.kind == "capture":
             self.board.execute_capture_path(result.path)
         elif result.kind in ("move", "sacrifice"):
@@ -545,7 +563,7 @@ class GameController(QObject):
             return
 
         self._ply_count += 1
-        self._update_draw_counters(result.kind == "capture")
+        self._update_draw_counters(result.kind == "capture", was_pawn_move=was_pawn_move)
 
         pos = self.board.to_position_string()
         self._positions.append(pos)
@@ -759,20 +777,26 @@ class GameController(QObject):
 
     # --- Draw counters (FMJD endgame rules) ---
 
-    def _update_draw_counters(self, was_capture: bool) -> None:
-        """Update quiet-move and kings-only counters after a half-move."""
+    def _update_draw_counters(self, was_capture: bool, *, was_pawn_move: bool = False) -> None:
+        """Update quiet-move and kings-only counters after a half-move.
+
+        FMJD no-progress rule resets on captures OR pawn advances. The
+        previous implementation keyed off ``has_pawns`` (whether any
+        pawn currently remains on the board) which only blocks the
+        counter from advancing while pawns exist but does NOT reset it
+        when a pawn actually moves — so a 30-move quiet phase with
+        still-immobile pawns could incorrectly terminate the game.
+        """
         import numpy as np
 
-        grid = self.board.grid
-        has_pawns = bool(np.any(np.abs(grid[grid != 0]) == 1))
-
-        # Quiet plies: reset on capture or pawn presence change
-        if was_capture or has_pawns:
-            self._quiet_plies = 0 if was_capture else self._quiet_plies + 1
+        if was_capture or was_pawn_move:
+            self._quiet_plies = 0
         else:
             self._quiet_plies += 1
 
         # Kings-only plies: count consecutive plies where all pieces are kings
+        grid = self.board.grid
+        has_pawns = bool(np.any(np.abs(grid[grid != 0]) == 1))
         if has_pawns:
             self._kings_only_plies = 0
         else:
