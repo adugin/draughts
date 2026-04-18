@@ -420,7 +420,10 @@ class Board:
         # 15-move all-kings rule (FMJD): 15 moves = 30 half-moves
         # by both sides with only kings on the board → draw.
         # Also covers 3K vs 1K (must win within 15 moves).
-        if kings_only_plies >= 30:
+        # Defensive: verify the precondition (no pawns) — caller may
+        # have miscounted. Without this, a stale counter from a game
+        # that recently had pawns could falsely terminate the game.
+        if kings_only_plies >= 30 and not has_pawns:
             return (None, "draw_kings_only")
 
         # 30-move no-progress rule: 30 moves = 60 half-moves
