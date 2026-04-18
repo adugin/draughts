@@ -109,7 +109,7 @@ def generate_training_data(
         # Force-close if still running
         if not game.is_over:
             # Access internal _end_game to terminate
-            game._end_game(None, "draw_max_ply")  # noqa: SLF001
+            game._end_game(None, "draw_max_ply")
 
         result = game.result
         if result is None:
@@ -159,7 +159,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate Texel tuning data via self-play")
     parser.add_argument("--games", type=int, default=200, help="Number of self-play games (default: 200)")
     parser.add_argument("--depth", type=int, default=5, help="AI search depth for both sides (default: 5)")
-    parser.add_argument("--output", type=str, default="tuning_data.json", help="Output JSON path (default: tuning_data.json)")
+    parser.add_argument(
+        "--output", type=str, default="tuning_data.json", help="Output JSON path (default: tuning_data.json)"
+    )
     parser.add_argument("--quiet", action="store_true", help="Suppress per-game output")
     args = parser.parse_args()
 

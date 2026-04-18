@@ -27,8 +27,8 @@ _DEFAULT_MIN_DELTA = 4.0
 # Difficulty mapping by delta magnitude (lower-bound inclusive).
 # Ranges: 4-6 → d2, 6-10 → d3, 10+ → d4
 _DIFF_THRESHOLDS = [
-    (10.0, 4),   # delta ≥ 10 (~5 pawns) → difficulty 4
-    (6.0, 3),    # delta ≥ 6  (~3 pawns) → difficulty 3
+    (10.0, 4),  # delta ≥ 10 (~5 pawns) → difficulty 4
+    (6.0, 3),  # delta ≥ 6  (~3 pawns) → difficulty 3
 ]
 
 
@@ -55,7 +55,7 @@ def _turn_string(ply: int) -> str:
 def mine_puzzles_from_game(
     positions: list[str],
     annotations: list,  # list[MoveAnnotation] from game_analyzer
-    min_delta_cp: int = _DEFAULT_MIN_DELTA,
+    min_delta_cp: float = _DEFAULT_MIN_DELTA,
 ) -> list[dict]:
     """Extract puzzle candidates from an analyzed game.
 
@@ -159,6 +159,7 @@ def mine_puzzles_from_game(
 # ---------------------------------------------------------------------------
 # Persistence helpers (no Qt)
 # ---------------------------------------------------------------------------
+
 
 def load_mined_puzzles() -> list[dict]:
     """Load mined puzzles from the user's personal collection.

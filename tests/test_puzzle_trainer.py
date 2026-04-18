@@ -22,6 +22,7 @@ from draughts.game.puzzles import Puzzle, load_bundled_puzzles
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _notation_to_path(move_str: str) -> list[tuple[int, int]]:
     """Convert 'c3:e5:g3' or 'c3-e5' to a list of (x, y) board positions."""
     sep = ":" if ":" in move_str else "-"
@@ -50,6 +51,7 @@ def _get_all_legal_paths(board: Board, turn: Color) -> list[list[tuple[int, int]
 # Test 1: load_bundled_puzzles
 # ---------------------------------------------------------------------------
 
+
 def test_load_bundled_puzzles():
     """All 30 bundled puzzles load without error."""
     ps = load_bundled_puzzles()
@@ -60,15 +62,14 @@ def test_load_bundled_puzzles():
 # Test 2: get_by_difficulty
 # ---------------------------------------------------------------------------
 
+
 def test_get_by_difficulty():
     """Filtering by difficulty returns only matching puzzles."""
     ps = load_bundled_puzzles()
 
     for d in range(1, 5):
         subset = ps.get_by_difficulty(d)
-        assert all(p.difficulty == d for p in subset), (
-            f"Difficulty filter {d} returned puzzles with wrong difficulty"
-        )
+        assert all(p.difficulty == d for p in subset), f"Difficulty filter {d} returned puzzles with wrong difficulty"
 
     # Total across all levels must equal 30
     total = sum(len(ps.get_by_difficulty(d)) for d in range(1, 5))
@@ -78,6 +79,7 @@ def test_get_by_difficulty():
 # ---------------------------------------------------------------------------
 # Test 3: get_random_returns_puzzle
 # ---------------------------------------------------------------------------
+
 
 def test_get_random_returns_puzzle():
     """get_random returns a Puzzle (not None) for the full set."""
@@ -111,6 +113,7 @@ def test_get_random_invalid_difficulty_returns_none():
 # Test 4: puzzle_has_valid_position
 # ---------------------------------------------------------------------------
 
+
 def test_puzzle_has_valid_position():
     """Every puzzle's 32-char position string loads into a Board without error."""
     ps = load_bundled_puzzles()
@@ -119,18 +122,15 @@ def test_puzzle_has_valid_position():
         # Should not raise
         board.load_from_position_string(puzzle.position)
         # Verify it's exactly 32 chars
-        assert len(puzzle.position) == 32, (
-            f"Puzzle {puzzle.id} position has length {len(puzzle.position)}, expected 32"
-        )
+        assert len(puzzle.position) == 32, f"Puzzle {puzzle.id} position has length {len(puzzle.position)}, expected 32"
         # Verify it round-trips
-        assert board.to_position_string() == puzzle.position, (
-            f"Puzzle {puzzle.id} position string does not round-trip"
-        )
+        assert board.to_position_string() == puzzle.position, f"Puzzle {puzzle.id} position string does not round-trip"
 
 
 # ---------------------------------------------------------------------------
 # Test 5: puzzle_best_move_is_legal
 # ---------------------------------------------------------------------------
+
 
 def test_puzzle_best_move_is_legal():
     """For every puzzle, the best_move is among the legal moves on the given position."""
@@ -156,6 +156,7 @@ def test_puzzle_best_move_is_legal():
 # ---------------------------------------------------------------------------
 # Test 6: session_save_load_roundtrip
 # ---------------------------------------------------------------------------
+
 
 def test_session_save_load_roundtrip(tmp_path):
     """Save progress dict to disk and load it back — values are preserved."""

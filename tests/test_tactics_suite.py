@@ -45,11 +45,11 @@ _SEARCH_DEPTH = 5
 # ---------------------------------------------------------------------------
 # Global accumulators for the summary test (filled in by each test)
 # ---------------------------------------------------------------------------
-_trap_avoided: list[bool] = []        # True if AI did NOT pick the blunder
-_trap_replied: list[bool] = []        # True if AI picked the winning reply
-_puzzle_solved: list[bool] = []       # True/None — None means xfail (hard)
-_puzzle_solved_ids: list[str] = []    # id of each attempted puzzle
-_master_score: list[float] = []       # per-ply scores from master games
+_trap_avoided: list[bool] = []  # True if AI did NOT pick the blunder
+_trap_replied: list[bool] = []  # True if AI picked the winning reply
+_puzzle_solved: list[bool] = []  # True/None — None means xfail (hard)
+_puzzle_solved_ids: list[str] = []  # id of each attempted puzzle
+_master_score: list[float] = []  # per-ply scores from master games
 
 
 # ===========================================================================
@@ -204,9 +204,7 @@ class TestOpeningTraps:
         for m in moves_to_apply:
             ok = _apply_notation_move(game, m)
             if not ok:
-                pytest.skip(
-                    f"{trap['id']}: Could not replay move '{m}' — possible data issue"
-                )
+                pytest.skip(f"{trap['id']}: Could not replay move '{m}' — possible data issue")
 
         if game.is_over:
             pytest.skip(f"{trap['id']}: Game ended while replaying moves")
@@ -215,10 +213,7 @@ class TestOpeningTraps:
         if game.turn != winning_side:
             # Turn mismatch means the data schema uses a different indexing
             # convention for this trap — skip rather than give a false result.
-            pytest.skip(
-                f"{trap['id']}: After blunder, expected {winning_side}'s turn, "
-                f"got {game.turn}"
-            )
+            pytest.skip(f"{trap['id']}: After blunder, expected {winning_side}'s turn, got {game.turn}")
 
         # winning_reply_ply is the 0-based index of the winning reply move
         winning_reply_idx = trap["winning_reply_ply"]
@@ -357,9 +352,7 @@ class TestMasterGames:
                     continue
 
                 # Ask AI for its choice at this position
-                ai_move = _ai_move_at_depth(
-                    headless.board.copy(), turn, depth=_SEARCH_DEPTH
-                )
+                ai_move = _ai_move_at_depth(headless.board.copy(), turn, depth=_SEARCH_DEPTH)
 
                 if ai_move is not None:
                     ai_notation = _notation_from_move(ai_move)
@@ -371,8 +364,7 @@ class TestMasterGames:
                     else:
                         _master_score.append(0.0)
                         mismatches_log.append(
-                            f"  game {game_idx+1} ply {ply_idx+1}: "
-                            f"AI={ai_notation!r} book={book_notation!r}"
+                            f"  game {game_idx + 1} ply {ply_idx + 1}: AI={ai_notation!r} book={book_notation!r}"
                         )
 
                 # Advance the game with the book move
@@ -421,9 +413,7 @@ def test_tactics_summary(capsys) -> None:
     # ---- Tactical puzzles (difficulty < 4 only) ----
     easy_ids = {p["id"] for p in _PUZZLE_DATA if p["difficulty"] < 4}
     solved_easy = sum(
-        solved
-        for solved, pid in zip(_puzzle_solved, _puzzle_solved_ids, strict=False)
-        if pid in easy_ids
+        solved for solved, pid in zip(_puzzle_solved, _puzzle_solved_ids, strict=False) if pid in easy_ids
     )
     n_easy = len(easy_ids)
     pct_puzzles = solved_easy / n_easy * 100 if n_easy else 0

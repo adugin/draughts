@@ -13,7 +13,7 @@ from __future__ import annotations
 # Each entry: elo (approximate strength), depth (base search depth),
 # label (display string shown in the options dialog).
 ELO_LEVELS: dict[int, dict[str, object]] = {
-    1: {"elo": 800,  "depth": 2, "label": "Новичок (~800)"},
+    1: {"elo": 800, "depth": 2, "label": "Новичок (~800)"},
     2: {"elo": 1100, "depth": 3, "label": "Любитель (~1100)"},
     3: {"elo": 1400, "depth": 4, "label": "Клубный (~1400)"},
     4: {"elo": 1700, "depth": 5, "label": "Сильный клубный (~1700)"},

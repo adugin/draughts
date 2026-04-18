@@ -182,9 +182,9 @@ def load_tuned_weights(path: Path | str | None = None) -> bool:
     Returns:
         True if weights were successfully loaded, False otherwise.
     """
-    global _KING_VALUE, _PAWN_VALUE, _ADVANCE_BONUS, _CENTER_BONUS  # noqa: PLW0603
-    global _SAFETY_BONUS, _CONNECTED_BONUS, _GOLDEN_CORNER          # noqa: PLW0603
-    global _KING_CENTER_WEIGHT, _KING_DISTANCE_WEIGHT               # noqa: PLW0603
+    global _KING_VALUE, _PAWN_VALUE, _ADVANCE_BONUS, _CENTER_BONUS
+    global _SAFETY_BONUS, _CONNECTED_BONUS, _GOLDEN_CORNER
+    global _KING_CENTER_WEIGHT, _KING_DISTANCE_WEIGHT
 
     weights_path = Path(path) if path is not None else _TUNED_WEIGHTS_PATH
 
@@ -197,9 +197,15 @@ def load_tuned_weights(path: Path | str | None = None) -> bool:
 
         # Validate required keys
         required = {
-            "pawn_value", "king_value", "advance_bonus", "center_bonus",
-            "safety_bonus", "connected_bonus", "golden_corner",
-            "king_center_weight", "king_distance_weight",
+            "pawn_value",
+            "king_value",
+            "advance_bonus",
+            "center_bonus",
+            "safety_bonus",
+            "connected_bonus",
+            "golden_corner",
+            "king_center_weight",
+            "king_distance_weight",
         }
         missing = required - data.keys()
         if missing:
@@ -249,9 +255,9 @@ def set_use_tuned_eval(enabled: bool) -> None:
     toggling the setting in GameSettings takes immediate effect without
     restarting the application.
     """
-    global _KING_VALUE, _PAWN_VALUE, _ADVANCE_BONUS, _CENTER_BONUS  # noqa: PLW0603
-    global _SAFETY_BONUS, _CONNECTED_BONUS, _GOLDEN_CORNER           # noqa: PLW0603
-    global _KING_CENTER_WEIGHT, _KING_DISTANCE_WEIGHT                # noqa: PLW0603
+    global _KING_VALUE, _PAWN_VALUE, _ADVANCE_BONUS, _CENTER_BONUS
+    global _SAFETY_BONUS, _CONNECTED_BONUS, _GOLDEN_CORNER
+    global _KING_CENTER_WEIGHT, _KING_DISTANCE_WEIGHT
 
     if enabled:
         load_tuned_weights()
@@ -448,10 +454,7 @@ def _king_distance_score(grid: np.ndarray) -> float:
 
     if len(black_kings) > 0 and len(white_pieces) > 0:
         for ky, kx in black_kings:
-            min_dist = min(
-                _diagonal_distance(abs(int(kx - px)), abs(int(ky - py)))
-                for py, px in white_pieces
-            )
+            min_dist = min(_diagonal_distance(abs(int(kx - px)), abs(int(ky - py))) for py, px in white_pieces)
             # Normalized into [0, 7]: on-diagonal adjacent = 1 -> bonus 6;
             # diagonal across the board = 7 -> bonus 0; far off-diagonal
             # saturates at 0 via the clamp.
@@ -459,10 +462,7 @@ def _king_distance_score(grid: np.ndarray) -> float:
 
     if len(white_kings) > 0 and len(black_pieces) > 0:
         for ky, kx in white_kings:
-            min_dist = min(
-                _diagonal_distance(abs(int(kx - px)), abs(int(ky - py)))
-                for py, px in black_pieces
-            )
+            min_dist = min(_diagonal_distance(abs(int(kx - px)), abs(int(ky - py))) for py, px in black_pieces)
             score -= max(0.0, 7.0 - min_dist) * 0.5
 
     return score
@@ -556,13 +556,13 @@ def _evaluate_fast(grid: np.ndarray, color: str | Color) -> float:
 
     # Advancement — dot product (no temp array allocation)
     grid_flat = grid.ravel().astype(np.float32)
-    bp_mask = (grid_flat == 1.0)
-    wp_mask = (grid_flat == -1.0)
+    bp_mask = grid_flat == 1.0
+    wp_mask = grid_flat == -1.0
     total += (np.dot(bp_mask, _BLACK_ADVANCE_FLAT) - np.dot(wp_mask, _WHITE_ADVANCE_FLAT)) * _ADVANCE_BONUS
 
     # Center control
-    black_mask = (grid_flat > 0)
-    white_mask = (grid_flat < 0)
+    black_mask = grid_flat > 0
+    white_mask = grid_flat < 0
     total += (np.dot(black_mask, _CENTER_FLAT) - np.dot(white_mask, _CENTER_FLAT)) * _CENTER_BONUS
 
     # Phase-dependent weighting (endgame amplifies positional factors)
@@ -601,8 +601,8 @@ def _evaluate_fast(grid: np.ndarray, color: str | Color) -> float:
     # King centralization bonus in endgame
     if phase > 0.3:
         king_center = 0.0
-        bk_mask = (grid_flat == 2.0)
-        wk_mask = (grid_flat == -2.0)
+        bk_mask = grid_flat == 2.0
+        wk_mask = grid_flat == -2.0
         if np.any(bk_mask):
             king_center += float(np.dot(bk_mask, _CENTER_FLAT)) * phase
         if np.any(wk_mask):

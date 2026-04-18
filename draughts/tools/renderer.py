@@ -140,9 +140,7 @@ def render_position(
     return render_board(board, output=output, size=size, **kwargs)
 
 
-def _board_to_pixel(
-    x: int, y: int, cell: int, margin: int, flip: bool
-) -> tuple[int, int]:
+def _board_to_pixel(x: int, y: int, cell: int, margin: int, flip: bool) -> tuple[int, int]:
     """Convert board (x, y) to pixel (px, py) top-left of cell."""
     if flip:
         return margin + (BOARD_SIZE - 1 - x) * cell, margin + (BOARD_SIZE - 1 - y) * cell

@@ -151,9 +151,7 @@ def build_book(
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(
-        description="Build opening book via self-play tree exploration."
-    )
+    parser = argparse.ArgumentParser(description="Build opening book via self-play tree exploration.")
     parser.add_argument(
         "--output",
         "-o",

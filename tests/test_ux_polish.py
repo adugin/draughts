@@ -14,6 +14,7 @@ from draughts.game.board import Board
 # Helper: minimal BoardWidget substitute that only exposes the data properties
 # ---------------------------------------------------------------------------
 
+
 class _FakeBoardWidget:
     """Minimal stand-in for BoardWidget that exercises the same property logic
     without requiring a QApplication."""
@@ -51,6 +52,7 @@ class _FakeBoardWidget:
 # ---------------------------------------------------------------------------
 # Test A — last-move highlight (item 26, part 1)
 # ---------------------------------------------------------------------------
+
 
 class TestLastMoveProperty:
     def test_initially_none(self):
@@ -91,6 +93,7 @@ class TestLastMoveProperty:
 # Test B — hint squares (D16)
 # ---------------------------------------------------------------------------
 
+
 class TestHintSquaresProperty:
     def test_initially_none(self):
         w = _FakeBoardWidget()
@@ -127,6 +130,7 @@ class TestHintSquaresProperty:
 # ---------------------------------------------------------------------------
 # Test C — legal moves for a known position (item 26, part 2)
 # ---------------------------------------------------------------------------
+
 
 class TestLegalMovesForPiece:
     def test_white_piece_has_moves_at_start(self):
@@ -170,6 +174,7 @@ class TestLegalMovesForPiece:
 # Test D — coordinates draw flag (show_coordinates toggle)
 # ---------------------------------------------------------------------------
 
+
 class TestCoordinatesDrawFlag:
     def test_default_true(self):
         s = GameSettings()
@@ -201,6 +206,7 @@ class TestCoordinatesDrawFlag:
 # ---------------------------------------------------------------------------
 # Test E — hover legal moves flag
 # ---------------------------------------------------------------------------
+
 
 class TestHoverLegalMovesFlag:
     def test_default_true(self):

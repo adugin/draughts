@@ -17,9 +17,9 @@ def test_compute_pv_returns_list_of_moves_from_start():
     assert first.kind in {"move", "capture", "sacrifice"}
     legal_moves_from_piece = hg.board.get_valid_moves(*first.path[0])
     legal_captures_from_piece = hg.board.get_captures(*first.path[0])
-    assert (first.path[-1] in legal_moves_from_piece) or any(
-        cap == first.path for cap in legal_captures_from_piece
-    ), "PV first move must be a legal move for White from the start position"
+    assert (first.path[-1] in legal_moves_from_piece) or any(cap == first.path for cap in legal_captures_from_piece), (
+        "PV first move must be a legal move for White from the start position"
+    )
 
 
 def test_compute_pv_does_not_mutate_game_board():
@@ -40,6 +40,7 @@ def test_compute_pv_alternates_colors():
     would reject the second move).
     """
     from draughts.game.board import Board
+
     hg = HeadlessGame(auto_ai=False)
     pv = compute_pv(hg, depth=3, pv_length=4)
     assert pv, "PV should not be empty from start position"
@@ -51,9 +52,7 @@ def test_compute_pv_alternates_colors():
         # Move should be legal for the current side
         moves_for_piece = board.get_valid_moves(*mv.path[0])
         captures_for_piece = board.get_captures(*mv.path[0])
-        legal = (mv.path[-1] in moves_for_piece) or any(
-            cap == mv.path for cap in captures_for_piece
-        )
+        legal = (mv.path[-1] in moves_for_piece) or any(cap == mv.path for cap in captures_for_piece)
         assert legal, f"PV move {mv.path} is illegal for side {color}"
         # Apply and switch
         if mv.kind == "capture":
@@ -68,7 +67,6 @@ def test_compute_pv_empty_when_no_moves():
     """When the side to move has no legal moves, PV is empty."""
     hg = HeadlessGame(auto_ai=False)
     # Clear the board — no white pieces → white to move has no legal moves.
-    import numpy as np
     hg.board.grid[:] = 0
     hg.board.grid[0, 1] = 1  # single black pawn so side-check passes
     pv = compute_pv(hg, depth=3, pv_length=3)

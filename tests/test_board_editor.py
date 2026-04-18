@@ -19,6 +19,7 @@ from draughts.game.fen import START_FEN, board_to_fen, parse_fen
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_widget_headless(board: Board):
     """Instantiate BoardWidget in headless mode (no paint, no Qt loop).
 

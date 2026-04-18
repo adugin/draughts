@@ -13,17 +13,12 @@ Covers:
 
 from __future__ import annotations
 
-import random
-
-import numpy as np
-import pytest
 from draughts.config import BLACK, BLACK_KING, WHITE, WHITE_KING, Color, GameSettings
 from draughts.game.ai import AIEngine, _generate_all_moves
 from draughts.game.ai.search import AIMove
 from draughts.game.board import Board
 from draughts.game.fen import board_to_fen, parse_fen
 from draughts.game.headless import HeadlessGame
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -147,9 +142,7 @@ class TestBlunderRespectsCaptures:
         for _ in range(20):
             move = engine.find_move(board)
             assert move is not None
-            assert move.kind == "capture", (
-                f"Blundered move {move.path} is not a capture but captures are mandatory"
-            )
+            assert move.kind == "capture", f"Blundered move {move.path} is not a capture but captures are mandatory"
 
     def test_level2_blunder_captures_when_mandatory(self):
         board = _make_board(e3=WHITE, a3=WHITE, d4=BLACK)
@@ -180,6 +173,7 @@ class TestFenPromotionRowPawn:
             board, color = parse_fen(fen)
             # If accepted, the piece should be on the board
             from draughts.game.pdn import square_to_xy
+
             x, y = square_to_xy(1)
             piece = board.piece_at(x, y)
             # Note: this IS a known gap — parser doesn't validate promotion.
@@ -194,6 +188,7 @@ class TestFenPromotionRowPawn:
         try:
             board, _color = parse_fen(fen)
             from draughts.game.pdn import square_to_xy
+
             x, y = square_to_xy(32)
             piece = board.piece_at(x, y)
             assert piece in (BLACK, BLACK_KING)
@@ -222,6 +217,7 @@ class TestEngineProtocolInvalidMove:
 
     def test_invalid_move_does_not_crash(self):
         import io
+
         from draughts.engine import EngineSession
 
         inp = io.StringIO("position startpos moves c3-d4 INVALID\ngo depth 2\nquit\n")
@@ -236,6 +232,7 @@ class TestEngineProtocolInvalidMove:
 
     def test_out_of_range_move_does_not_crash(self):
         import io
+
         from draughts.engine import EngineSession
 
         inp = io.StringIO("position startpos moves z9-x0\ngo depth 2\nquit\n")
@@ -314,10 +311,7 @@ class TestPuzzleBoardRestore:
             sep = ":" if ":" in best_path_str else "-"
             best_path = [Board.notation_to_pos(sq) for sq in best_path_str.split(sep)]
 
-            wrong_moves = [
-                (kind, path) for kind, path in legal
-                if path != best_path
-            ]
+            wrong_moves = [(kind, path) for kind, path in legal if path != best_path]
 
             if not wrong_moves:
                 continue
@@ -329,8 +323,7 @@ class TestPuzzleBoardRestore:
             if wrong_kind == "capture":
                 wrong_board.execute_capture_path(wrong_path)
             else:
-                wrong_board.execute_move(wrong_path[0][0], wrong_path[0][1],
-                                         wrong_path[1][0], wrong_path[1][1])
+                wrong_board.execute_move(wrong_path[0][0], wrong_path[0][1], wrong_path[1][0], wrong_path[1][1])
 
             # Verify the wrong board is different
             assert wrong_board.to_position_string() != original_pos

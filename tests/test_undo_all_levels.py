@@ -77,9 +77,7 @@ def test_undo_move_works_at_all_levels(difficulty):
 
     ctrl.undo_move()
 
-    assert ctrl._ply_count == ply_before - 2, (
-        f"ply_count not decremented by 2 at difficulty={difficulty}"
-    )
+    assert ctrl._ply_count == ply_before - 2, f"ply_count not decremented by 2 at difficulty={difficulty}"
     # Board must have been rolled back to the earlier position
     assert ctrl.board.to_position_string() == ctrl._positions[-1]
 

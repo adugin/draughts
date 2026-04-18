@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import pytest
-
 from draughts.config import Color
 from draughts.game.ai import DEFAULT_BOOK
 from draughts.game.ai.book import OpeningBook
 from draughts.game.ai.search import AIMove
 from draughts.game.board import Board
-
 
 # ---------------------------------------------------------------------------
 # OpeningBook.probe_all
@@ -67,8 +65,10 @@ def test_probe_all_default_book_has_start_moves():
 @pytest.fixture
 def qt_app():
     import sys
+
     pytest.importorskip("PyQt6")
     from PyQt6.QtWidgets import QApplication
+
     app = QApplication.instance() or QApplication(sys.argv)
     yield app
 
@@ -110,6 +110,6 @@ def test_get_book_moves_unknown_position_returns_empty(qt_app, monkeypatch):
     c = GameController()
     # Clear the board — empty board is never in a standard opening book.
     c.board.grid[:] = 0
-    c.board.grid[0, 1] = 1    # single black
-    c.board.grid[7, 0] = -1   # single white
+    c.board.grid[0, 1] = 1  # single black
+    c.board.grid[7, 0] = -1  # single white
     assert c.get_book_moves() == []

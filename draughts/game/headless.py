@@ -113,8 +113,10 @@ class HeadlessGame:
 
         # AI engines
         self._engines: dict[Color, AIEngine | None] = {
-            Color.BLACK: black_engine or (AIEngine(difficulty=difficulty, color=Color.BLACK, search_depth=depth) if auto_ai else None),
-            Color.WHITE: white_engine or (AIEngine(difficulty=difficulty, color=Color.WHITE, search_depth=depth) if auto_ai else None),
+            Color.BLACK: black_engine
+            or (AIEngine(difficulty=difficulty, color=Color.BLACK, search_depth=depth) if auto_ai else None),
+            Color.WHITE: white_engine
+            or (AIEngine(difficulty=difficulty, color=Color.WHITE, search_depth=depth) if auto_ai else None),
         }
 
     # --- Properties ---

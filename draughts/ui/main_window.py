@@ -34,6 +34,7 @@ from draughts.ui.theme_engine import get_theme_colors
 
 if TYPE_CHECKING:
     from draughts.app.controller import GameController
+    from draughts.game.board import Board
 
 
 class MainWindow(QMainWindow):
@@ -357,7 +358,7 @@ class MainWindow(QMainWindow):
         if self.board_widget.editor_mode:
             return
         self._controller.flip_sides()
-        self.board_widget.inverted = (self._controller.player_color == Color.BLACK)
+        self.board_widget.inverted = self._controller.player_color == Color.BLACK
         # Clear any stale hint/hover overlays — they belonged to the
         # former player (BUG-8).
         self.board_widget.hint_squares = None
@@ -385,9 +386,7 @@ class MainWindow(QMainWindow):
             old_invert = self._controller.settings.invert_color
             self._controller.settings = dlg.get_settings()
             new_invert = self._controller.settings.invert_color
-            self._controller._computer_color = (
-                Color.BLACK if not new_invert else Color.WHITE
-            )
+            self._controller._computer_color = Color.BLACK if not new_invert else Color.WHITE
             self._controller._player_color = Color.WHITE if not new_invert else Color.BLACK
             # Propagate updated settings to board widget (coordinates, hover, etc.)
             self.board_widget.set_settings(self._controller.settings)
@@ -405,6 +404,7 @@ class MainWindow(QMainWindow):
 
             # Persist user preferences to disk
             from draughts.config import save_settings
+
             save_settings(self._controller.settings)
 
             # If player switched sides, start a new game so the
@@ -424,6 +424,7 @@ class MainWindow(QMainWindow):
         QApplication.clipboard().setText(fen)
         self.setWindowTitle(f"{APP_NAME} — FEN скопирован")
         from PyQt6.QtCore import QTimer
+
         QTimer.singleShot(2000, lambda: self.setWindowTitle(APP_NAME))
 
     def _on_paste_fen(self):
@@ -529,9 +530,7 @@ class MainWindow(QMainWindow):
         if self._controller._ai_thread is not None:
             self._controller._ai_generation += 1
             if self._controller._ai_worker is not None:
-                self._controller._pending_ai.append(
-                    (self._controller._ai_thread, self._controller._ai_worker)
-                )
+                self._controller._pending_ai.append((self._controller._ai_thread, self._controller._ai_worker))
             self._controller._ai_thread = None
             self._controller._ai_worker = None
             self._controller.ai_thinking.emit(False)
@@ -718,11 +717,11 @@ class MainWindow(QMainWindow):
         # Black pawns on row 7 (white's back rank) → black kings
         for x in range(BOARD_SIZE):
             if grid[7, x] == 1:  # BLACK pawn
-                grid[7, x] = 2   # BLACK_KING
+                grid[7, x] = 2  # BLACK_KING
         # White pawns on row 0 (black's back rank) → white kings
         for x in range(BOARD_SIZE):
             if grid[0, x] == -1:  # WHITE pawn
-                grid[0, x] = -2   # WHITE_KING
+                grid[0, x] = -2  # WHITE_KING
 
         # Count pieces
         flat = grid.ravel()

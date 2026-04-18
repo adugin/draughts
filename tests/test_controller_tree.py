@@ -25,6 +25,7 @@ def qt_app():
 @pytest.fixture
 def controller(monkeypatch):
     from draughts.app.controller import GameController
+
     monkeypatch.setattr(GameController, "_start_computer_turn", lambda self: None)
     return GameController()
 
@@ -105,6 +106,7 @@ def test_save_without_tree_uses_flat_format(controller, tmp_path):
     (no parens, byte-identical to pre-M5 output)."""
     # Play a couple of plies by mutating positions directly.
     from draughts.game.board import Board
+
     b = Board()
     controller._positions = [b.to_position_string()]
     # Simulate one move: white 23-18 → internal (4,5) to (3,4)

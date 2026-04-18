@@ -35,7 +35,7 @@ class BoardWidget(QWidget):
     cell_right_clicked = pyqtSignal(int, int)
 
     # Editor-mode signals (emitted instead of cell_*_clicked when editor_mode is True)
-    editor_cell_cycled = pyqtSignal(int, int)   # left-click: cycle piece at (x, y)
+    editor_cell_cycled = pyqtSignal(int, int)  # left-click: cycle piece at (x, y)
     editor_cell_cleared = pyqtSignal(int, int)  # right-click: clear piece at (x, y)
 
     def __init__(self, parent=None):
@@ -521,15 +521,15 @@ class BoardWidget(QWidget):
             bot_cy = by + board_side + label_offset - text_h / 2
 
             painter.setPen(shadow_color)
-            painter.drawText(QRectF(lx + shadow_off, top_cy + shadow_off, rect_w, text_h),
-                             Qt.AlignmentFlag.AlignCenter, letter)
-            painter.drawText(QRectF(lx + shadow_off, bot_cy + shadow_off, rect_w, text_h),
-                             Qt.AlignmentFlag.AlignCenter, letter)
+            painter.drawText(
+                QRectF(lx + shadow_off, top_cy + shadow_off, rect_w, text_h), Qt.AlignmentFlag.AlignCenter, letter
+            )
+            painter.drawText(
+                QRectF(lx + shadow_off, bot_cy + shadow_off, rect_w, text_h), Qt.AlignmentFlag.AlignCenter, letter
+            )
             painter.setPen(label_color)
-            painter.drawText(QRectF(lx, top_cy, rect_w, text_h),
-                             Qt.AlignmentFlag.AlignCenter, letter)
-            painter.drawText(QRectF(lx, bot_cy, rect_w, text_h),
-                             Qt.AlignmentFlag.AlignCenter, letter)
+            painter.drawText(QRectF(lx, top_cy, rect_w, text_h), Qt.AlignmentFlag.AlignCenter, letter)
+            painter.drawText(QRectF(lx, bot_cy, rect_w, text_h), Qt.AlignmentFlag.AlignCenter, letter)
 
             # --- Row labels (1-8): left and right ---
             cell_cy = by + (i + 0.5) * cell_size
@@ -542,15 +542,15 @@ class BoardWidget(QWidget):
             right_x = bx + board_side + label_offset - margin / 2
 
             painter.setPen(shadow_color)
-            painter.drawText(QRectF(left_x + shadow_off, ny + shadow_off, margin, text_h),
-                             Qt.AlignmentFlag.AlignCenter, number)
-            painter.drawText(QRectF(right_x + shadow_off, ny + shadow_off, margin, text_h),
-                             Qt.AlignmentFlag.AlignCenter, number)
+            painter.drawText(
+                QRectF(left_x + shadow_off, ny + shadow_off, margin, text_h), Qt.AlignmentFlag.AlignCenter, number
+            )
+            painter.drawText(
+                QRectF(right_x + shadow_off, ny + shadow_off, margin, text_h), Qt.AlignmentFlag.AlignCenter, number
+            )
             painter.setPen(label_color)
-            painter.drawText(QRectF(left_x, ny, margin, text_h),
-                             Qt.AlignmentFlag.AlignCenter, number)
-            painter.drawText(QRectF(right_x, ny, margin, text_h),
-                             Qt.AlignmentFlag.AlignCenter, number)
+            painter.drawText(QRectF(left_x, ny, margin, text_h), Qt.AlignmentFlag.AlignCenter, number)
+            painter.drawText(QRectF(right_x, ny, margin, text_h), Qt.AlignmentFlag.AlignCenter, number)
 
     # --- Mouse events ---
 
@@ -588,9 +588,8 @@ class BoardWidget(QWidget):
         x, y = cell
         piece = self._board.piece_at(x, y)
         # Determine if piece belongs to current turn's player
-        is_player_piece = (
-            (self._turn_color == Color.WHITE and self._board.is_white(piece))
-            or (self._turn_color == Color.BLACK and self._board.is_black(piece))
+        is_player_piece = (self._turn_color == Color.WHITE and self._board.is_white(piece)) or (
+            self._turn_color == Color.BLACK and self._board.is_black(piece)
         )
         if not is_player_piece:
             if self._hover_legal_moves:

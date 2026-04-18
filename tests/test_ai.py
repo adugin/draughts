@@ -224,18 +224,29 @@ class TestEvaluation:
             # Starting position
             Board().grid.copy(),
             # Midgame: mixed pawns and kings
-            self._make_grid([(2, 3, BLACK), (4, 5, BLACK), (3, 4, BLACK_KING),
-                             (5, 2, WHITE), (6, 1, WHITE), (4, 7, WHITE)]),
+            self._make_grid(
+                [(2, 3, BLACK), (4, 5, BLACK), (3, 4, BLACK_KING), (5, 2, WHITE), (6, 1, WHITE), (4, 7, WHITE)]
+            ),
             # Endgame: kings only
             self._make_grid([(1, 0, BLACK_KING), (3, 6, WHITE), (5, 4, WHITE)]),
             # Asymmetric midgame — the position that originally motivated
             # this test (a black-heavy opening-like position)
-            self._make_grid([
-                (0, 1, BLACK), (0, 3, BLACK), (0, 5, BLACK), (0, 7, BLACK),
-                (1, 0, BLACK), (1, 2, BLACK),
-                (7, 0, WHITE), (7, 2, WHITE), (7, 4, WHITE), (7, 6, WHITE),
-                (6, 1, WHITE), (6, 3, WHITE),
-            ]),
+            self._make_grid(
+                [
+                    (0, 1, BLACK),
+                    (0, 3, BLACK),
+                    (0, 5, BLACK),
+                    (0, 7, BLACK),
+                    (1, 0, BLACK),
+                    (1, 2, BLACK),
+                    (7, 0, WHITE),
+                    (7, 2, WHITE),
+                    (7, 4, WHITE),
+                    (7, 6, WHITE),
+                    (6, 1, WHITE),
+                    (6, 3, WHITE),
+                ]
+            ),
         ]
 
         for grid in positions:
@@ -254,6 +265,7 @@ class TestEvaluation:
     @staticmethod
     def _make_grid(placements):
         import numpy as np
+
         g = np.zeros((8, 8), dtype=np.int8)
         for y, x, piece in placements:
             g[y, x] = piece
@@ -344,6 +356,7 @@ class TestAdaptiveDepth:
 class TestDiagonalDistance:
     def test_same_diagonal_distance_is_chebyshev(self):
         from draughts.game.ai import _diagonal_distance
+
         # On same diagonal: just max(dx, dy).
         assert _diagonal_distance(0, 0) == 0
         assert _diagonal_distance(1, 1) == 1
@@ -351,6 +364,7 @@ class TestDiagonalDistance:
 
     def test_off_diagonal_adds_penalty(self):
         from draughts.game.ai import _diagonal_distance
+
         # With OFF_DIAGONAL_PENALTY = 0.5:
         # (dx, dy) = (1, 3): max=3, off-diag=2, dist = 3 + 1 = 4.
         assert _diagonal_distance(1, 3) == 4
@@ -362,6 +376,7 @@ class TestDiagonalDistance:
         same-Chebyshev aligned target. This is the whole point of the
         penalty term — even mild."""
         from draughts.game.ai import _diagonal_distance
+
         assert _diagonal_distance(3, 3) < _diagonal_distance(3, 5)
         assert _diagonal_distance(4, 4) < _diagonal_distance(4, 6)
 
@@ -371,6 +386,7 @@ class TestDiagonalDistance:
         the diagonal."""
         import numpy as np
         from draughts.game.ai import _king_distance_score
+
         # Pawn at d4 (y=4, x=3)
         base = np.zeros((8, 8), dtype=np.int8)
         base[4, 3] = 1  # BLACK pawn
@@ -402,12 +418,18 @@ class TestContempt:
         negative from root's POV). Kings must NOT be on the same
         diagonal — corner-vs-corner on one diagonal is a forced win."""
         from draughts.game.ai import SearchContext
+
         b = Board(empty=True)
-        b.place_piece(1, 0, BLACK_KING)   # b8 — diagonal b8-g3
+        b.place_piece(1, 0, BLACK_KING)  # b8 — diagonal b8-g3
         b.place_piece(5, 6, -2)  # WHITE_KING at f2 — different diagonal
         score = _alphabeta(
-            b, depth=3, alpha=-1000, beta=1000,
-            maximizing=True, color=Color.BLACK, root_color=Color.BLACK,
+            b,
+            depth=3,
+            alpha=-1000,
+            beta=1000,
+            maximizing=True,
+            color=Color.BLACK,
+            root_color=Color.BLACK,
             ctx=SearchContext(),
         )
         assert abs(score) < 5.0, f"Expected near-zero (contempt), got {score}"
@@ -424,8 +446,13 @@ class TestContempt:
         b.place_piece(7, 7, WHITE)
         h = _zobrist_hash(b.grid, Color.BLACK)
         score = _alphabeta(
-            b, depth=3, alpha=-1000, beta=1000,
-            maximizing=True, color=Color.BLACK, root_color=Color.BLACK,
+            b,
+            depth=3,
+            alpha=-1000,
+            beta=1000,
+            maximizing=True,
+            color=Color.BLACK,
+            root_color=Color.BLACK,
             ctx=SearchContext(),
             path_hashes={h},
         )

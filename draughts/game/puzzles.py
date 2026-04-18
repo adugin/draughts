@@ -31,12 +31,12 @@ class Puzzle:
     """A single tactical puzzle."""
 
     id: str
-    category: str          # combination_2cap | combination_3cap | endgame | etude
-    position: str          # 32-char position string
-    turn: Color            # Color.WHITE or Color.BLACK
-    best_move: str         # algebraic notation like "c3:e5:g3"
+    category: str  # combination_2cap | combination_3cap | endgame | etude
+    position: str  # 32-char position string
+    turn: Color  # Color.WHITE or Color.BLACK
+    best_move: str  # algebraic notation like "c3:e5:g3"
     solution_sequence: list[str]
-    difficulty: int        # 1–4
+    difficulty: int  # 1–4
     description: str
 
     @property
@@ -155,13 +155,13 @@ def load_bundled_puzzles() -> PuzzleSet:
                         seen_positions.add(p.position)
                 except (KeyError, ValueError):
                     import logging
+
                     logging.getLogger("draughts.puzzles").warning(
                         "Skipping malformed mined puzzle entry: %r", entry.get("id")
                     )
     except Exception:
         import logging
-        logging.getLogger("draughts.puzzles").exception(
-            "Failed to load mined puzzles; continuing with bundled only"
-        )
+
+        logging.getLogger("draughts.puzzles").exception("Failed to load mined puzzles; continuing with bundled only")
 
     return PuzzleSet(puzzles)

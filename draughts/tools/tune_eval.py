@@ -23,10 +23,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from pathlib import Path
-from typing import NamedTuple
 
 import numpy as np
 
@@ -45,13 +43,13 @@ _K = 0.2
 
 # Feature names for display
 _FEATURE_NAMES = [
-    "material_diff",       # (bp*PV + bk*KV) - (wp*PV + wk*KV)
-    "advance_diff",        # black pawn advancement - white pawn advancement
-    "center_diff",         # black center control - white center control
-    "safety_diff",         # back rank safety: black minus white
-    "connected_diff",      # connected pawns: black minus white
+    "material_diff",  # (bp*PV + bk*KV) - (wp*PV + wk*KV)
+    "advance_diff",  # black pawn advancement - white pawn advancement
+    "center_diff",  # black center control - white center control
+    "safety_diff",  # back rank safety: black minus white
+    "connected_diff",  # connected pawns: black minus white
     "golden_corner_diff",  # corner occupancy: black minus white
-    "king_center_diff",    # king centralization: black minus white
+    "king_center_diff",  # king centralization: black minus white
     "king_distance_diff",  # king proximity to opponent: black minus white
 ]
 
@@ -104,11 +102,11 @@ for _y in range(_BOARD_SIZE):
 
 # Character to int8 mapping (matches config.py)
 _CHAR_TO_INT: dict[str, int] = {
-    "b": 1,   # BLACK
-    "B": 2,   # BLACK_KING
+    "b": 1,  # BLACK
+    "B": 2,  # BLACK_KING
     "w": -1,  # WHITE
     "W": -2,  # WHITE_KING
-    ".": 0,   # EMPTY
+    ".": 0,  # EMPTY
 }
 
 
@@ -151,8 +149,8 @@ def extract_features(grid: np.ndarray) -> np.ndarray:
 
     black_pawns = int(counts[1])
     black_kings = int(counts[2])
-    white_pawns = int(counts[255])   # -1 as uint8
-    white_kings = int(counts[254])   # -2 as uint8
+    white_pawns = int(counts[255])  # -1 as uint8
+    white_kings = int(counts[254])  # -2 as uint8
 
     grid_f = flat.astype(np.float32)
 
@@ -160,13 +158,13 @@ def extract_features(grid: np.ndarray) -> np.ndarray:
     material = float(black_pawns * 5.0 + black_kings * 15.0 - white_pawns * 5.0 - white_kings * 15.0)
 
     # [1] advancement
-    bp_mask = (grid_f == 1.0)
-    wp_mask = (grid_f == -1.0)
+    bp_mask = grid_f == 1.0
+    wp_mask = grid_f == -1.0
     advance = float(np.dot(bp_mask, _BLACK_ADVANCE_FLAT) - np.dot(wp_mask, _WHITE_ADVANCE_FLAT))
 
     # [2] center control
-    black_mask = (grid_f > 0)
-    white_mask = (grid_f < 0)
+    black_mask = grid_f > 0
+    white_mask = grid_f < 0
     center = float(np.dot(black_mask, _CENTER_FLAT) - np.dot(white_mask, _CENTER_FLAT))
 
     # [3] back-rank safety
@@ -189,12 +187,13 @@ def extract_features(grid: np.ndarray) -> np.ndarray:
     # [5] golden corners: a1 = grid[7,0], h8 = grid[0,7]
     corner_a1 = float(grid[_LAST, 0])  # positive if black, negative if white
     corner_h8 = float(grid[0, _LAST])
-    golden = (1.0 if corner_a1 > 0 else (-1.0 if corner_a1 < 0 else 0.0)) + \
-             (1.0 if corner_h8 > 0 else (-1.0 if corner_h8 < 0 else 0.0))
+    golden = (1.0 if corner_a1 > 0 else (-1.0 if corner_a1 < 0 else 0.0)) + (
+        1.0 if corner_h8 > 0 else (-1.0 if corner_h8 < 0 else 0.0)
+    )
 
     # [6] king centralization
-    bk_mask = (grid_f == 2.0)
-    wk_mask = (grid_f == -2.0)
+    bk_mask = grid_f == 2.0
+    wk_mask = grid_f == -2.0
     king_center = float(np.dot(bk_mask, _CENTER_FLAT) - np.dot(wk_mask, _CENTER_FLAT))
 
     # [7] king distance to opponent (simplified: count black_kings * opponent_pieces)
@@ -206,17 +205,11 @@ def extract_features(grid: np.ndarray) -> np.ndarray:
     king_dist = 0.0
     if len(black_kings_pos) > 0 and len(white_pieces_pos) > 0:
         for ky, kx in black_kings_pos:
-            min_d = min(
-                max(abs(int(kx - px)), abs(int(ky - py)))
-                for py, px in white_pieces_pos
-            )
+            min_d = min(max(abs(int(kx - px)), abs(int(ky - py))) for py, px in white_pieces_pos)
             king_dist += max(0.0, 7.0 - min_d)
     if len(white_kings_pos) > 0 and len(black_pieces_pos) > 0:
         for ky, kx in white_kings_pos:
-            min_d = min(
-                max(abs(int(kx - px)), abs(int(ky - py)))
-                for py, px in black_pieces_pos
-            )
+            min_d = min(max(abs(int(kx - px)), abs(int(ky - py))) for py, px in black_pieces_pos)
             king_dist -= max(0.0, 7.0 - min_d)
 
     return np.array([material, advance, center, safety, conn, golden, king_center, king_dist], dtype=np.float64)
@@ -250,8 +243,8 @@ def mse_loss(
     Returns:
         Mean squared error (scalar).
     """
-    evals = features @ weights          # (n_samples,)
-    predicted = sigmoid(k * evals)      # (n_samples,)
+    evals = features @ weights  # (n_samples,)
+    predicted = sigmoid(k * evals)  # (n_samples,)
     errors = predicted - results
     return float(np.mean(errors * errors))
 
@@ -295,7 +288,7 @@ def tune(
         Dict with optimized weights and metadata.
     """
     try:
-        from scipy.optimize import minimize  # noqa: PLC0415
+        from scipy.optimize import minimize
     except ImportError as e:
         msg = "scipy is required for eval tuning. Install it with: pip install scipy"
         raise ImportError(msg) from e
@@ -326,12 +319,14 @@ def tune(
         print(f"  Skipped {skipped} malformed samples.")
 
     features = np.array(features_list, dtype=np.float64)  # (n, N_FEATURES)
-    results = np.array(results_black, dtype=np.float64)    # (n,)
+    results = np.array(results_black, dtype=np.float64)  # (n,)
 
     if verbose:
         print(f"Feature matrix: {features.shape}, results range: [{results.min():.1f}, {results.max():.1f}]")
-        print(f"Result distribution: {(results == 0.0).sum()} white wins, "
-              f"{(results == 0.5).sum()} draws, {(results == 1.0).sum()} black wins")
+        print(
+            f"Result distribution: {(results == 0.0).sum()} white wins, "
+            f"{(results == 0.5).sum()} draws, {(results == 1.0).sum()} black wins"
+        )
 
     # Initial weights: use current hand-tuned scale factors
     # Each weight multiplies the corresponding feature in the dot product

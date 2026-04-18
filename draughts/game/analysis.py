@@ -109,7 +109,7 @@ def get_ai_analysis(game: HeadlessGame, depth: int = 6) -> Analysis:
 
 
 def compute_pv(
-    game: "HeadlessGame",
+    game: HeadlessGame,
     depth: int = 6,
     pv_length: int = 5,
 ) -> list[AIMove]:
@@ -132,8 +132,8 @@ def compute_pv(
         List of AIMove objects, length ≤ pv_length. Empty list if the
         start position has no legal moves.
     """
-    from draughts.game.board import Board
     from draughts.config import Color
+    from draughts.game.board import Board
 
     pv: list[AIMove] = []
     if pv_length <= 0:

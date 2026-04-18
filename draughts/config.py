@@ -156,9 +156,17 @@ def get_data_dir() -> Path:
 # Fields that are persisted to settings.json (UI preferences only —
 # not game state like invert_color or search_depth which are per-game).
 _PERSISTENT_FIELDS = [
-    "difficulty", "remind", "pause", "board_theme",
-    "show_coordinates", "highlight_last_move", "show_legal_moves_hover",
-    "hash_size_mb", "use_opening_book", "use_endgame_bitbase", "use_tuned_eval",
+    "difficulty",
+    "remind",
+    "pause",
+    "board_theme",
+    "show_coordinates",
+    "highlight_last_move",
+    "show_legal_moves_hover",
+    "hash_size_mb",
+    "use_opening_book",
+    "use_endgame_bitbase",
+    "use_tuned_eval",
 ]
 
 
@@ -185,13 +193,20 @@ def load_settings() -> GameSettings:
     if not path.exists():
         return settings
 
-    # Expected types for type-safe validation
-    _FIELD_TYPES: dict[str, type] = {
-        "difficulty": int, "remind": bool, "pause": (int, float),
-        "board_theme": str, "show_coordinates": bool,
-        "highlight_last_move": bool, "show_legal_moves_hover": bool,
-        "hash_size_mb": int, "use_opening_book": bool,
-        "use_endgame_bitbase": bool, "use_tuned_eval": bool,
+    # Expected types for type-safe validation. tuple value allows multiple
+    # accepted types (e.g. pause accepts both int and float).
+    field_types: dict[str, type | tuple[type, ...]] = {
+        "difficulty": int,
+        "remind": bool,
+        "pause": (int, float),
+        "board_theme": str,
+        "show_coordinates": bool,
+        "highlight_last_move": bool,
+        "show_legal_moves_hover": bool,
+        "hash_size_mb": int,
+        "use_opening_book": bool,
+        "use_endgame_bitbase": bool,
+        "use_tuned_eval": bool,
     }
 
     try:
@@ -199,7 +214,7 @@ def load_settings() -> GameSettings:
         for key in _PERSISTENT_FIELDS:
             if key in data:
                 val = data[key]
-                expected = _FIELD_TYPES.get(key)
+                expected = field_types.get(key)
                 if expected is not None and not isinstance(val, expected):
                     continue  # skip type-mismatched values
                 setattr(settings, key, val)

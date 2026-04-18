@@ -241,8 +241,7 @@ def test_no_pyqt6_import():
         text=True,
     )
     assert result.returncode == 0, (
-        f"draughts.engine import test failed:\n"
-        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        f"draughts.engine import test failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
     )
 
 
@@ -256,8 +255,8 @@ def test_format_and_parse_move_roundtrip():
     from draughts.engine.protocol import format_move, parse_move
 
     cases: list[tuple[str, list[tuple[int, int]]]] = [
-        ("move", [(2, 5), (3, 4)]),       # c3-d4
-        ("capture", [(2, 5), (4, 3)]),    # c3:e5
+        ("move", [(2, 5), (3, 4)]),  # c3-d4
+        ("capture", [(2, 5), (4, 3)]),  # c3:e5
         ("capture", [(2, 5), (4, 3), (6, 5)]),  # c3:e5:g3
     ]
     for kind, path in cases:
@@ -274,9 +273,9 @@ def test_parse_move_invalid():
     with pytest.raises(ValueError):
         parse_move("z9-x0")  # out of range
     with pytest.raises(ValueError):
-        parse_move("c3")      # no destination
+        parse_move("c3")  # no destination
     with pytest.raises(ValueError):
-        parse_move("")        # empty
+        parse_move("")  # empty
 
 
 # ---------------------------------------------------------------------------

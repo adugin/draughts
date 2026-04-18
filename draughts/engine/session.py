@@ -124,6 +124,7 @@ class EngineSession:
 
     def _cmd_uci(self, out: IO[str]) -> None:
         import draughts
+
         emit(out, f"id name DRAUGHTS-engine v{draughts.__version__}")
         emit(out, f"id author {draughts.__author__}")
         emit(out, "option name Hash type spin default 64 min 1 max 1024")
@@ -310,8 +311,7 @@ class EngineSession:
             pv = format_move(move.kind, move.path)
             emit(
                 out,
-                f"info depth {d} score cp {score_cp}"
-                f" nodes {nodes} nps {nps} time {elapsed_ms} pv {pv}",
+                f"info depth {d} score cp {score_cp} nodes {nodes} nps {nps} time {elapsed_ms} pv {pv}",
             )
 
         if best_move is None:
@@ -344,8 +344,7 @@ class EngineSession:
             pv = format_move(move.kind, move.path)
             emit(
                 out,
-                f"info depth {d} score cp {score_cp}"
-                f" nodes {nodes} nps {nps} time {elapsed_ms} pv {pv}",
+                f"info depth {d} score cp {score_cp} nodes {nodes} nps {nps} time {elapsed_ms} pv {pv}",
             )
             # Stop if deadline already past (search returned early due to cancel)
             if time.perf_counter() >= deadline:
@@ -397,8 +396,7 @@ class EngineSession:
                 pv = format_move(move.kind, move.path)
                 emit(
                     out,
-                    f"info depth {d} score cp {score_cp}"
-                    f" nodes {nodes} nps {nps} time {elapsed_ms} pv {pv}",
+                    f"info depth {d} score cp {score_cp} nodes {nodes} nps {nps} time {elapsed_ms} pv {pv}",
                 )
                 if self._stop_event.is_set():
                     break

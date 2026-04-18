@@ -65,9 +65,7 @@ def test_game_timeout_terminates():
     """A pathologically small game_timeout must stop the game fast."""
     game = HeadlessGame(difficulty=2, depth=5)
     t0 = time.perf_counter()
-    result = game.play_full_game(
-        max_ply=500, move_timeout=5.0, game_timeout=0.3
-    )
+    result = game.play_full_game(max_ply=500, move_timeout=5.0, game_timeout=0.3)
     elapsed = time.perf_counter() - t0
     assert result is not None
     # Must terminate in well under 5 seconds even though max_ply is huge.
@@ -79,7 +77,7 @@ def test_quiet_move_limit_terminates_king_dance():
     The quiet-move counter must fire and end the game as draw_quiet."""
     game = HeadlessGame(difficulty=1, depth=3, auto_ai=False)
     b = Board(empty=True)
-    b.place_piece(0, 0, 2)   # BLACK_KING at a8
+    b.place_piece(0, 0, 2)  # BLACK_KING at a8
     b.place_piece(7, 7, -2)  # WHITE_KING at h1
     game._board = b
     game._position_history = [b.to_position_string()]
@@ -100,7 +98,15 @@ def test_quiet_move_limit_terminates_king_dance():
     # The AI may find a tactical capture (kings on the same diagonal),
     # a forced repetition, or the quiet limit fires. What must NOT
     # happen is running to max_ply=500.
-    assert result.reason in ("draw_quiet", "draw_repetition", "draw_max_ply", "draw_endgame", "draw_kings_only", "no_pieces", "no_moves")
+    assert result.reason in (
+        "draw_quiet",
+        "draw_repetition",
+        "draw_max_ply",
+        "draw_endgame",
+        "draw_kings_only",
+        "no_pieces",
+        "no_moves",
+    )
     assert result.ply_count < 500
     # The main claim: with a 6-ply endgame quiet limit, we terminate fast.
     assert result.ply_count <= 50
@@ -113,22 +119,19 @@ def test_heartbeat_called_every_move():
         calls.append(record.ply)
 
     game = HeadlessGame(difficulty=1, depth=2)
-    result = game.play_full_game(
-        max_ply=20, move_timeout=5.0, heartbeat=hb
-    )
+    result = game.play_full_game(max_ply=20, move_timeout=5.0, heartbeat=hb)
     assert len(calls) == result.ply_count
     assert calls == list(range(result.ply_count))
 
 
 def test_heartbeat_exception_does_not_break_game():
     """A broken heartbeat must never take the game down."""
+
     def hb(game, record):
         raise RuntimeError("boom")
 
     game = HeadlessGame(difficulty=1, depth=2)
-    result = game.play_full_game(
-        max_ply=5, move_timeout=5.0, heartbeat=hb
-    )
+    result = game.play_full_game(max_ply=5, move_timeout=5.0, heartbeat=hb)
     assert result is not None
     assert result.ply_count > 0
 

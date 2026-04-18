@@ -50,9 +50,9 @@ def _board_with(*pieces: tuple[int, int, int]) -> Board:
 
 
 # Piece value shorthands
-BK = 2   # Black king
+BK = 2  # Black king
 WK = -2  # White king
-BP = 1   # Black pawn
+BP = 1  # Black pawn
 WP = -1  # White pawn
 
 
@@ -191,9 +191,7 @@ def test_pawn_plus_king_vs_lone_king_is_win():
     result = bb.probe(board, Color.BLACK)
     if result is None:
         pytest.skip("Concrete test position not in bitbase")
-    assert result == WIN, (
-        f"BP at a7 + BK at a3 vs WK at g1 should be WIN for Black, got {result}"
-    )
+    assert result == WIN, f"BP at a7 + BK at a3 vs WK at g1 should be WIN for Black, got {result}"
 
 
 # ---------------------------------------------------------------------------
@@ -243,9 +241,7 @@ def test_bitbase_integration_with_engine():
     move = engine.find_move(board)
 
     assert move is not None, "Engine returned no move"
-    assert move.path == first_path, (
-        f"Engine should pick the winning move {first_path}, got {move.path}"
-    )
+    assert move.path == first_path, f"Engine should pick the winning move {first_path}, got {move.path}"
 
 
 # ---------------------------------------------------------------------------
@@ -278,9 +274,7 @@ def test_bitbase_best_move_prefers_win_over_draw():
 
     result_move = _bitbase_best_move(board, color, bb)
     assert result_move is not None
-    assert result_move.path == path0, (
-        f"Should pick the WIN move {path0}, got {result_move.path}"
-    )
+    assert result_move.path == path0, f"Should pick the WIN move {path0}, got {result_move.path}"
 
 
 def test_bitbase_best_move_returns_none_when_all_unknown():

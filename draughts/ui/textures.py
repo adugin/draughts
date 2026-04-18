@@ -224,8 +224,8 @@ def generate_flat_tile(size: int, color: tuple[int, int, int]) -> QPixmap:
 
 # Classic light theme colors — chess.com / lichess palette (well-known)
 _CLASSIC_LIGHT_SQUARE: tuple[int, int, int] = (0xF0, 0xD9, 0xB5)  # cream
-_CLASSIC_DARK_SQUARE: tuple[int, int, int] = (0xB5, 0x88, 0x63)   # brown
-_CLASSIC_FRAME: tuple[int, int, int] = (0x8B, 0x67, 0x4E)         # warm medium brown
+_CLASSIC_DARK_SQUARE: tuple[int, int, int] = (0xB5, 0x88, 0x63)  # brown
+_CLASSIC_FRAME: tuple[int, int, int] = (0x8B, 0x67, 0x4E)  # warm medium brown
 
 
 class TextureCache:

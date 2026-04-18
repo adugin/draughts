@@ -24,13 +24,18 @@ ignore = [
     "E501",   # длина строки — контролируется formatter
     "N802",   # paintEvent, closeEvent и т.д. — имена из PyQt6, нельзя менять
     "RUF001", # кириллица в строках — русскоязычный проект
+    "RUF002", # кириллица/тире в docstring — русскоязычный проект
+    "RUF003", # кириллица/тире/× в комментариях — русскоязычный проект
     "S110",   # try-except-pass — осознанный выбор (звук, cleanup)
     "SIM105", # contextlib.suppress — менее читаемо для этого проекта
+    "SIM108", # ternary operator — иногда if-else читабельнее
+    "SIM103", # return condition — иногда явный if понятнее
     "E402",   # импорты после кода — необходимо для conditional imports
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"]  # assert в тестах разрешён
+"tests/**/*.py" = ["S101", "S108", "RUF059", "E702", "F841"]  # тесты — особые правила
+"draughts/tools/**/*.py" = ["F841"]  # dev tools: локальные переменные могут быть placeholders
 
 [tool.ruff.format]
 quote-style = "double"

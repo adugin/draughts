@@ -25,6 +25,7 @@ from draughts.game.puzzle_miner import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_annotation(
     ply: int,
     annotation: str,
@@ -51,6 +52,7 @@ _OTHER_POS = "bbbbbbbbbbbbnnnnnnnnnwwwwwwwwwww"
 # ---------------------------------------------------------------------------
 # 1. mine_from_blunder_game
 # ---------------------------------------------------------------------------
+
 
 class TestMineFromBlunderGame:
     """A game with a single blunder at ply 2 yields exactly one puzzle."""
@@ -169,6 +171,7 @@ class TestMineFromBlunderGame:
 # 2. no_puzzles_from_clean_game
 # ---------------------------------------------------------------------------
 
+
 class TestNoPuzzlesFromCleanGame:
     """Games with no blunders produce no puzzles."""
 
@@ -205,6 +208,7 @@ class TestNoPuzzlesFromCleanGame:
 # 3. difficulty_mapping
 # ---------------------------------------------------------------------------
 
+
 class TestDifficultyMapping:
     """_delta_to_difficulty maps delta ranges to difficulty levels.
 
@@ -236,14 +240,14 @@ class TestDifficultyMapping:
             puzzles = mine_puzzles_from_game(positions, annotations)
             assert len(puzzles) == 1, f"Expected 1 puzzle for delta={delta}"
             assert puzzles[0]["difficulty"] == expected_diff, (
-                f"delta={delta} → expected difficulty {expected_diff}, "
-                f"got {puzzles[0]['difficulty']}"
+                f"delta={delta} → expected difficulty {expected_diff}, got {puzzles[0]['difficulty']}"
             )
 
 
 # ---------------------------------------------------------------------------
 # 4. mined_puzzles_merge_with_bundled
 # ---------------------------------------------------------------------------
+
 
 class TestMinedPuzzlesMergeWithBundled:
     """load_bundled_puzzles() merges bundled + mined and deduplicates."""
@@ -272,17 +276,13 @@ class TestMinedPuzzlesMergeWithBundled:
         mined_file = tmp_path / "mined_puzzles.json"
         # Use a position string that is very unlikely to appear in the bundled set.
         unique_pos = "n" * 32
-        mined_file.write_text(
-            json.dumps(self._fake_mined([unique_pos])), encoding="utf-8"
-        )
+        mined_file.write_text(json.dumps(self._fake_mined([unique_pos])), encoding="utf-8")
 
         with patch("draughts.game.puzzle_miner.MINED_PUZZLES_PATH", mined_file):
             ps = load_bundled_puzzles()
 
         positions_in_set = {p.position for p in ps}
-        assert unique_pos in positions_in_set, (
-            "Unique mined puzzle position should be present in merged PuzzleSet"
-        )
+        assert unique_pos in positions_in_set, "Unique mined puzzle position should be present in merged PuzzleSet"
 
     def test_duplicate_mined_position_not_added(self, tmp_path):
         """A mined puzzle whose position already exists in bundled is skipped."""
@@ -293,9 +293,7 @@ class TestMinedPuzzlesMergeWithBundled:
         existing_pos = next(iter(bundled)).position
 
         mined_file = tmp_path / "mined_puzzles.json"
-        mined_file.write_text(
-            json.dumps(self._fake_mined([existing_pos])), encoding="utf-8"
-        )
+        mined_file.write_text(json.dumps(self._fake_mined([existing_pos])), encoding="utf-8")
 
         original_len = len(bundled)
 
@@ -303,9 +301,7 @@ class TestMinedPuzzlesMergeWithBundled:
             ps = load_bundled_puzzles()
 
         # Should NOT grow — duplicate position was filtered out.
-        assert len(ps) == original_len, (
-            f"Expected {original_len} puzzles (duplicate skipped), got {len(ps)}"
-        )
+        assert len(ps) == original_len, f"Expected {original_len} puzzles (duplicate skipped), got {len(ps)}"
 
     def test_no_mined_file_loads_only_bundled(self, tmp_path):
         """When no mined file exists, bundled count is unchanged."""
@@ -334,6 +330,7 @@ class TestMinedPuzzlesMergeWithBundled:
 # ---------------------------------------------------------------------------
 # Persistence helpers
 # ---------------------------------------------------------------------------
+
 
 class TestPersistenceHelpers:
     """load/save/append mined puzzles round-trip correctly."""

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from draughts.game.gametree import NAG_MAP, GameNode, GameTree
+from draughts.game.gametree import NAG_MAP, GameTree
 from draughts.game.pdn import PDNGame, parse_pdn, pdngame_to_string
-
 
 # ---------------------------------------------------------------------------
 # GameNode / GameTree core

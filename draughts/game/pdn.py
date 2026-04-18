@@ -41,7 +41,7 @@ class PDNGame:
 
     headers: dict[str, str] = field(default_factory=dict)
     moves: list[str] = field(default_factory=list)
-    tree: "GameTree | None" = field(default=None, repr=False)
+    tree: GameTree | None = field(default=None, repr=False)
 
     @property
     def event(self) -> str:
@@ -217,14 +217,10 @@ def pdngame_to_string(game: PDNGame) -> str:
     # test — root-level comments/NAGs are not emitted by _emit_tree_line,
     # so treating them as tree data would create a round-trip asymmetry.
     has_tree_data = tree is not None and (
-        tree.has_variations()
-        or any(
-            (n.comment or n.nag)
-            for n in tree.root.iter_all()
-            if n is not tree.root
-        )
+        tree.has_variations() or any((n.comment or n.nag) for n in tree.root.iter_all() if n is not tree.root)
     )
     if has_tree_data:
+        assert tree is not None  # narrowed by has_tree_data
         move_parts: list[str] = []
         _emit_tree_line(
             tree.root,
@@ -460,7 +456,7 @@ def _tokenize_pdn_movetext(text: str) -> list[tuple[str, str]]:
             j = text.find("}", i + 1)
             if j == -1:
                 j = n
-            tokens.append(("comment", text[i + 1:j]))
+            tokens.append(("comment", text[i + 1 : j]))
             i = j + 1
             continue
         if c == "(":
@@ -522,7 +518,7 @@ def _parse_tokens_into_tree(
     instead of truncating the parse — otherwise a single malformed
     paren in the input would silently drop every move after it.
     """
-    cur = attach_to          # where the NEXT sequential move attaches
+    cur = attach_to  # where the NEXT sequential move attaches
     last_node: GameNode | None = None  # most recently added move node
     while idx < len(tokens):
         kind, val = tokens[idx]
@@ -539,9 +535,7 @@ def _parse_tokens_into_tree(
             if last_node is None or last_node.parent is None:
                 idx = _skip_balanced_parens(tokens, idx)
                 continue
-            idx = _parse_tokens_into_tree(
-                tokens, idx + 1, last_node.parent, in_variation=True
-            )
+            idx = _parse_tokens_into_tree(tokens, idx + 1, last_node.parent, in_variation=True)
             continue
         if kind == "move":
             last_node = cur.add_child(val)
@@ -556,11 +550,7 @@ def _parse_tokens_into_tree(
         if kind == "comment":
             if last_node is not None:
                 stripped = val.strip()
-                last_node.comment = (
-                    f"{last_node.comment} {stripped}".strip()
-                    if last_node.comment
-                    else stripped
-                )
+                last_node.comment = f"{last_node.comment} {stripped}".strip() if last_node.comment else stripped
             idx += 1
             continue
         # movenum / result / anything else — advance silently
@@ -678,7 +668,6 @@ def _infer_pdn_move(before: Board, after: Board) -> str | None:
     This is best-effort for migration purposes.
     """
     import numpy as np
-
 
     # Find squares that changed
     diff = before.grid != after.grid

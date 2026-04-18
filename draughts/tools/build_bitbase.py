@@ -67,14 +67,11 @@ from draughts.game.board import Board
 
 # All (x, y) dark squares on the 8x8 board, sorted for determinism
 DARK_SQUARES: list[tuple[int, int]] = sorted(
-    (x, y)
-    for y in range(BOARD_SIZE)
-    for x in range(BOARD_SIZE)
-    if x % 2 != y % 2
+    (x, y) for y in range(BOARD_SIZE) for x in range(BOARD_SIZE) if x % 2 != y % 2
 )
 
 _BLACK_PROMOTE_ROW = BOARD_SIZE - 1  # y=7 — black promotes here
-_WHITE_PROMOTE_ROW = 0               # y=0 — white promotes here
+_WHITE_PROMOTE_ROW = 0  # y=0 — white promotes here
 
 
 def _is_lone_king_vs_lone_king(grid: np.ndarray) -> bool:
@@ -92,9 +89,9 @@ def _is_lone_king_vs_lone_king(grid: np.ndarray) -> bool:
     """
     flat = grid.ravel().view(np.uint8)
     counts = np.bincount(flat, minlength=256)
-    bk = int(counts[2])   # BLACK_KING = +2
+    bk = int(counts[2])  # BLACK_KING = +2
     wk = int(counts[254])  # WHITE_KING = -2, stored as uint8 254
-    bp = int(counts[1])   # BLACK pawn
+    bp = int(counts[1])  # BLACK pawn
     wp = int(counts[255])  # WHITE pawn, stored as uint8 255
     return bp == 0 and wp == 0 and bk == 1 and wk == 1
 
@@ -275,10 +272,10 @@ def _build_bitbase(max_iters: int = 100, verbose: bool = True) -> EndgameBitbase
         print("Building position graph...", flush=True)
 
     results: dict[int, int] = {}
-    rev_edges: dict[int, set[int]] = {}     # child_h → {parent_h, ...}
-    unresolved: dict[int, int] = {}         # h → count of unresolved children
-    win_children: dict[int, int] = {}       # h → count of WIN-for-opp children
-    total_children: dict[int, int] = {}     # h → total child count
+    rev_edges: dict[int, set[int]] = {}  # child_h → {parent_h, ...}
+    unresolved: dict[int, int] = {}  # h → count of unresolved children
+    win_children: dict[int, int] = {}  # h → count of WIN-for-opp children
+    total_children: dict[int, int] = {}  # h → total child count
 
     t_phase1_start = time.perf_counter()
 
@@ -323,7 +320,7 @@ def _build_bitbase(max_iters: int = 100, verbose: bool = True) -> EndgameBitbase
     n_unknown = total_unique - n_terminals_loss - n_terminals_draw
 
     if verbose:
-        print(f"  Unique positions : {total_unique:,}  (graph build: {t_phase1_end-t_phase1_start:.1f}s)")
+        print(f"  Unique positions : {total_unique:,}  (graph build: {t_phase1_end - t_phase1_start:.1f}s)")
         print(f"  Immediate LOSS   : {n_terminals_loss:,}")
         print(f"  Immediate DRAW   : {n_terminals_draw:,}")
         print(f"  Unknown          : {n_unknown:,}")
@@ -333,6 +330,7 @@ def _build_bitbase(max_iters: int = 100, verbose: bool = True) -> EndgameBitbase
     # outward through reverse edges.
 
     from collections import deque
+
     queue: deque[int] = deque()
 
     for h, r in results.items():
@@ -411,9 +409,7 @@ def _build_bitbase(max_iters: int = 100, verbose: bool = True) -> EndgameBitbase
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Build the 3-piece endgame bitbase for Russian draughts."
-    )
+    parser = argparse.ArgumentParser(description="Build the 3-piece endgame bitbase for Russian draughts.")
     parser.add_argument(
         "--output",
         default=str(Path(__file__).resolve().parent.parent / "resources" / "bitbase_3.json"),

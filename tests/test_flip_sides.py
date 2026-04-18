@@ -35,9 +35,7 @@ def controller(qt_app, monkeypatch):
     # Silence the real AI. Tests reason about state transitions after a
     # flip; they should not depend on a real search running (and must
     # never leak worker threads into other tests).
-    monkeypatch.setattr(
-        GameController, "_start_computer_turn", lambda self: None
-    )
+    monkeypatch.setattr(GameController, "_start_computer_turn", lambda self: None)
     c = GameController()
     yield c
 
@@ -83,7 +81,7 @@ def test_double_flip_is_identity_at_ply0(controller):
     """Two flips at ply=0 restore original colors."""
     from draughts.config import Color
 
-    controller.flip_sides()            # user becomes BLACK, turn=WHITE → AI starts
+    controller.flip_sides()  # user becomes BLACK, turn=WHITE → AI starts
     # Invalidate the in-flight worker (we don't want to wait for it).
     controller._ai_generation += 1
     controller._ai_thread = None
@@ -148,7 +146,9 @@ def test_flip_bumps_generation_and_stashes_worker(controller):
 
     # Simulate in-flight AI worker for the current generation.
     class _DummyWorker:
-        def __init__(self, gen): self._generation = gen
+        def __init__(self, gen):
+            self._generation = gen
+
     controller._current_turn = controller._player_color
     dummy_thread = QThread()  # real QThread for proper stash types
     dummy_worker = _DummyWorker(controller._ai_generation)
@@ -191,9 +191,8 @@ def test_load_saved_after_flip_restores_player_color(controller, monkeypatch, tm
 
     # Brand-new controller, load the save. Keep AI silent.
     from draughts.app.controller import GameController
-    monkeypatch.setattr(
-        GameController, "_start_computer_turn", lambda self: None
-    )
+
+    monkeypatch.setattr(GameController, "_start_computer_turn", lambda self: None)
 
     c2 = GameController()
     assert c2.player_color == Color.WHITE  # fresh default
@@ -214,6 +213,7 @@ def test_flip_autosaves(controller, tmp_path, monkeypatch):
 
     # Patch the module-level autosave used by _do_autosave
     import draughts.app.controller as ctrl_mod
+
     monkeypatch.setattr(ctrl_mod, "autosave", fake_autosave)
 
     controller.flip_sides()
@@ -263,7 +263,6 @@ def test_flip_emits_board_and_turn_changed(controller):
 def test_flip_noop_when_game_over(controller):
     """flip_sides returns silently if the game has ended."""
     from draughts.config import Color
-    import numpy as np
 
     # Force game over: remove all WHITE pieces — BLACK wins.
     controller.board.grid[controller.board.grid < 0] = 0  # clear whites
@@ -289,12 +288,11 @@ def test_enter_editor_bumps_generation(qt_app, monkeypatch):
     from draughts.ui.main_window import MainWindow
     from PyQt6.QtCore import QThread
 
-    monkeypatch.setattr(
-        GameController, "_start_computer_turn", lambda self: None
-    )
+    monkeypatch.setattr(GameController, "_start_computer_turn", lambda self: None)
 
     class _DummyWorker:
-        def __init__(self, gen): self._generation = gen
+        def __init__(self, gen):
+            self._generation = gen
 
     c = GameController()
     w = MainWindow(c)
@@ -331,9 +329,7 @@ def test_main_window_flip_syncs_board_widget_inverted(qt_app, monkeypatch):
     from draughts.ui.main_window import MainWindow
 
     # Prevent real AI from spawning when flip hands the turn to computer.
-    monkeypatch.setattr(
-        GameController, "_start_computer_turn", lambda self: None
-    )
+    monkeypatch.setattr(GameController, "_start_computer_turn", lambda self: None)
     c = GameController()
     w = MainWindow(c)
     assert w.board_widget.inverted is False  # player=WHITE → not inverted
@@ -357,6 +353,7 @@ def test_pending_ai_cleaned_by_generation(controller):
 
     class _DummyWorker:
         """Stub that mimics AIWorker attributes used in cleanup."""
+
         def __init__(self, gen):
             self._generation = gen
 
@@ -387,5 +384,7 @@ def test_pending_ai_cleaned_by_generation(controller):
     assert any(w is w2 for (_t, w) in controller._pending_ai)
 
     # Cleanup.
-    t1.quit(); t1.wait()
-    t2.quit(); t2.wait()
+    t1.quit()
+    t1.wait()
+    t2.quit()
+    t2.wait()

@@ -10,7 +10,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QDockWidget,
@@ -277,15 +277,29 @@ class AnalysisPane(QDockWidget):
             container.setStyleSheet(f"background-color: {tc['bg']};")
 
         # Labels
-        for w in (self._score_val, self._bm_val, self._pv_val, self._depth_val,
-                  self._time_val, self._lm_val, self._book_val):
+        for w in (
+            self._score_val,
+            self._bm_val,
+            self._pv_val,
+            self._depth_val,
+            self._time_val,
+            self._lm_val,
+            self._book_val,
+        ):
             w.setStyleSheet(_value_style)
         self._status_lbl.setStyleSheet(_caption_style)
         # Find all QLabel children that are row labels (not value labels)
         for child in self.findChildren(QLabel):
-            if child not in (self._score_val, self._bm_val, self._pv_val,
-                             self._depth_val, self._time_val, self._lm_val,
-                             self._book_val, self._status_lbl):
+            if child not in (
+                self._score_val,
+                self._bm_val,
+                self._pv_val,
+                self._depth_val,
+                self._time_val,
+                self._lm_val,
+                self._book_val,
+                self._status_lbl,
+            ):
                 child.setStyleSheet(_label_style)
 
     def set_position(self, board: Board, color: Color) -> None:
@@ -409,6 +423,7 @@ class AnalysisPane(QDockWidget):
                 if mv.kind == "capture":
                     return sep.join(Board.pos_to_notation(x, y) for x, y in mv.path)
                 return f"{Board.pos_to_notation(*mv.path[0])}{sep}{Board.pos_to_notation(*mv.path[-1])}"
+
             self._pv_val.setText(" ".join(_fmt(m) for m in pv))
         else:
             self._pv_val.setText("—")

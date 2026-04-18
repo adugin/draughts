@@ -22,6 +22,7 @@ def qt_app():
 @pytest.fixture
 def controller(monkeypatch):
     from draughts.app.controller import GameController
+
     monkeypatch.setattr(GameController, "_start_computer_turn", lambda self: None)
     return GameController()
 
@@ -38,7 +39,8 @@ def test_resign_invalidates_pending_ai_thread(controller):
     from PyQt6.QtCore import QThread
 
     class _W:
-        def __init__(self, g): self._generation = g
+        def __init__(self, g):
+            self._generation = g
 
     fake_t = QThread()
     fake_w = _W(controller._ai_generation)
@@ -51,12 +53,12 @@ def test_resign_invalidates_pending_ai_thread(controller):
     assert controller._ai_thread is None
     assert controller._ai_worker is None
     assert any(w is fake_w for (_t, w) in controller._pending_ai)
-    fake_t.quit(); fake_t.wait()
+    fake_t.quit()
+    fake_t.wait()
 
 
 def test_resign_no_op_when_game_already_over(controller):
     """If the position is already a loss (no player pieces), resign is a no-op."""
-    import numpy as np
     # White player (default) resigns — but we simulate white already gone.
     controller.board.grid[controller.board.grid < 0] = 0
     received = []

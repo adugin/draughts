@@ -143,9 +143,7 @@ class TestBoardWidgetOrientation:
             for y in range(8):
                 rect = w._cell_rect(x, y, cell_size, bx, by)
                 centre = QPointF(rect.center().x(), rect.center().y())
-                assert w._cell_from_pos(centre) == (x, y), (
-                    f"roundtrip failed for ({x},{y})"
-                )
+                assert w._cell_from_pos(centre) == (x, y), f"roundtrip failed for ({x},{y})"
 
     def test_cell_roundtrip_inverted(self, inverted_widget):
         """cell_rect centre → cell_from_pos returns the same (x,y) when inverted."""
@@ -158,9 +156,7 @@ class TestBoardWidgetOrientation:
             for y in range(8):
                 rect = w._cell_rect(x, y, cell_size, bx, by)
                 centre = QPointF(rect.center().x(), rect.center().y())
-                assert w._cell_from_pos(centre) == (x, y), (
-                    f"inverted roundtrip failed for ({x},{y})"
-                )
+                assert w._cell_from_pos(centre) == (x, y), f"inverted roundtrip failed for ({x},{y})"
 
 
 # ---------------------------------------------------------------------------

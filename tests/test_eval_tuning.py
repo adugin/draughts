@@ -16,7 +16,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -42,9 +41,7 @@ def test_feature_extraction_shape() -> None:
     grid = _make_initial_grid()
     feats = extract_features(grid)
 
-    assert feats.shape == (_N_FEATURES,), (
-        f"Expected shape ({_N_FEATURES},), got {feats.shape}"
-    )
+    assert feats.shape == (_N_FEATURES,), f"Expected shape ({_N_FEATURES},), got {feats.shape}"
     # All features must be finite (no NaN / Inf)
     assert np.all(np.isfinite(feats)), f"Non-finite features: {feats}"
 
@@ -57,9 +54,7 @@ def test_feature_extraction_symmetry() -> None:
     feats = extract_features(grid)
 
     # feature[0] = material_diff; opening is perfectly balanced
-    assert feats[0] == pytest.approx(0.0), (
-        f"Expected 0 material diff in opening, got {feats[0]}"
-    )
+    assert feats[0] == pytest.approx(0.0), f"Expected 0 material diff in opening, got {feats[0]}"
 
 
 # ---------------------------------------------------------------------------
@@ -107,9 +102,7 @@ def test_loss_function_perfect() -> None:
     results = sigmoid(_K * evals)
 
     loss = mse_loss(weights, features, results, k=_K)
-    assert loss == pytest.approx(0.0, abs=1e-10), (
-        f"Expected near-zero loss for perfect predictions, got {loss}"
-    )
+    assert loss == pytest.approx(0.0, abs=1e-10), f"Expected near-zero loss for perfect predictions, got {loss}"
 
 
 def test_loss_function_worst_case() -> None:
@@ -130,9 +123,7 @@ def test_loss_function_worst_case() -> None:
     # With K=0.2 the sigmoid is quite flat so "worst case" is still modest —
     # the important thing is it's strictly greater than the perfect-prediction
     # baseline of ~0.
-    assert loss_inverted > 0.005, (
-        f"Expected higher loss for inverted weights, got {loss_inverted}"
-    )
+    assert loss_inverted > 0.005, f"Expected higher loss for inverted weights, got {loss_inverted}"
 
 
 # ---------------------------------------------------------------------------
@@ -145,16 +136,16 @@ def test_load_tuned_weights_fallback_missing_file() -> None:
     import draughts.game.ai.eval as eval_module
 
     # Save current values
-    pv_before = eval_module._PAWN_VALUE  # noqa: SLF001
-    kv_before = eval_module._KING_VALUE  # noqa: SLF001
+    pv_before = eval_module._PAWN_VALUE
+    kv_before = eval_module._KING_VALUE
 
     # Point at a non-existent path
     result = eval_module.load_tuned_weights(Path("/tmp/nonexistent_weights_12345.json"))
 
     assert result is False, "Should return False for missing file"
     # Constants must be unchanged
-    assert eval_module._PAWN_VALUE == pv_before   # noqa: SLF001
-    assert eval_module._KING_VALUE == kv_before   # noqa: SLF001
+    assert pv_before == eval_module._PAWN_VALUE
+    assert kv_before == eval_module._KING_VALUE
 
 
 def test_load_tuned_weights_valid_file() -> None:
@@ -180,9 +171,9 @@ def test_load_tuned_weights_valid_file() -> None:
     try:
         result = eval_module.load_tuned_weights(tmp_path)
         assert result is True, "Should return True for valid file"
-        assert eval_module._PAWN_VALUE == pytest.approx(6.0)   # noqa: SLF001
-        assert eval_module._KING_VALUE == pytest.approx(18.0)  # noqa: SLF001
-        assert eval_module._ADVANCE_BONUS == pytest.approx(0.20)  # noqa: SLF001
+        assert pytest.approx(6.0) == eval_module._PAWN_VALUE
+        assert pytest.approx(18.0) == eval_module._KING_VALUE
+        assert pytest.approx(0.20) == eval_module._ADVANCE_BONUS
     finally:
         tmp_path.unlink(missing_ok=True)
         # Restore the weights that were active before this test ran.
@@ -195,7 +186,7 @@ def test_load_tuned_weights_malformed_json() -> None:
     """Malformed JSON file is handled gracefully — returns False, defaults kept."""
     import draughts.game.ai.eval as eval_module
 
-    pv_before = eval_module._PAWN_VALUE  # noqa: SLF001
+    pv_before = eval_module._PAWN_VALUE
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         f.write("{ not valid json }")
@@ -204,6 +195,6 @@ def test_load_tuned_weights_malformed_json() -> None:
     try:
         result = eval_module.load_tuned_weights(tmp_path)
         assert result is False
-        assert eval_module._PAWN_VALUE == pv_before  # noqa: SLF001
+        assert pv_before == eval_module._PAWN_VALUE
     finally:
         tmp_path.unlink(missing_ok=True)

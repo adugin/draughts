@@ -24,6 +24,7 @@ from draughts.game.ai.book import OpeningBook as OpeningBook
 
 DEFAULT_BOOK: OpeningBook | None = None
 
+
 def load_default_book() -> OpeningBook | None:
     """Load the bundled opening book from draughts/resources/opening_book.json.
 
@@ -53,6 +54,7 @@ load_default_book()
 from draughts.game.ai.bitbase import EndgameBitbase as EndgameBitbase
 
 DEFAULT_BITBASE: EndgameBitbase | None = None
+
 
 def load_default_bitbase() -> EndgameBitbase | None:
     """Load the bundled 3-piece bitbase from draughts/resources/bitbase_3.json.

@@ -16,7 +16,6 @@ from draughts.config import Color
 from draughts.game.ai.eval import (
     _CONTEMPT,
     _evaluate_fast,
-    _is_drawn_endgame,
     _opponent,
 )
 from draughts.game.ai.moves import (
@@ -470,12 +469,14 @@ class AIEngine:
         if book is AIEngine._USE_DEFAULT_BOOK:
             # Lazy import to avoid circular dependency (ai.__init__ imports search)
             import draughts.game.ai as _ai_pkg
+
             self._book: OpeningBook | None = _ai_pkg.DEFAULT_BOOK
         else:
             self._book = book  # type: ignore[assignment]
 
         if bitbase is AIEngine._USE_DEFAULT_BITBASE:
             import draughts.game.ai as _ai_pkg2
+
             self._bitbase: EndgameBitbase | None = _ai_pkg2.DEFAULT_BITBASE
         else:
             self._bitbase = bitbase  # type: ignore[assignment]
@@ -538,7 +539,10 @@ class AIEngine:
             top_k = blunder_cfg["top_k"]
             # Use a position-derived seed for reproducibility in tests while
             # still producing variety across different board positions.
-            seed = int.from_bytes(hashlib.md5(board.to_position_string().encode()).digest()[:8], "little")  # noqa: S324
+            seed = int.from_bytes(
+                hashlib.md5(board.to_position_string().encode(), usedforsecurity=False).digest()[:8],
+                "little",
+            )
             rng = random.Random(seed)
             if rng.random() < prob:
                 scored = self._ctx.root_move_scores

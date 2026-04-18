@@ -18,9 +18,8 @@ Design goals:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Iterator
-
 
 # PDN 3.0 standardized Numeric Annotation Glyphs relevant to draughts.
 # Keys are the textual token, value is the canonical $N form.
@@ -45,32 +44,32 @@ class GameNode:
     """
 
     move: str | None = None
-    parent: "GameNode | None" = field(default=None, repr=False)
-    children: list["GameNode"] = field(default_factory=list, repr=False)
+    parent: GameNode | None = field(default=None, repr=False)
+    children: list[GameNode] = field(default_factory=list, repr=False)
     comment: str = ""
     nag: list[str] = field(default_factory=list)
 
     # --- Tree construction ---
 
-    def add_child(self, move: str, *, comment: str = "", nag: list[str] | None = None) -> "GameNode":
+    def add_child(self, move: str, *, comment: str = "", nag: list[str] | None = None) -> GameNode:
         """Append a new child to this node and return it."""
         node = GameNode(move=move, parent=self, comment=comment, nag=list(nag or []))
         self.children.append(node)
         return node
 
-    def add_variation(self, move: str, *, comment: str = "", nag: list[str] | None = None) -> "GameNode":
+    def add_variation(self, move: str, *, comment: str = "", nag: list[str] | None = None) -> GameNode:
         """Alias for add_child — name emphasises that variations share a parent."""
         return self.add_child(move, comment=comment, nag=nag)
 
     # --- Traversal ---
 
-    def main_line(self) -> list["GameNode"]:
+    def main_line(self) -> list[GameNode]:
         """Return this node and all first-child descendants (excluding self if root).
 
         Root-included form: caller inspects ``n.move is None`` to skip.
         Most callers want ``root.main_line()[1:]`` — the move sequence.
         """
-        result: list["GameNode"] = [self]
+        result: list[GameNode] = [self]
         cur = self
         while cur.children:
             cur = cur.children[0]
@@ -90,7 +89,7 @@ class GameNode:
             cur = cur.parent
         return d
 
-    def path_from_root(self) -> list["GameNode"]:
+    def path_from_root(self) -> list[GameNode]:
         """Return [root, ..., self] — useful for breadcrumb / navigation."""
         chain: list[GameNode] = []
         cur: GameNode | None = self
@@ -100,7 +99,7 @@ class GameNode:
         chain.reverse()
         return chain
 
-    def iter_all(self) -> Iterator["GameNode"]:
+    def iter_all(self) -> Iterator[GameNode]:
         """Pre-order traversal of the whole subtree."""
         yield self
         for c in self.children:
@@ -138,7 +137,7 @@ class GameTree:
     # --- Construction ---
 
     @classmethod
-    def from_moves(cls, moves: list[str]) -> "GameTree":
+    def from_moves(cls, moves: list[str]) -> GameTree:
         """Build a linear tree from a flat list of move tokens."""
         tree = cls()
         cur = tree.root

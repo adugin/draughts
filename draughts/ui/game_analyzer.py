@@ -240,7 +240,7 @@ def analyze_game_positions(
                     x1, y1 = bm.path[0]
                     x2, y2 = bm.path[1]
                     test_board.execute_move(x1, y1, x2, y2)
-                is_best = (test_board.to_position_string() == pos_after)
+                is_best = test_board.to_position_string() == pos_after
             except Exception:
                 pass
         # Fallback: if delta is negligible, treat as best (within ~0.1 pawn)

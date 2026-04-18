@@ -9,8 +9,6 @@ Strong engines (Scan, Kingsrow) are deterministic; we match that.
 
 from __future__ import annotations
 
-import pytest
-
 from draughts.config import Color
 from draughts.game.ai import _search_best_move
 from draughts.game.ai.state import SearchContext
@@ -24,22 +22,22 @@ def _make_board_with_capture_tie() -> Board:
     the real-world case that exposed the non-determinism."""
     b = Board(empty=True)
     # Black pieces (int8 positive)
-    b.grid[0, 7] = 1      # h8
-    b.grid[1, 4] = 1      # e7
-    b.grid[1, 6] = 1      # g7
-    b.grid[2, 3] = 1      # d6
-    b.grid[3, 2] = 1      # c5 (the just-moved black pawn)
-    b.grid[4, 5] = 1      # f4
-    b.grid[4, 7] = 1      # h4
-    b.grid[6, 1] = 1      # b2
+    b.grid[0, 7] = 1  # h8
+    b.grid[1, 4] = 1  # e7
+    b.grid[1, 6] = 1  # g7
+    b.grid[2, 3] = 1  # d6
+    b.grid[3, 2] = 1  # c5 (the just-moved black pawn)
+    b.grid[4, 5] = 1  # f4
+    b.grid[4, 7] = 1  # h4
+    b.grid[6, 1] = 1  # b2
     # White pieces (int8 negative)
-    b.grid[3, 4] = -1     # e5
-    b.grid[5, 4] = -1     # e5 neighbour: e3 — actually row y=5
-    b.grid[5, 6] = -1     # g3
-    b.grid[6, 5] = -1     # f2
-    b.grid[7, 0] = -1     # a1
-    b.grid[7, 2] = -1     # c1
-    b.grid[7, 6] = -1     # g1
+    b.grid[3, 4] = -1  # e5
+    b.grid[5, 4] = -1  # e5 neighbour: e3 — actually row y=5
+    b.grid[5, 6] = -1  # g3
+    b.grid[6, 5] = -1  # f2
+    b.grid[7, 0] = -1  # a1
+    b.grid[7, 2] = -1  # c1
+    b.grid[7, 6] = -1  # g1
     return b
 
 

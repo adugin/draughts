@@ -134,8 +134,8 @@ def test_weighted_choice():
     heavy_key = tuple(heavy.path)
     light_key = tuple(light.path)
     # Heavy should be chosen roughly 90% of the time; allow ±10% tolerance
-    assert counts.get(heavy_key, 0) > 800, f"Heavy move chosen only {counts.get(heavy_key,0)}/1000 times"
-    assert counts.get(light_key, 0) > 50, f"Light move chosen only {counts.get(light_key,0)}/1000 times"
+    assert counts.get(heavy_key, 0) > 800, f"Heavy move chosen only {counts.get(heavy_key, 0)}/1000 times"
+    assert counts.get(light_key, 0) > 50, f"Light move chosen only {counts.get(light_key, 0)}/1000 times"
 
 
 # ---------------------------------------------------------------------------
@@ -151,6 +151,7 @@ def test_starter_book_loads():
     if book is None:
         # Try loading manually
         import importlib.resources
+
         try:
             ref = importlib.resources.files("draughts.resources").joinpath("opening_book.json")
             with importlib.resources.as_file(ref) as p:
@@ -186,9 +187,7 @@ def test_engine_plays_book_move():
     move = engine.find_move(board)
 
     assert move is not None, "Engine returned no move"
-    assert tuple(move.path) in book_paths, (
-        f"Engine played {move.path} which is not in book paths {book_paths}"
-    )
+    assert tuple(move.path) in book_paths, f"Engine played {move.path} which is not in book paths {book_paths}"
 
 
 # ---------------------------------------------------------------------------

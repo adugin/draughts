@@ -89,18 +89,22 @@ class TestBlunderFrequency:
     def test_level3_no_blunder(self):
         """Level 3 should never blunder — it is not in _BLUNDER_CONFIG."""
         from draughts.game.ai.search import _BLUNDER_CONFIG
+
         assert 3 not in _BLUNDER_CONFIG
 
     def test_level4_no_blunder(self):
         from draughts.game.ai.search import _BLUNDER_CONFIG
+
         assert 4 not in _BLUNDER_CONFIG
 
     def test_level5_no_blunder(self):
         from draughts.game.ai.search import _BLUNDER_CONFIG
+
         assert 5 not in _BLUNDER_CONFIG
 
     def test_level6_no_blunder(self):
         from draughts.game.ai.search import _BLUNDER_CONFIG
+
         assert 6 not in _BLUNDER_CONFIG
 
 
@@ -109,18 +113,22 @@ class TestBlunderConfig:
 
     def test_level1_probability(self):
         from draughts.game.ai.search import _BLUNDER_CONFIG
+
         assert _BLUNDER_CONFIG[1]["probability"] == pytest.approx(0.20)
 
     def test_level2_probability(self):
         from draughts.game.ai.search import _BLUNDER_CONFIG
+
         assert _BLUNDER_CONFIG[2]["probability"] == pytest.approx(0.10)
 
     def test_level1_top_k(self):
         from draughts.game.ai.search import _BLUNDER_CONFIG
+
         assert _BLUNDER_CONFIG[1]["top_k"] >= 2
 
     def test_level2_top_k(self):
         from draughts.game.ai.search import _BLUNDER_CONFIG
+
         assert _BLUNDER_CONFIG[2]["top_k"] >= 2
 
 
@@ -161,7 +169,7 @@ class TestRootMoveScores:
         scores = engine._ctx.root_move_scores
         for i in range(len(scores) - 1):
             assert scores[i][0] >= scores[i + 1][0], (
-                f"Scores not sorted: {scores[i][0]} < {scores[i+1][0]} at index {i}"
+                f"Scores not sorted: {scores[i][0]} < {scores[i + 1][0]} at index {i}"
             )
 
     def test_root_scores_moves_are_legal(self):

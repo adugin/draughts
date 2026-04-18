@@ -37,10 +37,7 @@ def _games_structurally_equal(a: PDNGame, b: PDNGame) -> bool:
     """Return True if two PDNGames have the same moves and key headers."""
     if a.moves != b.moves:
         return False
-    return all(
-        a.headers.get(key) == b.headers.get(key)
-        for key in ("Result", "White", "Black", "Event", "GameType")
-    )
+    return all(a.headers.get(key) == b.headers.get(key) for key in ("Result", "White", "Black", "Event", "GameType"))
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +112,7 @@ class TestBasicRoundTrip:
         game = self._make_game()
         text = pdngame_to_string(game)
         lines = [ln for ln in text.split("\n") if ln.startswith("[")]
-        tags = [re.match(r'\[(\w+)', ln).group(1) for ln in lines]
+        tags = [re.match(r"\[(\w+)", ln).group(1) for ln in lines]
         canonical = ["Event", "Site", "Date", "Round", "White", "Black", "Result", "GameType"]
         present = [t for t in canonical if t in tags]
         order_in_output = [t for t in tags if t in canonical]
@@ -182,7 +179,7 @@ class TestSetUpFen:
         )
         text = pdngame_to_string(game)
         lines = [ln for ln in text.split("\n") if ln.startswith("[")]
-        tags = [re.match(r'\[(\w+)', ln).group(1) for ln in lines]
+        tags = [re.match(r"\[(\w+)", ln).group(1) for ln in lines]
         result_idx = tags.index("Result")
         setup_idx = tags.index("SetUp")
         fen_idx = tags.index("FEN")
@@ -297,9 +294,7 @@ class TestResignation:
 
 
 class TestRealGame:
-    _DATA_FILE = (
-        Path(__file__).parent.parent / ".planning" / "data" / "russian_draughts_games.pdn"
-    )
+    _DATA_FILE = Path(__file__).parent.parent / ".planning" / "data" / "russian_draughts_games.pdn"
 
     @pytest.mark.skipif(
         not (Path(__file__).parent.parent / ".planning" / "data" / "russian_draughts_games.pdn").exists(),

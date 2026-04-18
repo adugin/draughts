@@ -14,6 +14,7 @@ import pytest
 
 try:
     from PyQt6.QtWidgets import QApplication
+
     _app = QApplication.instance() or QApplication(sys.argv)
     _QT_AVAILABLE = True
 except Exception:
@@ -29,6 +30,7 @@ pytestmark = pytest.mark.skipif(not _QT_AVAILABLE, reason="PyQt6 not available")
 
 def _make_cache(theme: str = "dark_wood"):
     from draughts.ui.textures import TextureCache
+
     return TextureCache(theme=theme)
 
 
@@ -107,17 +109,20 @@ class TestThemeSwitch:
 
     def test_invalid_theme_raises(self):
         from draughts.ui.textures import TextureCache
+
         with pytest.raises(ValueError, match="Unknown theme"):
             cache = TextureCache()
             cache.theme = "neon_pink"
 
     def test_default_theme_is_dark_wood(self):
         from draughts.ui.textures import TextureCache
+
         cache = TextureCache()
         assert cache.theme == "dark_wood"
 
     def test_themes_tuple_contains_both(self):
         from draughts.ui.textures import TextureCache
+
         assert "dark_wood" in TextureCache.THEMES
         assert "classic_light" in TextureCache.THEMES
 
@@ -127,22 +132,26 @@ class TestSettingsRoundtrip:
 
     def test_default_theme(self):
         from draughts.config import GameSettings
+
         s = GameSettings()
         assert s.board_theme == "dark_wood"
 
     def test_set_classic_light(self):
         from draughts.config import GameSettings
+
         s = GameSettings(board_theme="classic_light")
         assert s.board_theme == "classic_light"
 
     def test_set_dark_wood_explicit(self):
         from draughts.config import GameSettings
+
         s = GameSettings(board_theme="dark_wood")
         assert s.board_theme == "dark_wood"
 
     def test_theme_roundtrip_via_copy(self):
         """Simulate settings dialog round-trip: read → write new GameSettings."""
         from draughts.config import GameSettings
+
         original = GameSettings(board_theme="classic_light")
         restored = GameSettings(
             difficulty=original.difficulty,

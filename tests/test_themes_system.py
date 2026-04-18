@@ -195,7 +195,11 @@ class TestSvgTemplateRendering:
             assert p.exists()
             content = p.read_text(encoding="utf-8")
             # Should contain the light theme's check_accent, not dark
-            assert theme.colors["check_accent"] in content or theme.colors["fg"] in content or theme.colors["fg_muted"] in content
+            assert (
+                theme.colors["check_accent"] in content
+                or theme.colors["fg"] in content
+                or theme.colors["fg_muted"] in content
+            )
 
     def test_arrow_up_points_opposite_direction(self):
         """arrow_up SVG should differ from arrow (different polyline points)."""

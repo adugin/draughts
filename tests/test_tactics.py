@@ -8,7 +8,6 @@ Each test sets up a specific position, asks AI to find the best move,
 and verifies it matches the expected tactical response.
 """
 
-
 from draughts.config import BLACK, BLACK_KING, WHITE, WHITE_KING, Color
 from draughts.game.ai import AIEngine, _search_best_move, evaluate_position
 from draughts.game.board import Board

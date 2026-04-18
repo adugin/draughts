@@ -7,6 +7,7 @@ validation, AI execution (in a worker thread), and save/load.
 from __future__ import annotations
 
 import logging
+from typing import ClassVar
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
@@ -157,7 +158,7 @@ class GameController(QObject):
         self._game_tree = None  # type: GameTree | None
 
         # Draw rule counters (FMJD)
-        self._quiet_plies: int = 0       # plies without captures or pawn moves
+        self._quiet_plies: int = 0  # plies without captures or pawn moves
         self._kings_only_plies: int = 0  # plies where all pieces are kings
 
         # AI thread
@@ -269,7 +270,8 @@ class GameController(QObject):
             self.capture_highlights_changed.emit([])
 
     def _is_player_piece(self, piece: int) -> bool:
-        return self.board.is_white(piece) if self._player_color == Color.WHITE else self.board.is_black(piece)
+        is_player = self.board.is_white(piece) if self._player_color == Color.WHITE else self.board.is_black(piece)
+        return bool(is_player)
 
     def _select_piece(self, x: int, y: int):
         """Select a piece for moving."""
@@ -295,7 +297,9 @@ class GameController(QObject):
                     must_capture.append((x, y))
         if must_capture:
             notation = ", ".join(Board.pos_to_notation(x, y) for x, y in must_capture)
-            self.message_changed.emit(f"{'Шашка' if len(must_capture) == 1 else 'Шашки'} {notation} {'должна' if len(must_capture) == 1 else 'должны'} бить!")
+            self.message_changed.emit(
+                f"{'Шашка' if len(must_capture) == 1 else 'Шашки'} {notation} {'должна' if len(must_capture) == 1 else 'должны'} бить!"
+            )
             self.capture_hint.emit(must_capture)
 
     def _try_move(self, sx: int, sy: int, tx: int, ty: int):
@@ -339,7 +343,13 @@ class GameController(QObject):
         notation = ":".join(Board.pos_to_notation(x, y) for x, y in best_path)
         self._finish_player_move(notation, from_sq=best_path[0], to_sq=best_path[-1], was_capture=True)
 
-    def _finish_player_move(self, notation: str, from_sq: tuple[int, int] | None = None, to_sq: tuple[int, int] | None = None, was_capture: bool = False):
+    def _finish_player_move(
+        self,
+        notation: str,
+        from_sq: tuple[int, int] | None = None,
+        to_sq: tuple[int, int] | None = None,
+        was_capture: bool = False,
+    ):
         """Finalize player's move — record, switch turns, start AI."""
         self._ply_count += 1
         self._update_draw_counters(was_capture)
@@ -423,9 +433,7 @@ class GameController(QObject):
             # on identity (w is not worker) is unsafe because self.sender()
             # may return a different Python wrapper for the same C++ QObject
             # than the one originally stashed (BUG-6).
-            self._pending_ai = [
-                (t, w) for (t, w) in self._pending_ai if w._generation != generation
-            ]
+            self._pending_ai = [(t, w) for (t, w) in self._pending_ai if w._generation != generation]
             return
         try:
             self._on_ai_finished_inner(result)
@@ -492,11 +500,14 @@ class GameController(QObject):
         over (Board.check_game_over returns non-None).
         """
         # Already over — ignore.
-        if self.board.check_game_over(
-            self._position_counts,
-            quiet_plies=self._quiet_plies,
-            kings_only_plies=self._kings_only_plies,
-        ) is not None:
+        if (
+            self.board.check_game_over(
+                self._position_counts,
+                quiet_plies=self._quiet_plies,
+                kings_only_plies=self._kings_only_plies,
+            )
+            is not None
+        ):
             return
 
         # Invalidate any running AI worker via the generation token so its
@@ -537,11 +548,14 @@ class GameController(QObject):
 
         No-op when the game is over.
         """
-        if self.board.check_game_over(
-            self._position_counts,
-            quiet_plies=self._quiet_plies,
-            kings_only_plies=self._kings_only_plies,
-        ) is not None:
+        if (
+            self.board.check_game_over(
+                self._position_counts,
+                quiet_plies=self._quiet_plies,
+                kings_only_plies=self._kings_only_plies,
+            )
+            is not None
+        ):
             return
 
         # Guard (D36): only on the player's turn. Prevents swap-spam from
@@ -568,7 +582,7 @@ class GameController(QObject):
 
         # Swap role bindings. _current_turn (absolute side-to-move) is untouched.
         self._player_color, self._computer_color = self._computer_color, self._player_color
-        self.settings.invert_color = (self._player_color == Color.BLACK)
+        self.settings.invert_color = self._player_color == Color.BLACK
 
         # Clear UI state tied to the former player.
         self._selected = None
@@ -607,7 +621,7 @@ class GameController(QObject):
         undo_count = 2 if self._ply_count >= 2 else 1
         self._ply_count -= undo_count
         # Decrement position counts for the two undone positions
-        for pos in self._positions[self._ply_count + 1:]:
+        for pos in self._positions[self._ply_count + 1 :]:
             cnt = self._position_counts.get(pos, 1)
             if cnt <= 1:
                 self._position_counts.pop(pos, None)
@@ -658,7 +672,7 @@ class GameController(QObject):
 
     # --- Game over ---
 
-    _DRAW_MESSAGES: dict[str, str] = {
+    _DRAW_MESSAGES: ClassVar[dict[str, str]] = {
         "draw_repetition": "Ничья — троекратное повторение позиции.",
         "draw_endgame": "Ничья — недостаточно материала.",
         "draw_kings_only": "Ничья — 15 ходов только дамками без взятий.",
@@ -1006,8 +1020,10 @@ class GameController(QObject):
         result: list[tuple[str, int, tuple[tuple[int, int], tuple[int, int]]]] = []
         for ai_move, weight in moves_and_weights:
             notation = self._format_move_notation(ai_move)
-            from_sq = tuple(ai_move.path[0])
-            to_sq = tuple(ai_move.path[-1])
+            fx, fy = ai_move.path[0]
+            tx, ty = ai_move.path[-1]
+            from_sq: tuple[int, int] = (int(fx), int(fy))
+            to_sq: tuple[int, int] = (int(tx), int(ty))
             result.append((notation, weight, (from_sq, to_sq)))
         return result
 

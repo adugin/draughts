@@ -170,7 +170,9 @@ class Tournament:
             # Tournament-level wall clock: stop scheduling new games.
             if self.tournament_timeout > 0 and (time.perf_counter() - t_start) >= self.tournament_timeout:
                 if self.verbose:
-                    print(f"  [tournament] wall-clock limit {self.tournament_timeout:.0f}s reached, stopping at game {i}/{self.games}")
+                    print(
+                        f"  [tournament] wall-clock limit {self.tournament_timeout:.0f}s reached, stopping at game {i}/{self.games}"
+                    )
                 result.total_games = i  # reflect games actually played
                 break
 
