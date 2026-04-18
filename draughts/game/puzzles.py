@@ -98,6 +98,13 @@ class PuzzleSet:
 
 _VALID_POSITION_CHARS = frozenset("nbBwW")
 
+#: Valid difficulty range for puzzles (1 = trivial, 4 = expert).
+#: Enforced during parsing — an out-of-range value would orphan the
+#: puzzle (``get_by_difficulty(d=1..4)`` would never return it) and
+#: break the star-rendering (``"★" * 99`` is not a UI we want to ship).
+_MIN_DIFFICULTY = 1
+_MAX_DIFFICULTY = 4
+
 
 def _parse_puzzle_entry(entry: dict) -> Puzzle:
     """Parse a single puzzle dict (from bundled or mined JSON) into a Puzzle.
@@ -106,7 +113,9 @@ def _parse_puzzle_entry(entry: dict) -> Puzzle:
     contains unknown characters or has the wrong length is rejected.
     This prevents malformed mined files from crashing the trainer with
     a KeyError deep inside Board.load_from_position_string (audit
-    follow-up to BLK-01).
+    follow-up to BLK-01). Difficulty is clamped to 1..4 with a hard
+    reject on non-integer or out-of-range values so a malformed mined
+    file can never orphan puzzles from the difficulty filter.
     """
     turn_str = entry["turn"]
     if turn_str == "white":
@@ -123,6 +132,19 @@ def _parse_puzzle_entry(entry: dict) -> Puzzle:
             f"expected 32 chars from {sorted(_VALID_POSITION_CHARS)}, got {pos!r}"
         )
 
+    try:
+        difficulty = int(entry["difficulty"])
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Invalid difficulty in puzzle {entry.get('id')!r}: "
+            f"expected integer, got {entry['difficulty']!r}"
+        ) from exc
+    if not _MIN_DIFFICULTY <= difficulty <= _MAX_DIFFICULTY:
+        raise ValueError(
+            f"Difficulty {difficulty} in puzzle {entry.get('id')!r} "
+            f"out of range {_MIN_DIFFICULTY}..{_MAX_DIFFICULTY}"
+        )
+
     return Puzzle(
         id=entry["id"],
         category=entry["category"],
@@ -130,7 +152,7 @@ def _parse_puzzle_entry(entry: dict) -> Puzzle:
         turn=turn,
         best_move=entry["best_move"],
         solution_sequence=list(entry["solution_sequence"]),
-        difficulty=int(entry["difficulty"]),
+        difficulty=difficulty,
         description=entry.get("description", ""),
     )
 
