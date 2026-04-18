@@ -768,7 +768,14 @@ class GameController(QObject):
 
         self._selected = None
         self._capture_path = []
-        self._current_turn = self._player_color
+        # Derive turn from game start color + ply parity. The previous
+        # unconditional `= self._player_color` was wrong whenever we
+        # undid a single computer ply (e.g. the player plays Black and
+        # undoes the computer's opening move before responding): the
+        # reconstructed turn should be the *computer's* side, not the
+        # player's. ``_game_start_color`` is the side to move at ply 0.
+        start = getattr(self, "_game_start_color", Color.WHITE)
+        self._current_turn = start if self._ply_count % 2 == 0 else start.opponent
         # Undo invalidates any loaded PDN variation tree: the game now
         # diverges from the original main line, so re-emitting the tree
         # on save would produce a stale/incorrect RAV. Drop it — save
@@ -780,6 +787,12 @@ class GameController(QObject):
         self.turn_changed.emit(self._current_turn)
         self.selection_changed.emit(None, None)
         self.capture_highlights_changed.emit([])
+
+        # If the reconstructed turn is the computer's, kick off its
+        # move — otherwise the UI would sit idle with no visible cue
+        # that it's the engine's turn (symmetric with new_game()).
+        if self._current_turn == self._computer_color:
+            self._start_computer_turn()
 
     # --- Jump to arbitrary ply (tree navigation) ---
 
