@@ -146,6 +146,7 @@ def analyze_game_positions(
     depth: int = ANALYSIS_DEPTH,
     progress_callback=None,
     start_color=None,
+    should_cancel=None,
 ) -> GameAnalysisResult:
     """Analyze a list of position strings (game history) and return annotations.
 
@@ -160,6 +161,13 @@ def analyze_game_positions(
             ply's colour is inverted, yielding wrong eval deltas, wrong
             "best move" comparisons, and blunder annotations attached
             to the wrong side.
+        should_cancel: Optional zero-arg callable returning ``True`` when
+            the caller (e.g. a Qt progress dialog) wants the analysis to
+            stop early. Checked at each ply boundary; on cancel the
+            function returns whatever annotations were produced so far.
+            Without this hook the Qt dialog's "Cancel" button could only
+            suppress progress-bar updates while the search continued to
+            completion (P3 flagged by audit #4).
 
     Returns:
         GameAnalysisResult with per-move annotations and eval curve data.
@@ -179,6 +187,8 @@ def analyze_game_positions(
         start_color = Color.WHITE
 
     for ply in range(n_moves):
+        if should_cancel is not None and should_cancel():
+            return result
         if progress_callback is not None:
             progress_callback(ply, n_moves)
 
@@ -350,6 +360,7 @@ def run_game_analysis(controller: GameController, parent=None) -> None:
                     self._positions,
                     progress_callback=_cb,
                     start_color=self._start_color,
+                    should_cancel=lambda: self._cancelled,
                 )
             except Exception:
                 logger.exception("Game analysis worker crashed")
