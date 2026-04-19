@@ -86,8 +86,10 @@ class GameSettings:
     show_coordinates: bool = True
     highlight_last_move: bool = True  # universally ON in modern platforms
     show_legal_moves_hover: bool = True  # critical for beginners
-    # Engine stubs (D15 — wired to UI but TT resize / SMP not implemented yet)
-    hash_size_mb: int = 32
+    # Engine (D15). TT resize is wired end-to-end (dialogs.py + session
+    # + SearchContext.set_tt_size_mb); SMP/Threads stays a stub.
+    # Default 64 MB aligns with the UCI ``option name Hash default 64``.
+    hash_size_mb: int = 64
     # Opening book (D8)
     use_opening_book: bool = True
     # Endgame bitbase (D9)

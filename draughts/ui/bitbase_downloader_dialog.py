@@ -205,6 +205,9 @@ class BitbaseDownloaderDialog(QDialog):
     def _on_start(self) -> None:
         if self._thread is not None:
             return  # already running
+        # Reset any stale cancel-pending flag from a previous run so a
+        # re-started download doesn't self-close on the first finish.
+        self._close_pending = False
         self._btn_start.setEnabled(False)
         self._status.setText("Скачивание...")
         self._progress.setValue(0)

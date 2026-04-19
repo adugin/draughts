@@ -151,10 +151,14 @@ class OptionsDialog(QDialog):
         # Hash size (MB) — read at AIEngine construction via
         # ``hash_size_mb``; since the engine is recreated for each
         # AI turn, the new value applies from the very next move.
+        # Range/default MUST match the UCI advertisement in
+        # ``engine/session.py`` (`option name Hash type spin default
+        # 64 min 1 max 1024`) so GUI users and DXP/UCI peers see the
+        # same bounds.
         self._hash_size = QSpinBox()
-        self._hash_size.setRange(4, 1024)
+        self._hash_size.setRange(1, 1024)
         self._hash_size.setSuffix(" МБ")
-        self._hash_size.setValue(getattr(s, "hash_size_mb", 32))
+        self._hash_size.setValue(getattr(s, "hash_size_mb", 64))
         self._hash_size.setToolTip(
             "Размер таблицы транспозиций. Новое значение применяется "
             "со следующего хода компьютера."
@@ -311,24 +315,28 @@ class InfoDialog(QDialog):
 
     Uses Qt6's built-in CommonMark + GFM Markdown parser (md4c) via
     ``QTextDocument.setMarkdown(..., MarkdownDialectGitHub)`` — zero
-    extra dependencies. Falls back to the pre-4.1.0 plain-text
-    ``help.txt`` if the Markdown file is missing (belt-and-braces for
-    downgrade / source checkouts without the new asset).
+    extra dependencies. If a source checkout still ships the legacy
+    pre-Markdown ``help.txt`` instead of / alongside ``help.md``, the
+    dialog degrades gracefully to plain text via
+    ``_load_legacy_help_text``; the packaged distribution carries only
+    ``help.md`` as of 4.1.
     """
 
     def __init__(self, parent: QWidget | None = None, theme: str = "dark_wood"):
         super().__init__(parent)
         self.setWindowTitle("Информация")
-        self.setModal(True)
         # QDialog по умолчанию прячет min/max-кнопки. Для справки
         # пользователю удобно развернуть окно на весь экран и читать
         # широкие таблицы (хоткеи, меню, уровни Elo) без прокрутки —
         # вернём штатную рамку с обеими кнопками title-bar'а.
+        # setWindowFlags делает внутренний reparent и может сбросить
+        # window-state; ставим modality ПОСЛЕ (Qt docs, safe idiom).
         self.setWindowFlags(
             self.windowFlags()
             | Qt.WindowType.WindowMinimizeButtonHint
             | Qt.WindowType.WindowMaximizeButtonHint
         )
+        self.setModal(True)
         apply_dialog_theme(self, theme)
 
         layout = QVBoxLayout(self)

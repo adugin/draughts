@@ -177,6 +177,9 @@ class GeneratorProgressDialog(QDialog):
         """Kick off the background worker."""
         if self._thread is not None:
             return
+        # Reset any stale cancel-pending flag so a re-started run
+        # doesn't self-close immediately on its first finish.
+        self._close_pending = False
         self._status.setText("Работа...")
         self._btn_cancel.setEnabled(True)
         self._btn_close.setEnabled(False)

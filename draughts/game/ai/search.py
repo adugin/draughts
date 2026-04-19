@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from draughts.game.ai.bitbase import EndgameBitbase
     from draughts.game.ai.book import OpeningBook
 from draughts.config import Color
+from draughts.game.ai.elo import ELO_LEVELS
 from draughts.game.ai.eval import (
     _CONTEMPT,
     _evaluate_fast,
@@ -51,18 +52,12 @@ _BLUNDER_CONFIG: dict[int, dict] = {
     2: {"probability": 0.10, "top_k": 4},  # 10% chance, pick from top 4
 }
 
-# Difficulty → base search depth mapping.
-# Six levels mapped to approximate Elo strength.
-# NOTE: Elo numbers are placeholder calibration to be refined by
-# self-play tournaments (D6). Initial values are reasonable estimates.
-_DIFFICULTY_DEPTH = {
-    1: 2,  # ~800 Elo  — Новичок
-    2: 3,  # ~1100 Elo — Любитель
-    3: 4,  # ~1400 Elo — Клубный
-    4: 5,  # ~1700 Elo — Сильный клубный  (was old "normal")
-    5: 6,  # ~2000 Elo — Кандидат         (was old "professional")
-    6: 8,  # ~2200 Elo — Мастер           (max)
-}
+# Difficulty → base search depth mapping. Derived from the single
+# source of truth in ``draughts.game.ai.elo.ELO_LEVELS`` so a depth
+# change (e.g. the future "Elo 2.0" milestone) is not silently
+# missed here. Measured self-play strengths per level documented in
+# elo.py's module docstring (2026-04-19 calibration run).
+_DIFFICULTY_DEPTH = {lv: int(cfg["depth"]) for lv, cfg in ELO_LEVELS.items()}
 
 # Maximum quiescence depth
 _MAX_QDEPTH = 6
