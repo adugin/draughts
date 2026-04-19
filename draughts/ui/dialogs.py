@@ -140,12 +140,17 @@ class OptionsDialog(QDialog):
         form = QFormLayout(page)
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
 
-        # Hash size (MB) — wired to settings, TT resize not yet implemented
+        # Hash size (MB) — read at AIEngine construction via
+        # ``hash_size_mb``; since the engine is recreated for each
+        # AI turn, the new value applies from the very next move.
         self._hash_size = QSpinBox()
         self._hash_size.setRange(4, 1024)
         self._hash_size.setSuffix(" МБ")
         self._hash_size.setValue(getattr(s, "hash_size_mb", 32))
-        self._hash_size.setToolTip("Размер таблицы транспозиций. Изменение вступит в силу в следующей партии.")
+        self._hash_size.setToolTip(
+            "Размер таблицы транспозиций. Новое значение применяется "
+            "со следующего хода компьютера."
+        )
         form.addRow("Хэш-таблица:", self._hash_size)
 
         # Threads — stub, always 1, disabled

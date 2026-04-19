@@ -169,8 +169,13 @@ class EngineSession:
             except ValueError:
                 pass
         elif key.lower() == "hash":
-            # Stub — transposition table size is not dynamically resizable yet
-            emit(out, "info string Hash option not implemented (stub)")
+            try:
+                mb = int(val_str)
+            except ValueError:
+                return
+            mb = max(1, min(1024, mb))
+            self._ctx.set_tt_size_mb(mb)
+            emit(out, f"info string Hash set to {mb} MB")
         elif key.lower() == "threads":
             # Stub — SMP not yet implemented
             emit(out, "info string Threads option not implemented (stub)")

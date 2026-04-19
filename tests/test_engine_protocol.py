@@ -161,6 +161,45 @@ def test_setoption_level_affects_search():
 
 
 # ---------------------------------------------------------------------------
+# 6a. setoption Hash — wired to SearchContext.tt_max (#6 completion)
+# ---------------------------------------------------------------------------
+
+
+def test_setoption_hash_resizes_tt():
+    """``setoption name Hash value 128`` must update the session ctx's tt cap.
+
+    Before: the handler emitted ``info string Hash option not implemented``
+    and discarded the value. Now the session's SearchContext reflects the
+    user budget and the TT will clear once it reaches that cap.
+    """
+    from draughts.game.ai.tt import tt_entries_for_mb
+
+    commands = ["setoption name Hash value 128", "quit"]
+    session, out = _session_io(commands)
+    assert session._ctx.tt_max == tt_entries_for_mb(128), out
+    assert "Hash set to 128 MB" in out
+
+
+def test_setoption_hash_clamped_to_range():
+    """Values outside the advertised 1..1024 bounds are clamped, not dropped."""
+    from draughts.game.ai.tt import tt_entries_for_mb
+
+    for mb_in, mb_expected in [(0, 1), (-5, 1), (5000, 1024)]:
+        commands = [f"setoption name Hash value {mb_in}", "quit"]
+        session, _ = _session_io(commands)
+        assert session._ctx.tt_max == tt_entries_for_mb(mb_expected)
+
+
+def test_setoption_hash_non_numeric_ignored():
+    """Non-numeric values must not explode the session."""
+    commands = ["setoption name Hash value nonsense", "quit"]
+    session, out = _session_io(commands)
+    # Default size preserved.
+    assert session._ctx.tt_max == 500_000
+    assert "Hash set" not in out
+
+
+# ---------------------------------------------------------------------------
 # 7. go movetime
 # ---------------------------------------------------------------------------
 
