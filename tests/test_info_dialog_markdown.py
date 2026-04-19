@@ -164,40 +164,27 @@ def test_info_dialog_uses_plain_readable_document():
     assert dlg._text_browser.document().defaultStyleSheet() == ""
 
 
-def test_info_dialog_falls_back_to_legacy_txt(tmp_path, monkeypatch):
-    """If help.md is missing at runtime, the dialog still shows help.txt."""
+def test_info_dialog_falls_back_to_legacy_txt(monkeypatch):
+    """If help.md is missing at runtime, the dialog still shows help.txt.
+
+    We simulate "help.md is absent" by overriding both ``_populate``
+    helper methods on the InfoDialog class itself — no on-disk rename
+    of the shipped resource (previous approach was pytest-xdist hostile
+    and left a ``help.md.hidden`` orphan if the test crashed).
+    """
     from draughts.ui import dialogs as dialogs_mod
 
-    fake_resources = tmp_path / "resources"
-    fake_resources.mkdir()
-    fake_txt = fake_resources / "help.txt"
-    fake_txt.write_text("LEGACY PLAIN HELP", encoding="utf-8")
-
+    # Force _populate's is_file() check to return False, then make the
+    # legacy loader return a sentinel we can detect.
     monkeypatch.setattr(
-        dialogs_mod, "Path", lambda *args, **kwargs: Path(*args, **kwargs)
+        dialogs_mod.Path, "is_file", lambda self: False
     )
-    # Point both resolved candidates at the tmp dir.
-    real_file = dialogs_mod.__file__
-
-    class _FakePath(type(Path())):
-        pass
-
-    # Monkey-patching the pathlib lookup is fragile; use a simpler route:
-    # replace the two static methods on InfoDialog so they read the tmp
-    # resources directory.
     monkeypatch.setattr(
         dialogs_mod.InfoDialog,
         "_load_legacy_help_text",
-        staticmethod(lambda: fake_txt.read_text(encoding="utf-8")),
+        staticmethod(lambda: "LEGACY PLAIN HELP"),
     )
 
-    # Temporarily hide help.md by symlink-swap: rename it out of the way.
-    md = Path("draughts/resources/help.md")
-    backup = md.with_suffix(".md.hidden")
-    md.rename(backup)
-    try:
-        dlg = dialogs_mod.InfoDialog(theme="dark_wood")
-        plain = dlg._text_browser.document().toPlainText()
-        assert "LEGACY PLAIN HELP" in plain
-    finally:
-        backup.rename(md)
+    dlg = dialogs_mod.InfoDialog(theme="dark_wood")
+    plain = dlg._text_browser.document().toPlainText()
+    assert "LEGACY PLAIN HELP" in plain
