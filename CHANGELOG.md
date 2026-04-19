@@ -64,6 +64,18 @@
 - `_on_ai_finished` находит и очищает устаревшие Qt-потоки через `_pending_ai` (по generation), а не через `self.sender()` — предотвращает утечку потоков при гонке.
 - Весь код прошёл через строгий ruff + mypy (strict на ядре + engine) + bandit HIGH; багов не найдено.
 
+### QA-closure #5 (audit debt, 2026-04-19)
+- **DXP decode** — каждая ошибка разбора (non-ASCII, empty body, non-digit в фиксированном поле, invalid color/setup, абсурдный `n_cap`) теперь выбрасывает `DXPProtocolError`, а не `IndexError`/`ValueError`/`UnicodeDecodeError`. `dxp_server.py` / `dxp_client.py` ловят только `DXPProtocolError`, поэтому раньше malformed-пакет ронял worker-thread без следов. 20 adversarial-тестов в `tests/test_dxp_malformed.py`.
+- **Hash option в engine protocol** — `setoption name Hash value N` раньше возвращал `info string Hash option not implemented (stub)` и отбрасывал значение. Теперь парсит int, клампит в 1..1024, вызывает `ctx.set_tt_size_mb(mb)` и эхирует `info string Hash set to N MB`. Параметр `hash_size_mb` в OptionsDialog применяется с НАЧАЛА СЛЕДУЮЩЕГО хода (движок пересоздаётся каждый ход), а не «в следующей партии» как говорилось в tooltip'е.
+- **game_analyzer cancel** — `analyze_game_positions` теперь принимает `should_cancel: Callable[[], bool]`, проверяемый на каждом ply. До этого нажатие «Отмена» в диалоге анализа только глушило прогресс-эмиты, но сама итерация тянулась до конца (60 ply × depth 4 = несколько минут).
+- **closeEvent у диалогов Qt** — `BitbaseDownloaderDialog` и `GeneratorProgressDialog` переопределяют `closeEvent`: при активном worker-треде вызывают `request_cancel`, игнорируют событие закрытия и self-accept'ятся после того как worker свернётся. Раньше [X] на title-bar'е принимал close, диалог скрывался, а `QThread` + `QObject` утекали.
+- **Валидация difficulty у puzzle-ов** — `_parse_puzzle_entry` жёстко отвергает не-int и выход за диапазон 1..4 (раньше `"difficulty": 99` создавал puzzle, невидимый для `get_by_difficulty(1..4)`, и пытался отрендерить `"★" * 99`).
+- **Undo в игре за чёрных** — `controller.undo_move` вычисляет текущую очерёдность хода как `start_color + ply_index % 2`, а не хардкод-белый; FEN-загруженные партии чёрных больше не зависают после undo.
+- **Stop прерывает go infinite** — `session._cmd_stop` двигает `ctx.deadline` в прошлое, следующая итерация `_alphabeta` кидает `SearchCancelledError`. Раньше worker-тред продолжал думать до MAX_INFINITE_DEPTH.
+- **DXP client move encoding** — `_move_to_dxp` получает snapshot доски ДО применения хода; корректное восстановление squared-прыжков дамкой для multi-capture.
+- **Repetition-aware root search** — `_alphabeta` получает frozenset позиций, уже встреченных в партии ≥ 2 раз, и избегает walk-into-3-fold, когда есть альтернатива (head2head: +54 Elo по 180 играм).
+- **2K vs 1K больше не auto-draw** — правилу draw_endgame подчиняется ТОЛЬКО 1K vs 1K; 2K vs 1K выигрывается позиционно и драется по 15-ходовому правилу, как во всех мировых программах (Kingsrow, Scan, Dam 3.0).
+
 ## [4.0.0] — 2026-04-13
 
 ### Добавлено
