@@ -1156,6 +1156,13 @@ class GameController(QObject):
         ``squares`` = [from_sq, to_sq] of the recommended move for
         board highlighting; ``message`` shows the full PV (up to 4 moves
         ahead) with the final eval in pawns.
+
+        The message is decorated with a short textual qualifier when the
+        recommended move is tactically notable — ``(N взятий)`` for a
+        multi-capture, ``(в дамки!)`` for a promoting pawn advance.
+        These are cheap-to-compute, unambiguous hints; subjective labels
+        like "жертва" are avoided because reliable detection would need
+        a multi-ply tactical re-search.
         """
         if self._current_turn != self._player_color:
             return
@@ -1177,6 +1184,7 @@ class GameController(QObject):
             to_sq = best.path[-1]
             score = analysis.score
             score_str = f"{score:+.1f}"
+            qualifier = self._hint_qualifier(best)
 
             # Principal variation (up to 4 moves). Starts with ``best``;
             # we re-run it to keep a single, consistent code path in
@@ -1194,9 +1202,47 @@ class GameController(QObject):
                 sep = ":" if best.kind == "capture" else "-"
                 message = f"Лучший ход: {from_note}{sep}{to_note} (оценка: {score_str})"
 
+            if qualifier:
+                message = f"{message} [{qualifier}]"
+
             self.hint_ready.emit([from_sq, to_sq], message)
         except Exception:
             logger.exception("get_hint failed")
+
+    def _hint_qualifier(self, mv) -> str:
+        """Return a short tactical label for ``mv`` (or empty string).
+
+        * Multi-capture (≥2 pieces taken) → ``N взятий`` (plural rule RU).
+        * Promotion (pawn advance landing on last rank) → ``в дамки!``
+        * Otherwise → ``""`` so the hint does not gain noise on quiet moves.
+
+        Pure: reads only ``self.board`` and the move; no engine call, no
+        board mutation, O(len(path)).
+        """
+        if mv.kind == "capture" and len(mv.path) >= 3:
+            # len(path) = N+1 where N is the number of captures.
+            n_caps = len(mv.path) - 1
+            if n_caps >= 5:
+                word = "взятий"
+            elif n_caps in (2, 3, 4):
+                word = "взятия"
+            else:
+                word = "взятие"
+            return f"{n_caps} {word}"
+
+        # Promotion: a non-king piece whose final square is the promote row.
+        # White promotes on row 0 (top), black on row BOARD_SIZE-1 (bottom).
+        from draughts.config import BOARD_SIZE
+
+        x0, y0 = mv.path[0]
+        piece = self.board.piece_at(x0, y0)
+        if piece and not Board.is_king(piece):
+            _xf, yf = mv.path[-1]
+            promote_row = 0 if Board.is_white(piece) else BOARD_SIZE - 1
+            if yf == promote_row:
+                return "в дамки!"
+
+        return ""
 
     @staticmethod
     def _format_move_notation(mv) -> str:
