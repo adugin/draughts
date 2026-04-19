@@ -144,15 +144,24 @@ def test_info_dialog_exposes_maximise_button():
     )
 
 
-def test_info_dialog_theme_css_covers_all_selectors():
-    """Every selector mentioned in _theme_css must carry a colour."""
+def test_info_dialog_uses_plain_readable_document():
+    """Help content must render as black-on-white, unaffected by theme.
+
+    The dialog frame and «Закрыть» button stay themed, but the actual
+    reading surface (QTextBrowser) is forced to a neutral palette so
+    wide GFM tables and multi-paragraph prose read comfortably. The
+    previous theme-driven CSS (dark warm accents on warm surface) was
+    too noisy — the user asked for "чёрный текст на белом фоне".
+    """
     from draughts.ui.dialogs import InfoDialog
 
-    css = InfoDialog._theme_css("dark_wood")
-    for selector in ("h1", "h2", "h3", "code", "pre", "a", "th", "hr"):
-        assert f"{selector} " in css or css.startswith(f"{selector}{{"), (
-            f"selector {selector!r} missing from theme CSS"
-        )
+    dlg = InfoDialog(theme="dark_wood")
+    style = dlg._text_browser.styleSheet().replace(" ", "").lower()
+    assert "background-color:#ffffff" in style
+    assert "color:#000000" in style
+    # No accent-coloured headings via setDefaultStyleSheet — the doc is
+    # rendered with Qt defaults.
+    assert dlg._text_browser.document().defaultStyleSheet() == ""
 
 
 def test_info_dialog_falls_back_to_legacy_txt(tmp_path, monkeypatch):

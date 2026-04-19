@@ -333,7 +333,15 @@ class InfoDialog(QDialog):
         self._text_browser = QTextBrowser()
         self._text_browser.setReadOnly(True)
         self._text_browser.setOpenExternalLinks(True)
-        self._populate(theme)
+        # Плашка справки — это документ для чтения, а не элемент
+        # оформления: фиксируем читабельный контраст (чёрный по белому,
+        # стандартные рамки таблиц) и игнорируем активную тему. Рамка
+        # диалога и кнопка «Закрыть» остаются тематическими.
+        self._text_browser.setStyleSheet(
+            "QTextBrowser { background-color: #ffffff; color: #000000; "
+            "border: 1px solid #888888; padding: 8px; }"
+        )
+        self._populate()
         layout.addWidget(self._text_browser)
 
         close_btn = QPushButton("Закрыть")
@@ -348,12 +356,17 @@ class InfoDialog(QDialog):
     # Rendering
     # ------------------------------------------------------------------
 
-    def _populate(self, theme: str) -> None:
+    def _populate(self) -> None:
         """Load help.md and render it into the document.
 
         Resolved path order:
           1. resources/help.md  (CommonMark + GFM tables)
           2. resources/help.txt (legacy plain-text, UTF-8 or CP1251)
+
+        Справочный документ рендерится без темы — чёрный текст на белом
+        фоне, стандартные Qt-таблицы / заголовки / код. Лишние цвета
+        мешают чтению; тематическая рамка диалога и кнопка «Закрыть»
+        остаются в общем скине.
         """
         md_path = Path(__file__).parent.parent / "resources" / "help.md"
         if md_path.is_file():
@@ -362,7 +375,6 @@ class InfoDialog(QDialog):
             except (OSError, UnicodeDecodeError):
                 text = self._load_legacy_help_text()
             doc = self._text_browser.document()
-            doc.setDefaultStyleSheet(self._theme_css(theme))
             # GitHub dialect buys GFM-style tables (used in the rewrite);
             # plain CommonMark would render them as raw text.
             doc.setMarkdown(text, QTextDocument.MarkdownFeature.MarkdownDialectGitHub)
@@ -370,37 +382,6 @@ class InfoDialog(QDialog):
 
         # No help.md — fall back to legacy text with no formatting.
         self._text_browser.setPlainText(self._load_legacy_help_text())
-
-    @staticmethod
-    def _theme_css(theme: str) -> str:
-        """Qt-subset CSS so Markdown headings / code / tables track the theme.
-
-        ``QTextDocument.setDefaultStyleSheet`` accepts a limited CSS 2.1
-        subset: selectors by tag name, ``color``, ``background-color``,
-        ``font-weight``, ``margin``; no classes, no pseudo-selectors.
-        See Qt's "Supported HTML Subset" page.
-        """
-        from draughts.ui.theme_engine import get_theme_colors
-
-        tc = get_theme_colors(theme)
-        # Theme palettes expose semantic keys — fg_accent for headings,
-        # scroll_bg for code blocks. Fall back to sane defaults if a
-        # theme omits the key.
-        heading = tc.get("fg_accent", "#d7b37a")
-        code_bg = tc.get("scroll_bg", "#2a2421")
-        code_fg = tc.get("ann_normal", "#e6e1d4")
-        link = tc.get("ann_good", "#6db46d")
-        rule = tc.get("ann_move_num", "#7a6a55")
-        return (
-            f"h1 {{ color: {heading}; font-size: 18pt; }}"
-            f"h2 {{ color: {heading}; font-size: 14pt; }}"
-            f"h3 {{ color: {heading}; font-size: 12pt; }}"
-            f"code {{ background-color: {code_bg}; color: {code_fg}; }}"
-            f"pre  {{ background-color: {code_bg}; color: {code_fg}; }}"
-            f"a    {{ color: {link}; }}"
-            f"th   {{ color: {heading}; }}"
-            f"hr   {{ color: {rule}; }}"
-        )
 
     @staticmethod
     def _load_legacy_help_text() -> str:
