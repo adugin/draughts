@@ -146,31 +146,9 @@ class MainWindow(QMainWindow):
         self._act_exit.triggered.connect(self._on_exit)
         game_menu.addAction(self._act_exit)
 
-        # --- Настройки ---
-        settings_menu = menubar.addMenu("&Настройки")
-
-        self._act_options = QAction("&Опции...", self)
-        self._act_options.setShortcut(QKeySequence("Ctrl+,"))
-        self._act_options.triggered.connect(self._on_options)
-        settings_menu.addAction(self._act_options)
-
-        # --- Тренировка ---
-        training_menu = menubar.addMenu("&Тренировка")
-
-        self._act_puzzles = QAction("Решать &задачи...", self)
-        self._act_puzzles.setShortcut(QKeySequence("Ctrl+P"))
-        self._act_puzzles.triggered.connect(self._on_puzzles)
-        training_menu.addAction(self._act_puzzles)
-
-        # --- Вид ---
-        view_menu = menubar.addMenu("&Вид")
-
-        self._act_playback = QAction("&Просмотр партии...", self)
-        self._act_playback.setShortcut(QKeySequence("Ctrl+R"))
-        self._act_playback.triggered.connect(self._on_playback)
-        view_menu.addAction(self._act_playback)
-
         # --- Позиция ---
+        # Keep adjacent to «Игра» so edit-the-board actions sit under
+        # the "what's happening in this game" cluster.
         position_menu = menubar.addMenu("По&зиция")
 
         self._act_editor = QAction("&Редактор...", self)
@@ -190,33 +168,53 @@ class MainWindow(QMainWindow):
         self._act_paste_fen.triggered.connect(self._on_paste_fen)
         position_menu.addAction(self._act_paste_fen)
 
-        # --- Анализ ---
-        analysis_menu = menubar.addMenu("&Анализ")
+        # --- Вид (absorbs the former «Анализ» menu) ---
+        # Menu-bar consolidation 2026-04-19: at a 640 px window width
+        # (dictated by BOARD_PX) Qt silently hid the trailing «Справка»
+        # menu when the title row overflowed. Merging «Вид» + «Анализ»
+        # (both present-the-game operations) and «Тренировка» + «Сервис»
+        # (both "run an auxiliary tool") brings the bar from 8 items to
+        # 6, leaving headroom for future additions.
+        view_menu = menubar.addMenu("&Вид")
 
         self._act_toggle_pane = QAction("&Панель анализа", self)
         self._act_toggle_pane.setShortcut(QKeySequence("F3"))
         self._act_toggle_pane.setCheckable(True)
         self._act_toggle_pane.setChecked(False)
         self._act_toggle_pane.triggered.connect(self._on_toggle_analysis_pane)
-        analysis_menu.addAction(self._act_toggle_pane)
+        view_menu.addAction(self._act_toggle_pane)
 
         self._act_toggle_tree = QAction("&Дерево вариантов", self)
         self._act_toggle_tree.setShortcut(QKeySequence("F4"))
         self._act_toggle_tree.setCheckable(True)
         self._act_toggle_tree.setChecked(False)
         self._act_toggle_tree.triggered.connect(self._on_toggle_tree_pane)
-        analysis_menu.addAction(self._act_toggle_tree)
+        view_menu.addAction(self._act_toggle_tree)
 
-        analysis_menu.addSeparator()
+        view_menu.addSeparator()
 
-        self._act_analyze_game = QAction("&Проанализировать партию...", self)
+        self._act_playback = QAction("П&росмотр партии...", self)
+        self._act_playback.setShortcut(QKeySequence("Ctrl+R"))
+        self._act_playback.triggered.connect(self._on_playback)
+        view_menu.addAction(self._act_playback)
+
+        view_menu.addSeparator()
+
+        self._act_analyze_game = QAction("Пр&оанализировать партию...", self)
         self._act_analyze_game.triggered.connect(self._on_analyze_game)
-        analysis_menu.addAction(self._act_analyze_game)
+        view_menu.addAction(self._act_analyze_game)
 
-        # --- Сервис (D36, MED-04: "Сервис" matches Microsoft Office
-        # Russian convention; groups all "fetch/build additional data"
-        # actions together) ---
-        tools_menu = menubar.addMenu("&Сервис")
+        # --- Инструменты (absorbs the former «Тренировка» + «Сервис»
+        # menus — all user-invoked workflows that run a one-shot
+        # operation, not persistent modes) ---
+        tools_menu = menubar.addMenu("&Инструменты")
+
+        self._act_puzzles = QAction("Решать &задачи...", self)
+        self._act_puzzles.setShortcut(QKeySequence("Ctrl+P"))
+        self._act_puzzles.triggered.connect(self._on_puzzles)
+        tools_menu.addAction(self._act_puzzles)
+
+        tools_menu.addSeparator()
 
         self._act_import_book = QAction("&Импорт книги из PDN...", self)
         self._act_import_book.triggered.connect(self._on_import_book)
@@ -231,6 +229,14 @@ class MainWindow(QMainWindow):
         self._act_download_bitbase = QAction("&Скачать расширенную базу эндшпилей...", self)
         self._act_download_bitbase.triggered.connect(self._on_download_bitbase)
         tools_menu.addAction(self._act_download_bitbase)
+
+        # --- Настройки ---
+        settings_menu = menubar.addMenu("&Настройки")
+
+        self._act_options = QAction("&Опции...", self)
+        self._act_options.setShortcut(QKeySequence("Ctrl+,"))
+        self._act_options.triggered.connect(self._on_options)
+        settings_menu.addAction(self._act_options)
 
         # --- Справка ---
         help_menu = menubar.addMenu("&Справка")
@@ -1000,20 +1006,18 @@ class MainWindow(QMainWindow):
         # --- Настройки ---
         self._act_options.setEnabled(not editor and not thinking)
 
-        # --- Тренировка ---
-        self._act_puzzles.setEnabled(not editor and not thinking)
-
-        # --- Вид ---
-        self._act_playback.setEnabled(not editor and has_game)
-
         # --- Позиция ---
         self._act_editor.setEnabled(not editor and not thinking)
         self._act_copy_fen.setEnabled(True)  # always available
         self._act_paste_fen.setEnabled(not editor and not thinking)
 
-        # --- Анализ ---
+        # --- Вид (analysis + playback) ---
         self._act_toggle_pane.setEnabled(not editor)
+        self._act_playback.setEnabled(not editor and has_game)
         self._act_analyze_game.setEnabled(not editor and not thinking and has_game)
+
+        # --- Инструменты (puzzles + book import + data downloads) ---
+        self._act_puzzles.setEnabled(not editor and not thinking)
 
     # --- Keyboard events ---
 
