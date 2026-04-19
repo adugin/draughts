@@ -123,6 +123,27 @@ def test_info_dialog_builds_with_markdown():
     assert "\n# " not in plain
 
 
+def test_info_dialog_exposes_maximise_button():
+    """Users must be able to maximise the help window to read wide tables.
+
+    Default QDialog hides both min/max buttons — only Close is shown
+    in the title bar. The InfoDialog overrides windowFlags() so the
+    standard frame is restored, enabling maximise / minimise via the
+    title-bar icons AND via the Windows shortcut (Win+Up).
+    """
+    from PyQt6.QtCore import Qt
+    from draughts.ui.dialogs import InfoDialog
+
+    dlg = InfoDialog(theme="dark_wood")
+    flags = dlg.windowFlags()
+    assert flags & Qt.WindowType.WindowMaximizeButtonHint, (
+        "InfoDialog must expose a maximise button in the title bar"
+    )
+    assert flags & Qt.WindowType.WindowMinimizeButtonHint, (
+        "InfoDialog must expose a minimise button in the title bar"
+    )
+
+
 def test_info_dialog_theme_css_covers_all_selectors():
     """Every selector mentioned in _theme_css must carry a colour."""
     from draughts.ui.dialogs import InfoDialog

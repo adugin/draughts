@@ -314,6 +314,15 @@ class InfoDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Информация")
         self.setModal(True)
+        # QDialog по умолчанию прячет min/max-кнопки. Для справки
+        # пользователю удобно развернуть окно на весь экран и читать
+        # широкие таблицы (хоткеи, меню, уровни Elo) без прокрутки —
+        # вернём штатную рамку с обеими кнопками title-bar'а.
+        self.setWindowFlags(
+            self.windowFlags()
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+        )
         apply_dialog_theme(self, theme)
 
         layout = QVBoxLayout(self)
@@ -332,7 +341,7 @@ class InfoDialog(QDialog):
         layout.addWidget(close_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Larger default: Markdown tables + headings benefit from
-        # horizontal room. User can still resize manually.
+        # horizontal room. User can still resize manually or maximise.
         self.resize(720, 560)
 
     # ------------------------------------------------------------------
