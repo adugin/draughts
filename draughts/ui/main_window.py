@@ -141,6 +141,17 @@ class MainWindow(QMainWindow):
 
         game_menu.addSeparator()
 
+        # Options sits in the «Игра» menu (File-equivalent) per
+        # Microsoft Office Russian convention where «Параметры» lives
+        # near the bottom of «Файл». Avoids a top-level menu with a
+        # single child (former «Настройки»).
+        self._act_options = QAction("&Опции...", self)
+        self._act_options.setShortcut(QKeySequence("Ctrl+,"))
+        self._act_options.triggered.connect(self._on_options)
+        game_menu.addAction(self._act_options)
+
+        game_menu.addSeparator()
+
         self._act_exit = QAction("Вы&ход", self)
         self._act_exit.setShortcut(QKeySequence("Alt+F4"))
         self._act_exit.triggered.connect(self._on_exit)
@@ -229,14 +240,6 @@ class MainWindow(QMainWindow):
         self._act_download_bitbase = QAction("&Скачать расширенную базу эндшпилей...", self)
         self._act_download_bitbase.triggered.connect(self._on_download_bitbase)
         tools_menu.addAction(self._act_download_bitbase)
-
-        # --- Настройки ---
-        settings_menu = menubar.addMenu("&Настройки")
-
-        self._act_options = QAction("&Опции...", self)
-        self._act_options.setShortcut(QKeySequence("Ctrl+,"))
-        self._act_options.triggered.connect(self._on_options)
-        settings_menu.addAction(self._act_options)
 
         # --- Справка ---
         help_menu = menubar.addMenu("&Справка")
@@ -1001,10 +1004,9 @@ class MainWindow(QMainWindow):
         self._act_flip.setEnabled(not editor and not thinking and on_player_turn)
         # Resign — allowed any time a game is in progress and outside editor.
         self._act_resign.setEnabled(not editor and has_game)
-        # _act_exit — always enabled
-
-        # --- Настройки ---
+        # Options — disabled while editor is open or AI is thinking.
         self._act_options.setEnabled(not editor and not thinking)
+        # _act_exit — always enabled
 
         # --- Позиция ---
         self._act_editor.setEnabled(not editor and not thinking)
