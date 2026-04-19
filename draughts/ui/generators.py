@@ -536,7 +536,13 @@ class MinePuzzlesDialog(QDialog):
                 if len(positions) < 4:
                     on_progress(i + 1, n_games, f"партия {i + 1}: слишком короткая")
                     continue
-                result = analyze_game_positions(positions, depth=analysis_depth)
+                # Forward the cancel hook so pressing «Отмена» / [X]
+                # during the per-game analysis stage aborts mid-ply —
+                # without this, one depth-N analysis (~10-60 s) had to
+                # finish before cancel was observed.
+                result = analyze_game_positions(
+                    positions, depth=analysis_depth, should_cancel=should_cancel
+                )
                 new_puzzles = mine_puzzles_from_game(
                     positions, result.annotations, min_delta_cp=2.0
                 )

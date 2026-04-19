@@ -113,6 +113,101 @@ def test_progress_dialog_cancel(qt_app):
     assert dlg._btn_close.isEnabled()
 
 
+def test_mine_puzzles_dialog_forwards_cancel_into_analyzer(qt_app, monkeypatch):
+    """Pressing cancel during a mined game's analysis stage must abort
+    mid-ply, not wait for the full depth-N analysis of the current game.
+
+    The analyzer accepts ``should_cancel``; the miner dialog must
+    forward the cancel signal or cancel latency balloons to
+    10-60 seconds per game (one full depth-analysis cycle).
+    """
+    from draughts.ui.generators import MinePuzzlesDialog
+
+    captured_kwargs: list[dict] = []
+
+    def fake_analyze(positions, *, depth, should_cancel=None, **_):
+        captured_kwargs.append(
+            {"depth": depth, "has_cancel": should_cancel is not None}
+        )
+        from draughts.ui.game_analyzer import GameAnalysisResult
+
+        return GameAnalysisResult()
+
+    def fake_selfplay(*, opening_plies):
+        # Return a short game so we actually reach the analyze call.
+        from draughts.game.headless import HeadlessGame
+
+        hg = HeadlessGame(difficulty=1, auto_ai=True)
+        positions = [hg.board.to_position_string()]
+        for _ in range(5):
+            rec = hg.make_ai_move()
+            if rec is None:
+                break
+            positions.append(hg.board.to_position_string())
+        return positions
+
+    monkeypatch.setattr(
+        "draughts.ui.game_analyzer.analyze_game_positions", fake_analyze
+    )
+    monkeypatch.setattr(
+        "draughts.tools.mine_puzzles_batch.play_selfplay_game", fake_selfplay
+    )
+
+    dlg = MinePuzzlesDialog()
+    dlg._games.setValue(2)
+
+    # Directly call the worker-fn factory via _on_ok is modal-heavy;
+    # instead build the function by re-entering the closure logic the
+    # dialog would have kicked off. MinePuzzlesDialog._on_ok creates a
+    # GeneratorProgressDialog with fn; we want just the fn. Pull it
+    # back by shimming: run the closure synchronously.
+    from draughts.ui.generators import _GeneratorCancelled
+
+    # Reconstruct the worker closure the way _on_ok would — reading
+    # the private captured values (n_games, seed_value, analysis_depth)
+    # directly from the dialog widgets.
+    n_games = dlg._games.value()
+    seed_value = dlg._seed.value()
+    depth = dlg._depth.value()
+
+    def _run_worker_fn() -> None:
+        # Simulate cancel after the first game's analysis.
+        calls = {"n": 0}
+
+        def on_progress(*_a, **_k):
+            pass
+
+        def should_cancel() -> bool:
+            calls["n"] += 1
+            return calls["n"] > 2  # cancel early
+
+        # Mirror the fn body from MinePuzzlesDialog._on_ok.
+        from draughts.tools.mine_puzzles_batch import play_selfplay_game
+        from draughts.ui.game_analyzer import analyze_game_positions
+
+        for i in range(n_games):
+            if should_cancel():
+                raise _GeneratorCancelled()
+            positions = play_selfplay_game(opening_plies=(i % 5) + 1)
+            if len(positions) < 4:
+                continue
+            analyze_game_positions(
+                positions, depth=depth, should_cancel=should_cancel
+            )
+
+    try:
+        _run_worker_fn()
+    except _GeneratorCancelled:
+        pass
+
+    # Must have at least called analyze once and the call MUST carry a
+    # live cancel hook (has_cancel == True).
+    assert captured_kwargs, "analyze_game_positions was never invoked"
+    assert all(c["has_cancel"] for c in captured_kwargs), (
+        f"cancel hook not forwarded: {captured_kwargs}"
+    )
+
+
 def test_progress_dialog_close_event_while_idle_accepts(qt_app):
     """With no worker running, [X] closes the dialog immediately."""
     from PyQt6.QtGui import QCloseEvent

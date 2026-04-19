@@ -7,6 +7,7 @@ Board.to_position_string / Board.load_from_position_string).
 from __future__ import annotations
 
 import json
+import logging
 import random
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -132,6 +133,10 @@ def _parse_puzzle_entry(entry: dict) -> Puzzle:
             f"expected 32 chars from {sorted(_VALID_POSITION_CHARS)}, got {pos!r}"
         )
 
+    if "difficulty" not in entry:
+        raise ValueError(
+            f"Missing difficulty in puzzle {entry.get('id')!r}"
+        )
     try:
         difficulty = int(entry["difficulty"])
     except (TypeError, ValueError) as exc:
@@ -179,9 +184,23 @@ def load_bundled_puzzles() -> PuzzleSet:
 
     puzzles: list[Puzzle] = []
     seen_positions: set[str] = set()
+    _logger = logging.getLogger("draughts.puzzles")
 
+    # Isolate per-entry parse failures — one bad record in the bundled
+    # file must not kill the whole trainer. Same error-budget as the
+    # mined-puzzle loop below; without it the stricter difficulty
+    # validator (added 2026-04-19) would turn any future bad commit
+    # into a trainer-down outage instead of a skipped entry + log line.
     for entry in raw:
-        p = _parse_puzzle_entry(entry)
+        try:
+            p = _parse_puzzle_entry(entry)
+        except (KeyError, ValueError) as exc:
+            _logger.warning(
+                "Skipping malformed bundled puzzle entry %r: %s",
+                entry.get("id") if isinstance(entry, dict) else entry,
+                exc,
+            )
+            continue
         puzzles.append(p)
         seen_positions.add(p.position)
 
@@ -200,14 +219,12 @@ def load_bundled_puzzles() -> PuzzleSet:
                         puzzles.append(p)
                         seen_positions.add(p.position)
                 except (KeyError, ValueError):
-                    import logging
-
-                    logging.getLogger("draughts.puzzles").warning(
+                    _logger.warning(
                         "Skipping malformed mined puzzle entry: %r", entry.get("id")
                     )
     except Exception:
-        import logging
-
-        logging.getLogger("draughts.puzzles").exception("Failed to load mined puzzles; continuing with bundled only")
+        _logger.exception(
+            "Failed to load mined puzzles; continuing with bundled only"
+        )
 
     return PuzzleSet(puzzles)

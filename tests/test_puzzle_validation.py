@@ -76,6 +76,43 @@ def test_difficulty_none_rejected():
         _parse_puzzle_entry(entry)
 
 
+def test_missing_difficulty_key_rejected_not_keyerror():
+    """Missing 'difficulty' key must raise ValueError with a useful
+    message — not leak KeyError out through the parser contract."""
+    entry = {k: v for k, v in _BASE.items() if k != "difficulty"}
+    with pytest.raises(ValueError, match="Missing difficulty"):
+        _parse_puzzle_entry(entry)
+
+
+def test_malformed_bundled_entry_does_not_kill_loader(tmp_path, monkeypatch):
+    """A single bad bundled record must NOT take down the whole trainer.
+
+    Before the isolation: one out-of-range difficulty in
+    russian_draughts_puzzles.json raised ValueError inside
+    load_bundled_puzzles, which propagated all the way to the Qt slot
+    that opens the trainer — whole feature dead. Now the loader logs
+    and skips.
+    """
+    import json
+
+    import draughts.game.puzzles as puzzles_mod
+
+    good_entry = dict(_BASE, id="bundle_ok")
+    bad_entry = dict(_BASE, id="bundle_bad", difficulty=42)
+
+    fake_path = tmp_path / "puzzles.json"
+    fake_path.write_text(
+        json.dumps([good_entry, bad_entry], ensure_ascii=False), encoding="utf-8"
+    )
+
+    monkeypatch.setattr(puzzles_mod, "_BUNDLED_PATH", fake_path)
+    ps = puzzles_mod.load_bundled_puzzles()
+    # Loader completes; the good entry is present, the bad one is gone.
+    ids = {p.id for p in ps}
+    assert "bundle_ok" in ids
+    assert "bundle_bad" not in ids
+
+
 def test_malformed_difficulty_in_mined_file_is_skipped(tmp_path, monkeypatch):
     """load_bundled_puzzles must not crash on a bad mined entry —
     logs and continues so the bundled set still renders."""
