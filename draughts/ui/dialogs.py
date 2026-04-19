@@ -8,7 +8,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QTextDocument
+from PyQt6.QtGui import (
+    QColor,
+    QTextDocument,
+    QTextTable,
+    QTextTableCellFormat,
+    QTextTableFormat,
+)
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -378,10 +384,66 @@ class InfoDialog(QDialog):
             # GitHub dialect buys GFM-style tables (used in the rewrite);
             # plain CommonMark would render them as raw text.
             doc.setMarkdown(text, QTextDocument.MarkdownFeature.MarkdownDialectGitHub)
+            self._flatten_tables(doc)
             return
 
         # No help.md — fall back to legacy text with no formatting.
         self._text_browser.setPlainText(self._load_legacy_help_text())
+
+    @staticmethod
+    def _flatten_tables(doc: QTextDocument) -> None:
+        """Replace Qt's default 3D-inset table borders with flat hair-lines.
+
+        ``QTextDocument.setMarkdown`` builds each GFM table with Qt's
+        default ``QTextTableFormat`` — that's a raised 3D border with
+        zero cell padding, which reads as Netscape-era HTML. CSS via
+        ``setDefaultStyleSheet`` cannot override it; the format has to
+        be mutated on the live ``QTextTable`` objects.
+
+        Iterating via ``QTextCursor.currentTable()`` misses tables after
+        the first one because ``movePosition(NextBlock)`` inside a table
+        cell steps block-wise through the cell content, not through the
+        top-level block sequence — in practice the cursor can get
+        parked before the second table and exit early. Walking
+        ``rootFrame().childFrames()`` recursively is the documented
+        "all tables in a document" idiom.
+        """
+        # Table-level format: collapse the inset effect (zero spacing,
+        # no outer border — the cell borders will form the grid).
+        table_fmt = QTextTableFormat()
+        table_fmt.setBorder(0)
+        table_fmt.setCellSpacing(0)
+        table_fmt.setCellPadding(6)
+
+        # Per-cell hair-line: with setBorderCollapse the cell borders
+        # are painted reliably at 1 px on Qt 6.5+, while the table-level
+        # setBorder() path silently drops sub-pixel borders on several
+        # release builds. Applying the same format to every cell in
+        # every table gives a flat grid without the 3D inset.
+        cell_fmt = QTextTableCellFormat()
+        cell_fmt.setBorder(1.0)
+        cell_fmt.setBorderBrush(QColor("#b0b0b0"))
+        # The BorderStyle enum lives on QTextFrameFormat — shared with
+        # every border-aware format class.
+        cell_fmt.setBorderStyle(
+            QTextTableFormat.BorderStyle.BorderStyle_Solid
+        )
+        cell_fmt.setPadding(6)
+
+        def _style_table(table: QTextTable) -> None:
+            table.setFormat(table_fmt)
+            for row in range(table.rows()):
+                for col in range(table.columns()):
+                    cell = table.cellAt(row, col)
+                    cell.setFormat(cell_fmt)
+
+        def _walk(frame) -> None:
+            for child in frame.childFrames():
+                if isinstance(child, QTextTable):
+                    _style_table(child)
+                _walk(child)
+
+        _walk(doc.rootFrame())
 
     @staticmethod
     def _load_legacy_help_text() -> str:
