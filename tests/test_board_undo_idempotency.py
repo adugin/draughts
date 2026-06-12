@@ -14,12 +14,10 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-
-from draughts.config import BLACK, BLACK_KING, WHITE, WHITE_KING
+from draughts.config import BLACK, BLACK_KING, WHITE, WHITE_KING, Color
 from draughts.game.ai import _generate_all_moves
 from draughts.game.ai.moves import _apply_move
 from draughts.game.board import Board
-from draughts.config import Color
 
 
 def test_empty_board_roundtrip():
@@ -41,10 +39,10 @@ def test_starting_position_roundtrip():
 def test_all_four_piece_kinds_roundtrip():
     """Place one of each piece kind; round-trip; identical grid."""
     b = Board(empty=True)
-    b.grid[1, 0] = BLACK        # a7
-    b.grid[3, 2] = BLACK_KING   # c5
-    b.grid[5, 4] = WHITE        # e3
-    b.grid[7, 6] = WHITE_KING   # g1
+    b.grid[1, 0] = BLACK  # a7
+    b.grid[3, 2] = BLACK_KING  # c5
+    b.grid[5, 4] = WHITE  # e3
+    b.grid[7, 6] = WHITE_KING  # g1
     s = b.to_position_string()
     b2 = Board(empty=True)
     b2.load_from_position_string(s)
@@ -63,9 +61,7 @@ def test_single_piece_at_every_dark_square_roundtrips(piece):
             s = b.to_position_string()
             b2 = Board(empty=True)
             b2.load_from_position_string(s)
-            assert np.array_equal(b.grid, b2.grid), (
-                f"Roundtrip failed for piece {piece} at ({x},{y})"
-            )
+            assert np.array_equal(b.grid, b2.grid), f"Roundtrip failed for piece {piece} at ({x},{y})"
 
 
 def test_execute_move_then_serialize_is_stable():
@@ -83,12 +79,12 @@ def test_capture_preserves_only_destination_piece_type():
     has black pawn, source and captured squares empty.
     """
     b = Board(empty=True)
-    b.grid[2, 1] = BLACK         # b6 black pawn
-    b.grid[3, 2] = WHITE         # c5 white pawn
+    b.grid[2, 1] = BLACK  # b6 black pawn
+    b.grid[3, 2] = WHITE  # c5 white pawn
     b.execute_capture_path([(1, 2), (3, 4)])  # b6 captures c5, lands d4
-    assert int(b.grid[4, 3]) == BLACK    # d4 has black pawn
-    assert int(b.grid[2, 1]) == 0        # b6 empty
-    assert int(b.grid[3, 2]) == 0        # c5 empty
+    assert int(b.grid[4, 3]) == BLACK  # d4 has black pawn
+    assert int(b.grid[2, 1]) == 0  # b6 empty
+    assert int(b.grid[3, 2]) == 0  # c5 empty
 
 
 def test_every_legal_move_produces_serialisable_state():
@@ -101,9 +97,7 @@ def test_every_legal_move_produces_serialisable_state():
         s = child.to_position_string()
         child2 = Board(empty=True)
         child2.load_from_position_string(s)
-        assert np.array_equal(child.grid, child2.grid), (
-            f"Move {kind} {path} produces a non-roundtripping board"
-        )
+        assert np.array_equal(child.grid, child2.grid), f"Move {kind} {path} produces a non-roundtripping board"
 
 
 def test_position_string_length_is_32():

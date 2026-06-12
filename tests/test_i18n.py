@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 
 def test_identity_when_no_catalog(monkeypatch):
     """With no matching catalog, _() must return the input unchanged."""
@@ -11,6 +9,7 @@ def test_identity_when_no_catalog(monkeypatch):
 
     # Reload to pick up the env change.
     import importlib
+
     import draughts.i18n as i
 
     importlib.reload(i)
@@ -22,6 +21,7 @@ def test_english_catalog_translates(monkeypatch):
     monkeypatch.setenv("DRAUGHTS_LOCALE", "en")
 
     import importlib
+
     import draughts.i18n as i
 
     importlib.reload(i)

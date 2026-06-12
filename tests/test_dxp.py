@@ -8,7 +8,6 @@ import threading
 import time
 
 import pytest
-
 from draughts.engine.dxp import (
     DXPProtocolError,
     GameAcc,
@@ -19,7 +18,6 @@ from draughts.engine.dxp import (
     encode,
     read_frame,
 )
-
 
 # ---------------------------------------------------------------------------
 # Codec roundtrip

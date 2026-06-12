@@ -80,15 +80,17 @@ class PDNBrowserDialog(QDialog):
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._table.setSortingEnabled(True)
         self._table.horizontalHeader().setStretchLastSection(False)
-        for i, mode in enumerate([
-            QHeaderView.ResizeMode.ResizeToContents,
-            QHeaderView.ResizeMode.ResizeToContents,
-            QHeaderView.ResizeMode.ResizeToContents,
-            QHeaderView.ResizeMode.Stretch,
-            QHeaderView.ResizeMode.ResizeToContents,
-            QHeaderView.ResizeMode.ResizeToContents,
-            QHeaderView.ResizeMode.ResizeToContents,
-        ]):
+        for i, mode in enumerate(
+            [
+                QHeaderView.ResizeMode.ResizeToContents,
+                QHeaderView.ResizeMode.ResizeToContents,
+                QHeaderView.ResizeMode.ResizeToContents,
+                QHeaderView.ResizeMode.Stretch,
+                QHeaderView.ResizeMode.ResizeToContents,
+                QHeaderView.ResizeMode.ResizeToContents,
+                QHeaderView.ResizeMode.ResizeToContents,
+            ]
+        ):
             self._table.horizontalHeader().setSectionResizeMode(i, mode)
         self._table.doubleClicked.connect(self._on_row_double_clicked)
         root.addWidget(self._table, stretch=1)

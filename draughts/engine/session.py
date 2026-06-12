@@ -409,9 +409,7 @@ class EngineSession:
                 # alpha-beta cooperative cancel (ctx.deadline = None
                 # short-circuits the deadline check in _alphabeta).
                 infinite_deadline = time.perf_counter() + 86400.0
-                move = _search_best_move(
-                    board, color, d, deadline=infinite_deadline, ctx=local_ctx
-                )
+                move = _search_best_move(board, color, d, deadline=infinite_deadline, ctx=local_ctx)
                 if move is None:
                     break
                 best = move

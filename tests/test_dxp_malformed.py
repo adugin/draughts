@@ -17,18 +17,14 @@ from __future__ import annotations
 import io
 
 import pytest
-
 from draughts.engine.dxp import (
     DXPProtocolError,
-    GameAcc,
-    GameEnd,
     GameReq,
     Move,
     decode,
     encode,
     read_frame,
 )
-
 
 # ---------------------------------------------------------------------------
 # Frame envelope

@@ -28,9 +28,7 @@ def _make_positions(n_plies: int) -> list[str]:
 class TestCancelHook:
     def test_cancel_before_first_ply_returns_empty_result(self):
         positions = _make_positions(6)
-        result = analyze_game_positions(
-            positions, depth=2, should_cancel=lambda: True
-        )
+        result = analyze_game_positions(positions, depth=2, should_cancel=lambda: True)
         assert result.annotations == []
 
     def test_cancel_midway_returns_partial_result(self):

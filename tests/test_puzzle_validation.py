@@ -11,9 +11,7 @@ logs and continues) instead of silently breaking the UI.
 from __future__ import annotations
 
 import pytest
-
 from draughts.game.puzzles import _parse_puzzle_entry
-
 
 _BASE: dict = {
     "id": "T-001",
@@ -101,9 +99,7 @@ def test_malformed_bundled_entry_does_not_kill_loader(tmp_path, monkeypatch):
     bad_entry = dict(_BASE, id="bundle_bad", difficulty=42)
 
     fake_path = tmp_path / "puzzles.json"
-    fake_path.write_text(
-        json.dumps([good_entry, bad_entry], ensure_ascii=False), encoding="utf-8"
-    )
+    fake_path.write_text(json.dumps([good_entry, bad_entry], ensure_ascii=False), encoding="utf-8")
 
     monkeypatch.setattr(puzzles_mod, "_BUNDLED_PATH", fake_path)
     ps = puzzles_mod.load_bundled_puzzles()
@@ -127,9 +123,7 @@ def test_malformed_difficulty_in_mined_file_is_skipped(tmp_path, monkeypatch):
     def fake_loader() -> list[dict]:
         return bad_mined
 
-    monkeypatch.setattr(
-        "draughts.game.puzzle_miner.load_mined_puzzles", fake_loader
-    )
+    monkeypatch.setattr("draughts.game.puzzle_miner.load_mined_puzzles", fake_loader)
     ps = puzzles_mod.load_bundled_puzzles()
     # The bad entry's position equals the good entry's position (both
     # use "n"*32), so dedup would drop it anyway — but the key claim is

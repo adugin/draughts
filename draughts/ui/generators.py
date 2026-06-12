@@ -23,7 +23,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import QObject, QThread, Qt, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -85,7 +85,7 @@ class _GeneratorWorker(QObject):
     def run(self) -> None:
         try:
             result = self._fn(self._emit_progress, self._should_cancel)
-        except _GeneratorCancelled:
+        except _GeneratorCancelledError:
             self.finished.emit(None, "cancelled")
             return
         except Exception as exc:  # defensive
@@ -101,7 +101,7 @@ class _GeneratorWorker(QObject):
         return self._cancel_event.is_set()
 
 
-class _GeneratorCancelled(RuntimeError):
+class _GeneratorCancelledError(RuntimeError):
     """Raised by a generator when it detects a cancel request."""
 
 
@@ -383,7 +383,7 @@ class ImportBookFromPdnDialog(QDialog):
             total_games = 0
             for i, pdn_path in enumerate(pdn_paths):
                 if should_cancel():
-                    raise _GeneratorCancelled()
+                    raise _GeneratorCancelledError()
                 on_progress(i, len(pdn_paths), f"Читаю {pdn_path.name}...")
                 try:
                     games = load_pdn_file(pdn_path)
@@ -396,7 +396,7 @@ class ImportBookFromPdnDialog(QDialog):
                 total_games += len(games)
                 on_progress(i + 1, len(pdn_paths), f"  {len(games)} партий → +{added} позиций")
                 if should_cancel():
-                    raise _GeneratorCancelled()
+                    raise _GeneratorCancelledError()
 
             on_progress(len(pdn_paths), len(pdn_paths), f"Сохраняю в {out_path}...")
             book.save(out_path)
@@ -470,7 +470,7 @@ class MinePuzzlesDialog(QDialog):
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Случайное зерно (0 = случайно):"))
         self._seed = QSpinBox()
-        self._seed.setRange(0, 2 ** 31 - 1)
+        self._seed.setRange(0, 2**31 - 1)
         self._seed.setValue(0)
         row2.addWidget(self._seed)
         row2.addStretch(1)
@@ -486,11 +486,7 @@ class MinePuzzlesDialog(QDialog):
         self._depth.setRange(4, 8)
         self._depth.setValue(4)
         row3.addWidget(self._depth)
-        row3.addWidget(
-            QLabel(
-                "<i>(глубже — точнее, но дольше; рекомендуется 4)</i>"
-            )
-        )
+        row3.addWidget(QLabel("<i>(глубже — точнее, но дольше; рекомендуется 4)</i>"))
         row3.addStretch(1)
         root.addLayout(row3)
 
@@ -533,7 +529,7 @@ class MinePuzzlesDialog(QDialog):
 
             for i in range(n_games):
                 if should_cancel():
-                    raise _GeneratorCancelled()
+                    raise _GeneratorCancelledError()
                 opening_plies = (i % 5) + 1
                 positions = play_selfplay_game(opening_plies=opening_plies)
                 if len(positions) < 4:
@@ -543,21 +539,17 @@ class MinePuzzlesDialog(QDialog):
                 # during the per-game analysis stage aborts mid-ply —
                 # without this, one depth-N analysis (~10-60 s) had to
                 # finish before cancel was observed.
-                result = analyze_game_positions(
-                    positions, depth=analysis_depth, should_cancel=should_cancel
-                )
-                new_puzzles = mine_puzzles_from_game(
-                    positions, result.annotations, min_delta_cp=2.0
-                )
+                result = analyze_game_positions(positions, depth=analysis_depth, should_cancel=should_cancel)
+                new_puzzles = mine_puzzles_from_game(positions, result.annotations, min_delta_cp=2.0)
                 collected.extend(new_puzzles)
                 on_progress(
-                    i + 1, n_games,
-                    f"партия {i + 1}/{n_games}: +{len(new_puzzles)} задач "
-                    f"(суммарно собрано {len(collected)})",
+                    i + 1,
+                    n_games,
+                    f"партия {i + 1}/{n_games}: +{len(new_puzzles)} задач (суммарно собрано {len(collected)})",
                 )
 
             if should_cancel():
-                raise _GeneratorCancelled()
+                raise _GeneratorCancelledError()
 
             # append_mined_puzzles handles dedup by position and atomic-
             # ish write to the single canonical puzzles dir.

@@ -39,13 +39,26 @@ Calibration methodology — authoritative run 2026-04-19:
 
 from __future__ import annotations
 
-# Each entry carries:
-#   elo    — target (aspirational) rating shown in the label.
-#   elo_measured_2026_04_19 — actual self-play calibration result
-#                             (see module docstring).
-#   depth  — base alpha-beta depth for that level.
-#   label  — display string in the options dialog.
-ELO_LEVELS: dict[int, dict[str, object]] = {
+from typing import TypedDict
+
+
+class EloLevel(TypedDict):
+    """One difficulty-ladder entry.
+
+    elo    — target (aspirational) rating shown in the label.
+    elo_measured_2026_04_19 — actual self-play calibration result
+                              (see module docstring).
+    depth  — base alpha-beta depth for that level.
+    label  — display string in the options dialog.
+    """
+
+    elo: int
+    elo_measured_2026_04_19: int
+    depth: int
+    label: str
+
+
+ELO_LEVELS: dict[int, EloLevel] = {
     1: {"elo": 800, "elo_measured_2026_04_19": 1517, "depth": 2, "label": "Новичок (~800)"},
     2: {"elo": 1100, "elo_measured_2026_04_19": 1580, "depth": 3, "label": "Любитель (~1100)"},
     3: {"elo": 1400, "elo_measured_2026_04_19": 1694, "depth": 4, "label": "Клубный (~1400)"},
@@ -60,4 +73,4 @@ def level_label(level: int) -> str:
     entry = ELO_LEVELS.get(level)
     if entry is None:
         return f"Уровень {level}"
-    return str(entry["label"])
+    return entry["label"]

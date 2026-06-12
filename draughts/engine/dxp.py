@@ -20,6 +20,13 @@ This codec is pure — no sockets. See dxp_server.py for the TCP loop.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Protocol
+
+
+class _ByteReader(Protocol):
+    """Anything with ``read(n) -> bytes`` (socket.makefile, BufferedReader)."""
+
+    def read(self, n: int, /) -> bytes: ...
 
 
 PROTOCOL_VERSION = "1"
@@ -141,9 +148,7 @@ def _parse_int(text: str, start: int, end: int, field: str) -> int:
     try:
         return int(slice_)
     except ValueError as exc:
-        raise DXPProtocolError(
-            f"{field}: expected integer in columns {start}:{end}, got {slice_!r}"
-        ) from exc
+        raise DXPProtocolError(f"{field}: expected integer in columns {start}:{end}, got {slice_!r}") from exc
 
 
 def decode(frame: bytes) -> DXPMessage:
@@ -198,16 +203,11 @@ def decode(frame: bytes) -> DXPMessage:
         to_sq = _parse_int(text, 7, 9, "MOVE.to_sq")
         n_cap = _parse_int(text, 9, 11, "MOVE.n_cap")
         if n_cap > _MAX_CAPTURED:
-            raise DXPProtocolError(
-                f"MOVE: implausible capture count {n_cap} (cap = {_MAX_CAPTURED})"
-            )
+            raise DXPProtocolError(f"MOVE: implausible capture count {n_cap} (cap = {_MAX_CAPTURED})")
         expected_len = 11 + 2 * n_cap
         if len(text) < expected_len:
             raise DXPProtocolError(f"MOVE captures truncated: {text!r}")
-        captured = [
-            _parse_int(text, 11 + 2 * i, 13 + 2 * i, f"MOVE.captured[{i}]")
-            for i in range(n_cap)
-        ]
+        captured = [_parse_int(text, 11 + 2 * i, 13 + 2 * i, f"MOVE.captured[{i}]") for i in range(n_cap)]
         return Move(time_centis=time_centis, from_sq=from_sq, to_sq=to_sq, captured=captured)
 
     if code == "E":
@@ -220,7 +220,7 @@ def decode(frame: bytes) -> DXPMessage:
     raise DXPProtocolError(f"unknown message code {code!r}: {text!r}")
 
 
-def read_frame(readable, max_bytes: int = MAX_FRAME_BYTES) -> bytes:
+def read_frame(readable: _ByteReader, max_bytes: int = MAX_FRAME_BYTES) -> bytes:
     """Read one NUL-terminated frame from a byte-oriented source.
 
     ``readable`` must support ``read(n)`` returning bytes (a socket.makefile
@@ -241,6 +241,5 @@ def read_frame(readable, max_bytes: int = MAX_FRAME_BYTES) -> bytes:
             return bytes(buf)
         if len(buf) > max_bytes:
             raise DXPProtocolError(
-                f"Frame exceeded {max_bytes} bytes without NUL terminator — "
-                "refusing to buffer more (possible DoS)"
+                f"Frame exceeded {max_bytes} bytes without NUL terminator — refusing to buffer more (possible DoS)"
             )

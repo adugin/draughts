@@ -134,20 +134,16 @@ def _parse_puzzle_entry(entry: dict) -> Puzzle:
         )
 
     if "difficulty" not in entry:
-        raise ValueError(
-            f"Missing difficulty in puzzle {entry.get('id')!r}"
-        )
+        raise ValueError(f"Missing difficulty in puzzle {entry.get('id')!r}")
     try:
         difficulty = int(entry["difficulty"])
     except (TypeError, ValueError) as exc:
         raise ValueError(
-            f"Invalid difficulty in puzzle {entry.get('id')!r}: "
-            f"expected integer, got {entry['difficulty']!r}"
+            f"Invalid difficulty in puzzle {entry.get('id')!r}: expected integer, got {entry['difficulty']!r}"
         ) from exc
     if not _MIN_DIFFICULTY <= difficulty <= _MAX_DIFFICULTY:
         raise ValueError(
-            f"Difficulty {difficulty} in puzzle {entry.get('id')!r} "
-            f"out of range {_MIN_DIFFICULTY}..{_MAX_DIFFICULTY}"
+            f"Difficulty {difficulty} in puzzle {entry.get('id')!r} out of range {_MIN_DIFFICULTY}..{_MAX_DIFFICULTY}"
         )
 
     return Puzzle(
@@ -219,12 +215,8 @@ def load_bundled_puzzles() -> PuzzleSet:
                         puzzles.append(p)
                         seen_positions.add(p.position)
                 except (KeyError, ValueError):
-                    _logger.warning(
-                        "Skipping malformed mined puzzle entry: %r", entry.get("id")
-                    )
+                    _logger.warning("Skipping malformed mined puzzle entry: %r", entry.get("id"))
     except Exception:
-        _logger.exception(
-            "Failed to load mined puzzles; continuing with bundled only"
-        )
+        _logger.exception("Failed to load mined puzzles; continuing with bundled only")
 
     return PuzzleSet(puzzles)

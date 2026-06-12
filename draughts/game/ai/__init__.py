@@ -47,9 +47,7 @@ def load_default_book() -> OpeningBook | None:
             logging.getLogger(__name__).info("Loaded user opening book: %s", user_path)
             return DEFAULT_BOOK
     except Exception as exc:
-        logging.getLogger(__name__).warning(
-            "User opening book unreadable (%s) — falling back to shipped", exc
-        )
+        logging.getLogger(__name__).warning("User opening book unreadable (%s) — falling back to shipped", exc)
 
     # 2. Shipped resource.
     try:

@@ -16,7 +16,6 @@ import struct
 import sys
 from pathlib import Path
 
-
 LOCALE_ROOT = Path(__file__).resolve().parent.parent / "locale"
 
 
@@ -73,15 +72,18 @@ def _write_mo(mo_path: Path, entries: dict[str, str]) -> None:
     vals_offset = keys_offset + len(keys_blob)
 
     out = bytearray()
-    out.extend(struct.pack("<IIIIIII",
-        0x950412de,          # magic
-        0,                   # version
-        n,                   # count
-        keys_table_offset,
-        vals_table_offset,
-        0,                   # hash size (unused)
-        0,                   # hash offset (unused)
-    ))
+    out.extend(
+        struct.pack(
+            "<IIIIIII",
+            0x950412DE,  # magic
+            0,  # version
+            n,  # count
+            keys_table_offset,
+            vals_table_offset,
+            0,  # hash size (unused)
+            0,  # hash offset (unused)
+        )
+    )
 
     for length, offset in key_offsets:
         out.extend(struct.pack("<II", length, keys_offset + offset))
@@ -107,10 +109,7 @@ def compile_all() -> int:
         # discover the charset. If the .po didn't declare one, inject a
         # UTF-8 default so str() decoding works.
         if "" not in entries or "Content-Type" not in entries.get("", ""):
-            entries[""] = (
-                "Content-Type: text/plain; charset=UTF-8\n"
-                "Content-Transfer-Encoding: 8bit\n"
-            )
+            entries[""] = "Content-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n"
         _write_mo(mo, entries)
         print(f"  compiled: {mo.relative_to(LOCALE_ROOT)}")
         n_compiled += 1

@@ -9,14 +9,13 @@ import threading
 from pathlib import Path
 
 import pytest
-
 from draughts.tools.bitbase_downloader import (
-    BitbaseChecksumMismatch,
-    BitbaseDownloadCancelled,
+    BitbaseChecksumMismatchError,
+    BitbaseDownloadCancelledError,
     BitbaseDownloadError,
-    BitbaseInsecureURL,
-    BitbaseIntegrityUnavailable,
-    BitbaseSizeExceeded,
+    BitbaseInsecureURLError,
+    BitbaseIntegrityUnavailableError,
+    BitbaseSizeExceededError,
     download_bitbase,
     resolve_url,
 )
@@ -41,7 +40,7 @@ def local_http_server(tmp_path: Path):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=str(tmp_path), **kwargs)
 
-        def log_message(self, *_args, **_kwargs):  # noqa: N802
+        def log_message(self, *_args, **_kwargs):
             pass
 
     srv = socketserver.TCPServer(("127.0.0.1", port), _Handler)
@@ -124,7 +123,7 @@ def test_checksum_mismatch_raises_and_cleans_up(local_http_server, tmp_path: Pat
     (serve_dir / "f.gz").write_bytes(b"actual contents")
 
     dest = tmp_path / "dest"
-    with pytest.raises(BitbaseChecksumMismatch):
+    with pytest.raises(BitbaseChecksumMismatchError):
         download_bitbase(
             url=f"{base_url}/f.gz",
             dest_dir=dest,
@@ -154,7 +153,7 @@ def test_network_error_raises(tmp_path: Path):
 
 def test_http_scheme_refused_by_default(tmp_path: Path):
     """HIGH-07: plain http:// URL must be rejected unless opted in."""
-    with pytest.raises(BitbaseInsecureURL):
+    with pytest.raises(BitbaseInsecureURLError):
         download_bitbase(
             url="http://example.com/file.gz",
             dest_dir=tmp_path / "dest",
@@ -178,11 +177,11 @@ def test_allow_http_bypasses_scheme_check(local_http_server, tmp_path: Path):
 
 
 def test_missing_sha256_rejects_by_default(local_http_server, tmp_path: Path):
-    """HIGH-02: no .sha256 sibling → BitbaseIntegrityUnavailable."""
+    """HIGH-02: no .sha256 sibling → BitbaseIntegrityUnavailableError."""
     base_url, serve_dir = local_http_server
     (serve_dir / "f.gz").write_bytes(b"x" * 100)
     # No .sha256 file served; caller provides neither expected nor url.
-    with pytest.raises(BitbaseIntegrityUnavailable):
+    with pytest.raises(BitbaseIntegrityUnavailableError):
         download_bitbase(
             url=f"{base_url}/f.gz",
             dest_dir=tmp_path / "dest",
@@ -212,7 +211,7 @@ def test_size_cap_rejects_large_payload(local_http_server, tmp_path: Path):
     payload = b"Z" * (500 * 1024)  # 500 KB
     (serve_dir / "big.gz").write_bytes(payload)
 
-    with pytest.raises(BitbaseSizeExceeded):
+    with pytest.raises(BitbaseSizeExceededError):
         download_bitbase(
             url=f"{base_url}/big.gz",
             dest_dir=tmp_path / "dest",
@@ -230,18 +229,12 @@ def test_size_cap_rejects_large_payload(local_http_server, tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-def test_downloaded_file_is_picked_up_by_loader(
-    local_http_server, tmp_path: Path, monkeypatch
-):
+def test_downloaded_file_is_picked_up_by_loader(local_http_server, tmp_path: Path, monkeypatch):
     """Closes the loop: download a valid bitbase, call load_default_bitbase,
     verify the engine now uses it. Guards BLK-02 / user_data path wiring.
     """
-    import json
 
-    from draughts.game.ai.bitbase import DRAW, EndgameBitbase, WIN
-    from draughts.game.ai.tt import _zobrist_hash
-    from draughts.game.board import Board
-    from draughts.config import Color
+    from draughts.game.ai.bitbase import DRAW, WIN, EndgameBitbase
 
     # Build a realistic bitbase payload (JSON of int-string keys).
     bb = EndgameBitbase(entries={1: WIN, 2: DRAW}, max_pieces=4)
@@ -296,7 +289,7 @@ def test_cancel_flag_interrupts(local_http_server, tmp_path: Path):
         if done > 128 * 1024:  # after 128 KB, ask for cancel
             cancel[0] = True
 
-    with pytest.raises(BitbaseDownloadCancelled):
+    with pytest.raises(BitbaseDownloadCancelledError):
         download_bitbase(
             url=f"{base_url}/big.gz",
             dest_dir=tmp_path / "dest",
@@ -323,7 +316,7 @@ def test_existing_file_preserved_if_download_fails(local_http_server, tmp_path: 
     dest.mkdir()
     (dest / "f.gz").write_bytes(b"old contents")
 
-    with pytest.raises(BitbaseChecksumMismatch):
+    with pytest.raises(BitbaseChecksumMismatchError):
         download_bitbase(
             url=f"{base_url}/f.gz",
             dest_dir=dest,

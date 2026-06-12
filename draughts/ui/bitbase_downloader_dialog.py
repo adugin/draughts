@@ -12,10 +12,9 @@ import logging
 import threading
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QThread, Qt, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QDialog,
-    QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -25,12 +24,12 @@ from PyQt6.QtWidgets import (
 )
 
 from draughts.tools.bitbase_downloader import (
-    BitbaseChecksumMismatch,
-    BitbaseDownloadCancelled,
+    BitbaseChecksumMismatchError,
+    BitbaseDownloadCancelledError,
     BitbaseDownloadError,
-    BitbaseInsecureURL,
-    BitbaseIntegrityUnavailable,
-    BitbaseSizeExceeded,
+    BitbaseInsecureURLError,
+    BitbaseIntegrityUnavailableError,
+    BitbaseSizeExceededError,
     DownloadResult,
     download_bitbase,
     get_destination_dir,
@@ -77,35 +76,32 @@ class _DownloadWorker(QObject):
                 on_progress=lambda d, t: self.progress.emit(d, t),
                 cancel_flag=self._cancel_list,
             )
-        except BitbaseDownloadCancelled:
+        except BitbaseDownloadCancelledError:
             self.finished.emit(None, "Скачивание отменено")
             return
-        except BitbaseChecksumMismatch as exc:
+        except BitbaseChecksumMismatchError as exc:
             self.finished.emit(
                 None,
                 f"Контрольная сумма не совпала — файл не прошёл проверку "
                 f"целостности. Возможная подмена или ошибка передачи.\n\n{exc}",
             )
             return
-        except BitbaseIntegrityUnavailable as exc:
+        except BitbaseIntegrityUnavailableError as exc:
             self.finished.emit(
                 None,
-                f"Файл SHA-256 (.sha256) не опубликован на релизе. "
-                f"Загрузка отменена для безопасности.\n\n{exc}",
+                f"Файл SHA-256 (.sha256) не опубликован на релизе. Загрузка отменена для безопасности.\n\n{exc}",
             )
             return
-        except BitbaseSizeExceeded as exc:
+        except BitbaseSizeExceededError as exc:
             self.finished.emit(
                 None,
-                f"Файл слишком большой (больше установленного лимита). "
-                f"Загрузка отменена.\n\n{exc}",
+                f"Файл слишком большой (больше установленного лимита). Загрузка отменена.\n\n{exc}",
             )
             return
-        except BitbaseInsecureURL as exc:
+        except BitbaseInsecureURLError as exc:
             self.finished.emit(
                 None,
-                f"Источник использует небезопасный протокол (не HTTPS). "
-                f"Загрузка отменена.\n\n{exc}",
+                f"Источник использует небезопасный протокол (не HTTPS). Загрузка отменена.\n\n{exc}",
             )
             return
         except BitbaseDownloadError as exc:
@@ -162,13 +158,10 @@ class BitbaseDownloaderDialog(QDialog):
 
         # MED-06: make URL a clickable hyperlink so the user can inspect
         # the release page in a browser.
-        self._url_label = QLabel(
-            f'<b>Источник:</b> <a href="{self._url}">{self._url}</a>'
-        )
+        self._url_label = QLabel(f'<b>Источник:</b> <a href="{self._url}">{self._url}</a>')
         self._url_label.setTextFormat(Qt.TextFormat.RichText)
         self._url_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-            | Qt.TextInteractionFlag.LinksAccessibleByMouse
+            Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.LinksAccessibleByMouse
         )
         self._url_label.setOpenExternalLinks(True)
         root.addWidget(self._url_label)
@@ -223,7 +216,7 @@ class BitbaseDownloaderDialog(QDialog):
     def _on_cancel(self) -> None:
         if self._worker is not None and self._thread is not None:
             # Signal the worker via threading.Event; it will raise
-            # BitbaseDownloadCancelled, emit finished(), and the signal
+            # BitbaseDownloadCancelledError, emit finished(), and the signal
             # chain from _on_start handles teardown automatically.
             self._worker.request_cancel()
             self._btn_cancel.setEnabled(False)
@@ -236,9 +229,7 @@ class BitbaseDownloaderDialog(QDialog):
         if total > 0:
             self._progress.setMaximum(total)
             self._progress.setValue(done)
-            self._status.setText(
-                f"Скачано: {done / (1024 * 1024):.1f} / {total / (1024 * 1024):.1f} МБ"
-            )
+            self._status.setText(f"Скачано: {done / (1024 * 1024):.1f} / {total / (1024 * 1024):.1f} МБ")
         else:
             # Unknown total — show indeterminate progress in bytes.
             self._progress.setMaximum(0)
@@ -277,9 +268,7 @@ class BitbaseDownloaderDialog(QDialog):
 
         assert result is not None
         self._result_path = result.path
-        self._status.setText(
-            f"Готово. {result.size_bytes / (1024 * 1024):.1f} МБ записано в {result.path.name}"
-        )
+        self._status.setText(f"Готово. {result.size_bytes / (1024 * 1024):.1f} МБ записано в {result.path.name}")
         self._progress.setMaximum(100)
         self._progress.setValue(100)
         self.downloaded.emit(result.path)

@@ -21,7 +21,6 @@ from pathlib import Path
 
 import pytest
 
-
 _qt_app = None
 
 
@@ -62,9 +61,7 @@ def test_help_md_has_hotkeys_table():
     """The hotkeys section must use GFM table syntax so it renders as a table."""
     text = _HELP_MD.read_text(encoding="utf-8")
     # Look for a pipe-delimited header separator: `|---|---|...|`
-    assert "|---|" in text.replace(" ", ""), (
-        "expected at least one GFM table in help.md"
-    )
+    assert "|---|" in text.replace(" ", ""), "expected at least one GFM table in help.md"
 
 
 # ---------------------------------------------------------------------------
@@ -82,9 +79,7 @@ def test_qtextdocument_renders_markdown_headings():
     plain = doc.toPlainText()
     # No literal '# ' at line starts — parser must have consumed them.
     for line in plain.splitlines():
-        assert not line.startswith("# "), (
-            f"heading marker survived render: {line!r}"
-        )
+        assert not line.startswith("# "), f"heading marker survived render: {line!r}"
     # Title text must still be present (as a heading).
     assert "Русские шашки" in plain
     # Non-trivial block count means the parser actually produced structure.
@@ -131,17 +126,13 @@ def test_info_dialog_exposes_maximise_button():
     standard frame is restored, enabling maximise / minimise via the
     title-bar icons AND via the Windows shortcut (Win+Up).
     """
-    from PyQt6.QtCore import Qt
     from draughts.ui.dialogs import InfoDialog
+    from PyQt6.QtCore import Qt
 
     dlg = InfoDialog(theme="dark_wood")
     flags = dlg.windowFlags()
-    assert flags & Qt.WindowType.WindowMaximizeButtonHint, (
-        "InfoDialog must expose a maximise button in the title bar"
-    )
-    assert flags & Qt.WindowType.WindowMinimizeButtonHint, (
-        "InfoDialog must expose a minimise button in the title bar"
-    )
+    assert flags & Qt.WindowType.WindowMaximizeButtonHint, "InfoDialog must expose a maximise button in the title bar"
+    assert flags & Qt.WindowType.WindowMinimizeButtonHint, "InfoDialog must expose a minimise button in the title bar"
 
 
 def test_info_dialog_uses_plain_readable_document():
@@ -176,9 +167,7 @@ def test_info_dialog_falls_back_to_legacy_txt(monkeypatch):
 
     # Force _populate's is_file() check to return False, then make the
     # legacy loader return a sentinel we can detect.
-    monkeypatch.setattr(
-        dialogs_mod.Path, "is_file", lambda self: False
-    )
+    monkeypatch.setattr(dialogs_mod.Path, "is_file", lambda self: False)
     monkeypatch.setattr(
         dialogs_mod.InfoDialog,
         "_load_legacy_help_text",

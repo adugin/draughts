@@ -29,7 +29,6 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QTabWidget,
     QTextBrowser,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -160,8 +159,7 @@ class OptionsDialog(QDialog):
         self._hash_size.setSuffix(" МБ")
         self._hash_size.setValue(getattr(s, "hash_size_mb", 64))
         self._hash_size.setToolTip(
-            "Размер таблицы транспозиций. Новое значение применяется "
-            "со следующего хода компьютера."
+            "Размер таблицы транспозиций. Новое значение применяется со следующего хода компьютера."
         )
         form.addRow("Хэш-таблица:", self._hash_size)
 
@@ -332,9 +330,7 @@ class InfoDialog(QDialog):
         # setWindowFlags делает внутренний reparent и может сбросить
         # window-state; ставим modality ПОСЛЕ (Qt docs, safe idiom).
         self.setWindowFlags(
-            self.windowFlags()
-            | Qt.WindowType.WindowMinimizeButtonHint
-            | Qt.WindowType.WindowMaximizeButtonHint
+            self.windowFlags() | Qt.WindowType.WindowMinimizeButtonHint | Qt.WindowType.WindowMaximizeButtonHint
         )
         self.setModal(True)
         apply_dialog_theme(self, theme)
@@ -352,8 +348,7 @@ class InfoDialog(QDialog):
         # стандартные рамки таблиц) и игнорируем активную тему. Рамка
         # диалога и кнопка «Закрыть» остаются тематическими.
         self._text_browser.setStyleSheet(
-            "QTextBrowser { background-color: #ffffff; color: #000000; "
-            "border: 1px solid #888888; padding: 8px; }"
+            "QTextBrowser { background-color: #ffffff; color: #000000; border: 1px solid #888888; padding: 8px; }"
         )
         self._populate()
         layout.addWidget(self._text_browser)
@@ -433,9 +428,7 @@ class InfoDialog(QDialog):
         cell_fmt.setBorderBrush(QColor("#b0b0b0"))
         # The BorderStyle enum lives on QTextFrameFormat — shared with
         # every border-aware format class.
-        cell_fmt.setBorderStyle(
-            QTextTableFormat.BorderStyle.BorderStyle_Solid
-        )
+        cell_fmt.setBorderStyle(QTextTableFormat.BorderStyle.BorderStyle_Solid)
         cell_fmt.setPadding(6)
 
         def _style_table(table: QTextTable) -> None:

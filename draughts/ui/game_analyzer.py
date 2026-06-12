@@ -372,9 +372,7 @@ def run_game_analysis(controller: GameController, parent=None) -> None:
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
     worker.progress_updated.connect(lambda cur, total: progress.setValue(cur))
-    worker.finished.connect(
-        lambda r: _on_analysis_done(r, controller, parent, progress, thread, worker, start_color)
-    )
+    worker.finished.connect(lambda r: _on_analysis_done(r, controller, parent, progress, thread, worker, start_color))
     progress.canceled.connect(worker.cancel)
     thread.start()
     progress.exec()
@@ -470,6 +468,8 @@ def _on_analysis_done(
     move_num = 1
     starts_with_black = start_color == Color.BLACK
     while i < len(annotations):
+        white_ann: MoveAnnotation | None
+        black_ann: MoveAnnotation | None
         if starts_with_black and move_num == 1 and i == 0:
             # First printed row: no white move, black's ply 0 goes right.
             white_ann = None
@@ -550,9 +550,7 @@ def _offer_puzzle_mining(
     if result.blunder_count == 0:
         return
 
-    candidates = mine_puzzles_from_game(
-        positions, result.annotations, start_color=start_color
-    )
+    candidates = mine_puzzles_from_game(positions, result.annotations, start_color=start_color)
     if not candidates:
         return
 

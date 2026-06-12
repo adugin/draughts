@@ -71,8 +71,9 @@ def import_games(
 
     for g in games:
         board, color = _start_state_from_headers(g.headers, parse_fen)
-        applied = 0
-        for move_str in g.moves:
+        # enumerate index == count of successfully applied moves, because
+        # every failure path below breaks out of the loop immediately.
+        for applied, move_str in enumerate(g.moves):
             if applied >= plies:
                 break
             try:
@@ -131,8 +132,7 @@ def cli() -> int:
 
     book.save(args.out)
     print(
-        f"Imported {total_games} games → {len(book)} positions, "
-        f"{book.total_moves()} (pos,move) pairs → {args.out}",
+        f"Imported {total_games} games → {len(book)} positions, {book.total_moves()} (pos,move) pairs → {args.out}",
         file=sys.stderr,
     )
     return 0

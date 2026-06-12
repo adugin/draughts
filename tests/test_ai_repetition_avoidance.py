@@ -24,7 +24,6 @@ HeadlessGame without any mocks — only real Board / Zobrist / search.
 from __future__ import annotations
 
 import pytest
-
 from draughts.config import Color
 from draughts.game.ai import (
     AIEngine,
@@ -34,7 +33,6 @@ from draughts.game.ai import (
 )
 from draughts.game.board import Board
 from draughts.game.headless import HeadlessGame
-
 
 # ---------------------------------------------------------------------------
 # Direct AIEngine.find_move — the lowest-level proof that the new
@@ -62,8 +60,11 @@ def test_find_move_accepts_game_position_hashes_kwarg():
     (backward-compat for analysis/puzzle callers)."""
     b = _lone_king_vs_pawn_board()
     eng = AIEngine(
-        difficulty=2, color=Color.WHITE, search_depth=3,
-        use_book=False, use_bitbase=False,
+        difficulty=2,
+        color=Color.WHITE,
+        search_depth=3,
+        use_book=False,
+        use_bitbase=False,
     )
     m1 = eng.find_move(b.copy())
     m2 = eng.find_move(b.copy(), game_position_hashes=None)
@@ -82,8 +83,11 @@ def test_ai_avoids_move_leading_to_twice_seen_position():
     """
     b = _lone_king_vs_pawn_board()
     eng = AIEngine(
-        difficulty=2, color=Color.WHITE, search_depth=4,
-        use_book=False, use_bitbase=False,
+        difficulty=2,
+        color=Color.WHITE,
+        search_depth=4,
+        use_book=False,
+        use_bitbase=False,
     )
 
     baseline = eng.find_move(b.copy())
@@ -98,8 +102,7 @@ def test_ai_avoids_move_leading_to_twice_seen_position():
     new_choice = eng.find_move(b.copy(), game_position_hashes=rep_set)
     assert new_choice is not None
     assert new_choice.path != baseline.path, (
-        f"AI still picked the 3-fold-draw move {baseline.path}; "
-        f"the repetition seed had no effect."
+        f"AI still picked the 3-fold-draw move {baseline.path}; the repetition seed had no effect."
     )
 
     # Sanity: the replacement leads to a position that is NOT in the set.
@@ -127,8 +130,11 @@ def test_ai_picks_repetition_when_every_alternative_is_worse():
     """
     b = _lone_king_vs_pawn_board()
     eng = AIEngine(
-        difficulty=2, color=Color.WHITE, search_depth=3,
-        use_book=False, use_bitbase=False,
+        difficulty=2,
+        color=Color.WHITE,
+        search_depth=3,
+        use_book=False,
+        use_bitbase=False,
     )
     # Build the set of ALL reachable child hashes.
     all_moves = _generate_all_moves(b, Color.WHITE)
@@ -169,8 +175,11 @@ def test_headless_game_feeds_repeated_hashes_to_ai():
         _zobrist_hash(g._board.grid, Color.WHITE): 1,
     }
     g._engines[Color.WHITE] = AIEngine(
-        difficulty=2, color=Color.WHITE, search_depth=4,
-        use_book=False, use_bitbase=False,
+        difficulty=2,
+        color=Color.WHITE,
+        search_depth=4,
+        use_book=False,
+        use_bitbase=False,
     )
 
     # Probe the AI with no hints first to know the "natural" target.
@@ -210,9 +219,7 @@ def test_headless_game_tracks_hashes_parallel_to_counts():
 
     # Counts must match in total multiplicity (not key-by-key, because
     # the two use different keys — position_string vs Zobrist).
-    assert sum(g._position_counts.values()) == sum(
-        g._position_hash_counts.values()
-    )
+    assert sum(g._position_counts.values()) == sum(g._position_hash_counts.values())
 
 
 # ---------------------------------------------------------------------------
@@ -226,8 +233,11 @@ def test_legacy_callers_do_not_break():
     and returns a legal move for the standard opening."""
     b = Board()
     eng = AIEngine(
-        difficulty=2, color=Color.WHITE, search_depth=3,
-        use_book=False, use_bitbase=False,
+        difficulty=2,
+        color=Color.WHITE,
+        search_depth=3,
+        use_book=False,
+        use_bitbase=False,
     )
     move = eng.find_move(b)
     assert move is not None

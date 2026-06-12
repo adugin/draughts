@@ -12,6 +12,11 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from draughts.config import Color
+    from draughts.ui.game_analyzer import MoveAnnotation
 
 logger = logging.getLogger("draughts.puzzle_miner")
 
@@ -33,6 +38,7 @@ MINED_PUZZLES_PATH: Path = _default_mined_path()
 def _mined_puzzles_path() -> Path:
     """Return the currently-configured path (honours test patches)."""
     return MINED_PUZZLES_PATH
+
 
 # Minimum eval-swing to qualify a position as a puzzle.
 # With tuned weights (_PAWN_VALUE ~1.9), losing one pawn ≈ 2 eval units.
@@ -62,7 +68,7 @@ def _delta_to_difficulty(delta_cp: float) -> int:
     return 2  # minimum for any blunder (400 ≤ delta < 600)
 
 
-def _turn_string(ply: int, start_color=None) -> str:
+def _turn_string(ply: int, start_color: Color | None = None) -> str:
     """Return 'white' or 'black' for the side that moves on *ply*.
 
     ``start_color`` names the side that moved at ply 0 (games loaded
@@ -82,9 +88,9 @@ def _turn_string(ply: int, start_color=None) -> str:
 
 def mine_puzzles_from_game(
     positions: list[str],
-    annotations: list,  # list[MoveAnnotation] from game_analyzer
+    annotations: list[MoveAnnotation],
     min_delta_cp: float = _DEFAULT_MIN_DELTA,
-    start_color=None,
+    start_color: Color | None = None,
 ) -> list[dict]:
     """Extract puzzle candidates from an analyzed game.
 

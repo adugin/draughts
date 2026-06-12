@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-
 _qt_app = None
 
 
@@ -118,9 +117,7 @@ def test_load_game_from_pdn_sets_start_color(controller, tmp_path: Path):
     assert controller.current_turn == Color.WHITE
 
 
-def test_load_saved_game_resets_start_color_after_black_first_pdn(
-    controller, tmp_path: Path
-):
+def test_load_saved_game_resets_start_color_after_black_first_pdn(controller, tmp_path: Path):
     """Regression: loading a JSON save after a black-first PDN must reset
     _game_start_color back to White.
 

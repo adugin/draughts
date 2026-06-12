@@ -22,7 +22,7 @@ Design notes:
   depending on Qt.
 - Cancellation: the caller can set a ``cancel_flag: list[bool]`` to
   ``[True]`` at any point; the chunked download checks it between
-  chunks and raises ``BitbaseDownloadCancelled``.
+  chunks and raises ``BitbaseDownloadCancelledError``.
 """
 
 from __future__ import annotations
@@ -32,22 +32,18 @@ import logging
 import os
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 logger = logging.getLogger("draughts.bitbase_downloader")
 
 #: Default GitHub Releases URL for the 4-piece bitbase.
 #: Override via the DRAUGHTS_BITBASE_URL env var or pass url= explicitly.
-DEFAULT_BITBASE_URL = (
-    "https://github.com/adugin/draughts/releases/latest/download/bitbase_4.json.gz"
-)
+DEFAULT_BITBASE_URL = "https://github.com/adugin/draughts/releases/latest/download/bitbase_4.json.gz"
 
 #: Default SHA256 URL (.sha256 text file alongside the artifact).
-DEFAULT_BITBASE_SHA256_URL = (
-    "https://github.com/adugin/draughts/releases/latest/download/bitbase_4.json.gz.sha256"
-)
+DEFAULT_BITBASE_SHA256_URL = "https://github.com/adugin/draughts/releases/latest/download/bitbase_4.json.gz.sha256"
 
 #: Chunk size for streaming download — 256 KB keeps progress smooth
 #: without burning RAM on small machines.
@@ -63,25 +59,25 @@ class BitbaseDownloadError(RuntimeError):
     """Base for bitbase downloader failures."""
 
 
-class BitbaseDownloadCancelled(BitbaseDownloadError):
+class BitbaseDownloadCancelledError(BitbaseDownloadError):
     """Raised when the caller set cancel_flag to [True] mid-download."""
 
 
-class BitbaseChecksumMismatch(BitbaseDownloadError):
+class BitbaseChecksumMismatchError(BitbaseDownloadError):
     """Raised when the downloaded file's SHA256 != advertised."""
 
 
-class BitbaseIntegrityUnavailable(BitbaseDownloadError):
+class BitbaseIntegrityUnavailableError(BitbaseDownloadError):
     """Raised when the .sha256 file cannot be retrieved and the caller
     required integrity verification (HIGH-02 fix: integrity is ON by
     default; allow_unverified=True opts out)."""
 
 
-class BitbaseSizeExceeded(BitbaseDownloadError):
+class BitbaseSizeExceededError(BitbaseDownloadError):
     """Raised when the payload exceeds max_bytes (HIGH-03 fix)."""
 
 
-class BitbaseInsecureURL(BitbaseDownloadError):
+class BitbaseInsecureURLError(BitbaseDownloadError):
     """Raised when a non-https URL is used without the allow_http escape hatch
     (HIGH-07 fix)."""
 
@@ -132,14 +128,14 @@ def _fetch_expected_sha256(sha256_url: str, timeout: float = 10.0) -> str | None
 
 
 def _validate_url_scheme(url: str, *, allow_http: bool) -> None:
-    """Raise BitbaseInsecureURL if url is non-https and allow_http=False."""
+    """Raise BitbaseInsecureURLError if url is non-https and allow_http=False."""
     scheme = url.split(":", 1)[0].lower()
     if scheme == "https":
         return
     if scheme == "http" and allow_http:
         logger.warning("Insecure HTTP download allowed via allow_http=True (%s)", url)
         return
-    raise BitbaseInsecureURL(
+    raise BitbaseInsecureURLError(
         f"Refusing to download from {scheme!r} URL. "
         "Pass allow_http=True or set DRAUGHTS_ALLOW_HTTP=1 for local testing."
     )
@@ -163,7 +159,7 @@ def download_bitbase(
     Safety contract (post-audit):
       - **HTTPS only** unless ``allow_http=True`` or env DRAUGHTS_ALLOW_HTTP=1 (HIGH-07).
       - **Integrity required** — fetches ``sha256_url`` or uses ``expected_sha256``;
-        raises BitbaseIntegrityUnavailable if neither is available and
+        raises BitbaseIntegrityUnavailableError if neither is available and
         ``allow_unverified`` is False (HIGH-02).
       - **Size cap** — abort if payload > ``max_bytes`` (default 1 GB) (HIGH-03).
 
@@ -180,11 +176,11 @@ def download_bitbase(
         allow_http: Override the HTTPS-only default. None → check env.
 
     Raises:
-        BitbaseInsecureURL — URL is not https and allow_http is off.
-        BitbaseIntegrityUnavailable — no .sha256 and allow_unverified=False.
-        BitbaseSizeExceeded — payload > max_bytes.
-        BitbaseChecksumMismatch — hash differs from expected.
-        BitbaseDownloadCancelled — cancel_flag[0] became True.
+        BitbaseInsecureURLError — URL is not https and allow_http is off.
+        BitbaseIntegrityUnavailableError — no .sha256 and allow_unverified=False.
+        BitbaseSizeExceededError — payload > max_bytes.
+        BitbaseChecksumMismatchError — hash differs from expected.
+        BitbaseDownloadCancelledError — cancel_flag[0] became True.
         BitbaseDownloadError — other network / IO failure.
     """
     import os as _os
@@ -206,7 +202,7 @@ def download_bitbase(
             expected_sha256 = _fetch_expected_sha256(sha_url, timeout=timeout)
 
     if expected_sha256 is None and not allow_unverified:
-        raise BitbaseIntegrityUnavailable(
+        raise BitbaseIntegrityUnavailableError(
             "Cannot verify file integrity: no expected SHA-256 available. "
             "The download was refused. Pass allow_unverified=True to override "
             "or ensure the .sha256 sibling file is published."
@@ -220,14 +216,12 @@ def download_bitbase(
             length_hdr = resp.headers.get("Content-Length")
             total = int(length_hdr) if length_hdr and length_hdr.isdigit() else 0
             if total and total > max_bytes:
-                raise BitbaseSizeExceeded(
-                    f"Advertised size {total} bytes exceeds max_bytes={max_bytes}"
-                )
+                raise BitbaseSizeExceededError(f"Advertised size {total} bytes exceeds max_bytes={max_bytes}")
 
             with tmp_path.open("wb") as out:
                 while True:
                     if cancel_flag is not None and cancel_flag and cancel_flag[0]:
-                        raise BitbaseDownloadCancelled("user cancelled")
+                        raise BitbaseDownloadCancelledError("user cancelled")
                     chunk = resp.read(_CHUNK_SIZE)
                     if not chunk:
                         break
@@ -235,16 +229,15 @@ def download_bitbase(
                     sha.update(chunk)
                     bytes_done += len(chunk)
                     if bytes_done > max_bytes:
-                        raise BitbaseSizeExceeded(
-                            f"Payload exceeded max_bytes={max_bytes} after "
-                            f"{bytes_done} bytes"
+                        raise BitbaseSizeExceededError(
+                            f"Payload exceeded max_bytes={max_bytes} after {bytes_done} bytes"
                         )
                     if on_progress is not None:
                         on_progress(bytes_done, total)
-    except BitbaseDownloadCancelled:
+    except BitbaseDownloadCancelledError:
         tmp_path.unlink(missing_ok=True)
         raise
-    except BitbaseSizeExceeded:
+    except BitbaseSizeExceededError:
         tmp_path.unlink(missing_ok=True)
         raise
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
@@ -254,9 +247,7 @@ def download_bitbase(
     actual = sha.hexdigest()
     if expected_sha256 and actual != expected_sha256:
         tmp_path.unlink(missing_ok=True)
-        raise BitbaseChecksumMismatch(
-            f"SHA256 mismatch: expected {expected_sha256}, got {actual}"
-        )
+        raise BitbaseChecksumMismatchError(f"SHA256 mismatch: expected {expected_sha256}, got {actual}")
     if expected_sha256 is None:
         logger.warning(
             "No expected SHA256 available — accepting file unverified "
@@ -303,7 +294,9 @@ def _cli() -> int:
     def on_progress(done: int, total: int) -> None:
         if total:
             pct = 100.0 * done / total
-            print(f"\r  {done / (1024 * 1024):.1f} / {total / (1024 * 1024):.1f} MB ({pct:.1f}%)", end="", file=sys.stderr)
+            print(
+                f"\r  {done / (1024 * 1024):.1f} / {total / (1024 * 1024):.1f} MB ({pct:.1f}%)", end="", file=sys.stderr
+            )
         else:
             print(f"\r  {done / (1024 * 1024):.1f} MB", end="", file=sys.stderr)
 

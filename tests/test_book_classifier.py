@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import random
 
-from draughts.config import BLACK, BLACK_KING, Color, WHITE, WHITE_KING
+from draughts.config import BLACK, BLACK_KING, WHITE, WHITE_KING, Color
 from draughts.game.ai.book import (
     BookEntry,
     OpeningBook,
@@ -42,10 +42,12 @@ def test_quiet_king_fly_is_classified_as_move():
 
 def test_king_capture_over_enemy_is_classified_as_capture():
     # White king on c3 slides to e5 but jumps over a black pawn at d4.
-    b = _empty_board_with([
-        (2, 5, int(WHITE_KING)),
-        (3, 4, int(BLACK)),
-    ])
+    b = _empty_board_with(
+        [
+            (2, 5, int(WHITE_KING)),
+            (3, 4, int(BLACK)),
+        ]
+    )
     path = ((2, 5), (4, 3))
     assert _path_is_capture_on_board(b, path) is True
     assert _infer_kind(b, path) == "capture"
@@ -107,14 +109,18 @@ def test_probe_reclassifies_on_load():
 
 def test_probe_all_reclassifies_consistently():
     book = OpeningBook()
-    board = _empty_board_with([
-        (2, 5, int(WHITE_KING)),
-        (3, 4, int(BLACK)),  # enemy on the diagonal
-    ])
+    board = _empty_board_with(
+        [
+            (2, 5, int(WHITE_KING)),
+            (3, 4, int(BLACK)),  # enemy on the diagonal
+        ]
+    )
     zhash = _zobrist_hash(board.grid, Color.WHITE)
-    book._entries[zhash] = BookEntry(moves=[
-        (((2, 5), (4, 3)), 1),  # king jumps the pawn → capture
-    ])
+    book._entries[zhash] = BookEntry(
+        moves=[
+            (((2, 5), (4, 3)), 1),  # king jumps the pawn → capture
+        ]
+    )
     entries = book.probe_all(board, Color.WHITE)
     assert len(entries) == 1
     assert entries[0][0].kind == "capture"

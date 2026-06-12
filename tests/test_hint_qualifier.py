@@ -55,7 +55,8 @@ def empty_board():
 class TestCaptureQualifier:
     def test_single_capture_has_no_qualifier(self, empty_board):
         """Single-piece capture is obvious from notation (:) — no qualifier."""
-        from draughts.config import WHITE, BLACK
+        from draughts.config import BLACK, WHITE
+
         empty_board.grid[5, 2] = WHITE
         empty_board.grid[4, 3] = BLACK
         c = _make_controller(empty_board)
@@ -97,7 +98,7 @@ class TestPromotionQualifier:
         """White pawn on row 1 → move to row 0 is a promotion."""
         from draughts.config import WHITE
 
-        empty_board.grid[1, 2] = WHITE   # c7
+        empty_board.grid[1, 2] = WHITE  # c7
         c = _make_controller(empty_board)
         # c7-b8 (x, y): (2, 1) → (1, 0)
         mv = _StubMove("move", [(2, 1), (1, 0)])
@@ -107,7 +108,7 @@ class TestPromotionQualifier:
         """Black pawn on row 6 → move to row 7 is a promotion."""
         from draughts.config import BLACK
 
-        empty_board.grid[6, 3] = BLACK   # d2
+        empty_board.grid[6, 3] = BLACK  # d2
         c = _make_controller(empty_board)
         mv = _StubMove("move", [(3, 6), (2, 7)])
         assert c._hint_qualifier(mv) == "в дамки!"
@@ -115,7 +116,7 @@ class TestPromotionQualifier:
     def test_non_promoting_quiet_move_has_no_qualifier(self, empty_board):
         from draughts.config import WHITE
 
-        empty_board.grid[5, 2] = WHITE   # c3
+        empty_board.grid[5, 2] = WHITE  # c3
         c = _make_controller(empty_board)
         mv = _StubMove("move", [(2, 5), (3, 4)])
         assert c._hint_qualifier(mv) == ""
@@ -136,11 +137,11 @@ class TestPromotionQualifier:
         must continue capturing. The "N взятий" label is more useful
         than "в дамки!" for these; we already announce capture count.
         """
-        from draughts.config import WHITE, BLACK
+        from draughts.config import BLACK, WHITE
 
-        empty_board.grid[3, 2] = WHITE   # c5
-        empty_board.grid[2, 3] = BLACK   # d6
-        empty_board.grid[0, 5] = BLACK   # f8
+        empty_board.grid[3, 2] = WHITE  # c5
+        empty_board.grid[2, 3] = BLACK  # d6
+        empty_board.grid[0, 5] = BLACK  # f8
         c = _make_controller(empty_board)
         # c5 x e7 x g not legal geometrically; craft a 2-cap path that
         # lands on white's promote row (row 0).

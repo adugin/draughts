@@ -65,9 +65,9 @@ def test_plies_limit_truncates(tmp_path: Path):
 
 
 def test_repeat_move_accumulates_weight(tmp_path: Path):
+    from draughts.config import Color
     from draughts.game.ai.book import OpeningBook
     from draughts.game.board import Board
-    from draughts.config import Color
     from draughts.game.pdn import load_pdn_file
 
     pdn = _write_pdn(tmp_path, [["22-17"], ["22-17"], ["22-17"]])
@@ -92,9 +92,9 @@ def test_import_multiple_files_keeps_weights(tmp_path: Path):
     games = load_pdn_file(pdn)
     book = import_games(games, plies=1)
     # Two different first moves from the opening position.
+    from draughts.config import Color
     from draughts.game.ai.tt import _zobrist_hash
     from draughts.game.board import Board
-    from draughts.config import Color
 
     h = _zobrist_hash(Board().grid, Color.WHITE)
     entry = book._entries[h]
@@ -117,14 +117,7 @@ def test_import_honours_setup_fen_black_to_move(tmp_path: Path):
     start_board, start_color = parse_fen(fen)
     expected_hash = _zobrist_hash(start_board.grid, start_color)
 
-    pdn_text = (
-        '[Event "FEN test"]\n'
-        '[GameType "25"]\n'
-        '[SetUp "1"]\n'
-        f'[FEN "{fen}"]\n'
-        "\n"
-        "1... 5-9 *\n"
-    )
+    pdn_text = f'[Event "FEN test"]\n[GameType "25"]\n[SetUp "1"]\n[FEN "{fen}"]\n\n1... 5-9 *\n'
     p = tmp_path / "fen.pdn"
     p.write_text(pdn_text, encoding="utf-8")
     games = load_pdn_file(p)
@@ -144,14 +137,7 @@ def test_import_falls_back_when_fen_malformed(tmp_path: Path):
     from draughts.game.board import Board
     from draughts.game.pdn import load_pdn_file
 
-    pdn_text = (
-        '[Event "bad fen"]\n'
-        '[GameType "25"]\n'
-        '[SetUp "1"]\n'
-        '[FEN "not-a-fen"]\n'
-        "\n"
-        "1. 22-17 *\n"
-    )
+    pdn_text = '[Event "bad fen"]\n[GameType "25"]\n[SetUp "1"]\n[FEN "not-a-fen"]\n\n1. 22-17 *\n'
     p = tmp_path / "bad.pdn"
     p.write_text(pdn_text, encoding="utf-8")
     games = load_pdn_file(p)

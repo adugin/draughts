@@ -12,7 +12,7 @@ of being violated and verifies the move generator respects it.
 
 from __future__ import annotations
 
-from draughts.config import BLACK, BLACK_KING, Color, WHITE, WHITE_KING
+from draughts.config import BLACK, BLACK_KING, WHITE, Color
 from draughts.game.ai import _generate_all_moves
 from draughts.game.board import Board
 
@@ -38,19 +38,18 @@ def test_king_cannot_cross_square_of_already_captured_piece():
     # Black king at a1. White pawns at c3 (jumpable) and e3 (also jumpable).
     # A rotary path BK a1 → h8 (capturing c3, e3) — impossible since they
     # aren't on one diagonal. Use a square-shape:
-    b.grid[7, 0] = BLACK_KING   # a1
-    b.grid[5, 2] = WHITE        # c3
-    b.grid[3, 4] = WHITE        # e5
+    b.grid[7, 0] = BLACK_KING  # a1
+    b.grid[5, 2] = WHITE  # c3
+    b.grid[3, 4] = WHITE  # e5
     # BK can capture c3 going a1→d4 (landing at d4).
     # From d4 it can capture e5 going d4→f6.
     # There is NO path that re-crosses c3 or e5. Just sanity-check the
     # two-capture chain IS in the move list.
     captures = [p for k, p in _generate_all_moves(b, Color.BLACK) if k == "capture"]
     paths_strings = [[(x, y) for x, y in path] for path in captures]
-    assert any(
-        path[0] == (0, 7) and (5, 2) in path and (3, 4) in path
-        for path in paths_strings
-    ), f"Expected an a1-diagonal capture covering c3 and e5; got {captures}"
+    assert any(path[0] == (0, 7) and (5, 2) in path and (3, 4) in path for path in paths_strings), (
+        f"Expected an a1-diagonal capture covering c3 and e5; got {captures}"
+    )
 
 
 def test_king_multi_jump_does_not_capture_same_piece_twice():
@@ -60,8 +59,8 @@ def test_king_multi_jump_does_not_capture_same_piece_twice():
     traversal) but logically claimed — it can't be counted again.
     """
     b = Board(empty=True)
-    b.grid[3, 4] = BLACK_KING   # e5
-    b.grid[2, 5] = WHITE        # f6 (the only enemy)
+    b.grid[3, 4] = BLACK_KING  # e5
+    b.grid[2, 5] = WHITE  # f6 (the only enemy)
     # Only capture: e5:g7 (captures f6 once).
     captures = [p for k, p in _generate_all_moves(b, Color.BLACK) if k == "capture"]
     # The engine must not produce a silly e5:g7:e5 chain re-landing on e5.
@@ -69,9 +68,7 @@ def test_king_multi_jump_does_not_capture_same_piece_twice():
         # No repeated square in the path.
         assert len(set(path)) == len(path), f"Repeated square in capture path: {path}"
         # No revisiting the enemy's original square.
-        assert (5, 2) not in path[1:], (
-            f"Path touches captured enemy square f6 post-capture: {path}"
-        )
+        assert (5, 2) not in path[1:], f"Path touches captured enemy square f6 post-capture: {path}"
 
 
 def test_pawn_capture_path_preserves_captured_pieces_until_end():
@@ -83,9 +80,9 @@ def test_pawn_capture_path_preserves_captured_pieces_until_end():
     captured pieces removed.
     """
     b = Board(empty=True)
-    b.grid[0, 1] = BLACK   # b8 black pawn
-    b.grid[1, 2] = WHITE   # c7
-    b.grid[3, 4] = WHITE   # e5
+    b.grid[0, 1] = BLACK  # b8 black pawn
+    b.grid[1, 2] = WHITE  # c7
+    b.grid[3, 4] = WHITE  # e5
     # Legal capture: [(1,0), (3,2), (5,4)] = b8:d6:f4
     captures = [p for k, p in _generate_all_moves(b, Color.BLACK) if k == "capture"]
     assert [(1, 0), (3, 2), (5, 4)] in captures, f"Expected b8:d6:f4 chain; got {captures}"
@@ -122,16 +119,14 @@ def test_king_cannot_re_enter_line_of_captured_piece_before_completion():
     """
     b = Board(empty=True)
     b.grid[7, 0] = BLACK_KING  # a1
-    b.grid[5, 2] = WHITE       # c3
+    b.grid[5, 2] = WHITE  # c3
 
     captures = [p for k, p in _generate_all_moves(b, Color.BLACK) if k == "capture"]
     for path in captures:
         # Path starts at a1.
         assert path[0] == (0, 7)
         # c3 (the captured square) must not appear as a landing square.
-        assert (2, 5) not in path, (
-            f"Captured-piece square reappears as landing: {path}"
-        )
+        assert (2, 5) not in path, f"Captured-piece square reappears as landing: {path}"
         # No duplicates.
         assert len(set(path)) == len(path)
 
@@ -149,7 +144,7 @@ def test_promotion_midway_then_continue_capture_as_king():
     # b8 means b6:d8... wait setup mismatch.
     # Cleaner: black pawn at c5, captures d6 (white) landing e7 — nope.
     # Simplest promotion-mid-capture setup:
-    b.grid[6, 1] = BLACK   # b2 (far from black's promotion row y=7)
+    b.grid[6, 1] = BLACK  # b2 (far from black's promotion row y=7)
     # Actually black promotes at y=7 so pawn already on the bottom is a king.
     # Let me use black pawn at c7, jumps over b8? b8 is at (1,0) — pawn
     # needs to JUMP OVER, landing two squares past. c7=(2,1), jumps over
@@ -163,8 +158,8 @@ def test_promotion_midway_then_continue_capture_as_king():
     # Just assert basic invariant: execute_capture_path correctly promotes.
 
     b2 = Board(empty=True)
-    b2.grid[5, 6] = BLACK   # g3
-    b2.grid[6, 5] = WHITE   # f2
+    b2.grid[5, 6] = BLACK  # g3
+    b2.grid[6, 5] = WHITE  # f2
     # Black g3 jumps f2 → e1, promoting at e1 (y=7).
     # Actually e1 = (4, 7). g3 = (6, 5). diff (-2, +2) — valid capture.
     path = [(6, 5), (4, 7)]

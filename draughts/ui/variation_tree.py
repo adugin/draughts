@@ -16,10 +16,10 @@ from __future__ import annotations
 
 import logging
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QDockWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
-from draughts.game.gametree import GameNode, GameTree, NAG_REVERSE
+from draughts.game.gametree import NAG_REVERSE, GameNode, GameTree
 
 logger = logging.getLogger("draughts.variation_tree")
 

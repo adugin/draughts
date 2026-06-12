@@ -18,7 +18,6 @@ from __future__ import annotations
 import logging
 import socket
 import time
-from typing import Optional
 
 from draughts.config import Color
 from draughts.engine.dxp import (
@@ -115,10 +114,7 @@ def _dxp_to_move_path(m: Move, board: Board, color: Color) -> list[tuple[int, in
         tx, ty = square_to_xy(m.to_sq)
     except ValueError:
         return None
-    endpoint_matches = [
-        (kind, path) for kind, path in candidates
-        if path[0] == (fx, fy) and path[-1] == (tx, ty)
-    ]
+    endpoint_matches = [(kind, path) for kind, path in candidates if path[0] == (fx, fy) and path[-1] == (tx, ty)]
     if not endpoint_matches:
         return None
     if len(endpoint_matches) == 1:
@@ -127,9 +123,10 @@ def _dxp_to_move_path(m: Move, board: Board, color: Color) -> list[tuple[int, in
     # Multiple paths share endpoints — use captured squares from peer.
     if not m.captured:
         logger.warning(
-            "Ambiguous move %d→%d (%d candidates) and peer sent no "
-            "captured-list — cannot disambiguate",
-            m.from_sq, m.to_sq, len(endpoint_matches),
+            "Ambiguous move %d→%d (%d candidates) and peer sent no captured-list — cannot disambiguate",
+            m.from_sq,
+            m.to_sq,
+            len(endpoint_matches),
         )
         return None
 
@@ -144,7 +141,9 @@ def _dxp_to_move_path(m: Move, board: Board, color: Color) -> list[tuple[int, in
 
     logger.warning(
         "Ambiguous move %d→%d and captured-list %s did not match any path",
-        m.from_sq, m.to_sq, sorted(m.captured),
+        m.from_sq,
+        m.to_sq,
+        sorted(m.captured),
     )
     return None
 
@@ -182,7 +181,10 @@ def play_one_game(sock: socket.socket, *, difficulty: int = 4, our_name: str = "
     initiator = msg
     logger.info(
         "GAMEREQ from %r, wants %s, %d min, %d moves-to-end",
-        initiator.name, initiator.color, initiator.minutes, initiator.moves_to_end,
+        initiator.name,
+        initiator.color,
+        initiator.minutes,
+        initiator.moves_to_end,
     )
 
     # 2. Send GAMEACC (always accept for now).
@@ -263,7 +265,7 @@ def serve_forever(
     port: int = DEFAULT_PORT,
     *,
     difficulty: int = 4,
-    max_games: Optional[int] = None,
+    max_games: int | None = None,
 ) -> None:
     """Accept games sequentially until max_games (None = forever)."""
     games_played = 0

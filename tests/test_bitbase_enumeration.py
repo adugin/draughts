@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections import Counter
 
-from draughts.config import BLACK_KING, Color, WHITE
+from draughts.config import BLACK_KING, WHITE, Color
 from draughts.game.ai import DEFAULT_BITBASE
 from draughts.game.ai.bitbase import DRAW, LOSS, WIN
 from draughts.game.ai.tt import _zobrist_hash
@@ -33,13 +33,17 @@ def test_enumeration_covers_all_splits_up_to_3():
         counts[(nb, nw)] += 1
 
     expected_splits = {
-        (1, 0), (0, 1),
-        (2, 0), (1, 1), (0, 2),
-        (3, 0), (2, 1), (1, 2), (0, 3),
+        (1, 0),
+        (0, 1),
+        (2, 0),
+        (1, 1),
+        (0, 2),
+        (3, 0),
+        (2, 1),
+        (1, 2),
+        (0, 3),
     }
-    assert set(counts.keys()) == expected_splits, (
-        f"Missing or extra splits. Got {sorted(counts.keys())}"
-    )
+    assert set(counts.keys()) == expected_splits, f"Missing or extra splits. Got {sorted(counts.keys())}"
     for split, n in counts.items():
         assert n > 0, f"Split {split} enumerated zero positions"
 
@@ -52,12 +56,7 @@ def test_enumeration_covers_all_splits_up_to_4():
         nw = sum(1 for (_x, _y, v) in pieces if v < 0)
         counts[(nb, nw)] += 1
 
-    expected_splits = {
-        (a, b)
-        for total in range(1, 5)
-        for a in range(total + 1)
-        for b in [total - a]
-    }
+    expected_splits = {(a, b) for total in range(1, 5) for a in range(total + 1) for b in [total - a]}
     assert set(counts.keys()) == expected_splits
 
 
@@ -86,7 +85,7 @@ def test_user_reported_blunder_position_has_correct_verdict():
     b = Board(empty=True)
     b.grid[3, 4] = BLACK_KING  # e5
     b.grid[2, 7] = BLACK_KING  # h6
-    b.grid[3, 2] = WHITE       # c5
+    b.grid[3, 2] = WHITE  # c5
 
     r = DEFAULT_BITBASE.probe_hash(_zobrist_hash(b.grid, Color.WHITE))
     assert r == LOSS, f"2BK+1WP with white-to-move should be LOSS, got {r}"
@@ -111,9 +110,7 @@ def test_bitbase_size_grew_after_fix():
     """Regenerated 3-piece bitbase is larger than old (399K) — now ~536K
     due to lopsided splits being included.
     """
-    assert len(DEFAULT_BITBASE) >= 500_000, (
-        f"Expected at least 500K entries, got {len(DEFAULT_BITBASE):,}"
-    )
+    assert len(DEFAULT_BITBASE) >= 500_000, f"Expected at least 500K entries, got {len(DEFAULT_BITBASE):,}"
 
 
 def test_bitbase_all_values_are_valid_wdl():

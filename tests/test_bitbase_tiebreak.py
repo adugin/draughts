@@ -27,7 +27,7 @@ def _two_kings_vs_pawn_black_to_move() -> Board:
     b = Board(empty=True)
     b.grid[7, 0] = BLACK_KING  # a1
     b.grid[2, 7] = BLACK_KING  # h6
-    b.grid[3, 2] = WHITE       # c5
+    b.grid[3, 2] = WHITE  # c5
     return b
 
 
@@ -84,6 +84,5 @@ def test_winning_tiebreak_prefers_higher_eval():
     d4_eval = _evaluate_fast(d4_child.grid, Color.BLACK)
 
     assert chosen_eval >= d4_eval, (
-        f"Chosen move {move.path} eval={chosen_eval} must be >= the "
-        f"discarded a1-d4 eval={d4_eval}."
+        f"Chosen move {move.path} eval={chosen_eval} must be >= the discarded a1-d4 eval={d4_eval}."
     )

@@ -18,12 +18,10 @@ import json
 from pathlib import Path
 
 import pytest
-
 from draughts.game.ai.bitbase import EndgameBitbase
 from draughts.game.ai.book import OpeningBook
 from draughts.game.board import Board
 from draughts.game.pdn import load_pdn_file, parse_pdn
-
 
 # ---------------------------------------------------------------------------
 # PDN escape / special chars in comments
@@ -34,8 +32,8 @@ def test_pdn_comment_with_braces_and_parens(tmp_path: Path):
     """Comments may contain { } ( ) literally — writer must escape,
     reader must not confuse them for variation markers.
     """
-    from draughts.game.pdn import PDNGame, RUSSIAN_DRAUGHTS_GAMETYPE, write_pdn, _today_date_str
-    from draughts.game.gametree import GameTree, GameNode
+    from draughts.game.gametree import GameNode, GameTree
+    from draughts.game.pdn import RUSSIAN_DRAUGHTS_GAMETYPE, PDNGame, _today_date_str, write_pdn
 
     root = GameNode()
     child = root.add_child("24-20", comment="hello {world} and (parens)")
@@ -44,8 +42,13 @@ def test_pdn_comment_with_braces_and_parens(tmp_path: Path):
 
     game = PDNGame(
         headers={
-            "Event": "?", "Site": "?", "Date": _today_date_str(),
-            "Round": "?", "White": "?", "Black": "?", "Result": "*",
+            "Event": "?",
+            "Site": "?",
+            "Date": _today_date_str(),
+            "Round": "?",
+            "White": "?",
+            "Black": "?",
+            "Result": "*",
             "GameType": RUSSIAN_DRAUGHTS_GAMETYPE,
         },
         moves=["24-20", "11-15"],
@@ -64,8 +67,8 @@ def test_pdn_comment_with_braces_and_parens(tmp_path: Path):
 
 def test_pdn_comment_with_unicode(tmp_path: Path):
     """Russian text in comments must be preserved."""
-    from draughts.game.pdn import PDNGame, RUSSIAN_DRAUGHTS_GAMETYPE, write_pdn, _today_date_str
-    from draughts.game.gametree import GameTree, GameNode
+    from draughts.game.gametree import GameNode, GameTree
+    from draughts.game.pdn import RUSSIAN_DRAUGHTS_GAMETYPE, PDNGame, _today_date_str, write_pdn
 
     root = GameNode()
     root.add_child("24-20", comment="сомнительный ход").add_child("11-15")
@@ -73,8 +76,13 @@ def test_pdn_comment_with_unicode(tmp_path: Path):
 
     game = PDNGame(
         headers={
-            "Event": "?", "Site": "?", "Date": _today_date_str(),
-            "Round": "?", "White": "?", "Black": "?", "Result": "*",
+            "Event": "?",
+            "Site": "?",
+            "Date": _today_date_str(),
+            "Round": "?",
+            "White": "?",
+            "Black": "?",
+            "Result": "*",
             "GameType": RUSSIAN_DRAUGHTS_GAMETYPE,
         },
         moves=["24-20", "11-15"],
@@ -97,10 +105,7 @@ def test_pdn_nag_inside_rav():
     to 22-17 at the same ply — tree-wise they are SIBLINGS sharing the
     same parent (the root), not parent-and-child.
     """
-    pdn_text = (
-        '[Event "T"]\n[GameType "25"]\n\n'
-        "1. 22-17!? (1. 22-18! 11-15) 11-15 *\n"
-    )
+    pdn_text = '[Event "T"]\n[GameType "25"]\n\n1. 22-17!? (1. 22-18! 11-15) 11-15 *\n'
     games = parse_pdn(pdn_text)
     assert len(games) == 1
     g = games[0]
@@ -123,10 +128,12 @@ def test_pdn_nag_inside_rav():
 def test_pdn_setup_fen_black_to_move_roundtrip(tmp_path: Path):
     """FEN with black-to-move tag survives full save/load/replay."""
     from draughts.app.controller import GameController
-    from draughts.config import BLACK_KING, Color, WHITE_KING
+    from draughts.config import BLACK_KING, WHITE_KING, Color
+
     pytest.importorskip("PyQt6")
-    from PyQt6.QtWidgets import QApplication
     import sys
+
+    from PyQt6.QtWidgets import QApplication
 
     _app = QApplication.instance() or QApplication(sys.argv)
 
@@ -134,10 +141,7 @@ def test_pdn_setup_fen_black_to_move_roundtrip(tmp_path: Path):
     b.grid[2, 7] = BLACK_KING
     b.grid[5, 0] = WHITE_KING
 
-    pdn_text = (
-        '[Event "T"]\n[GameType "25"]\n[SetUp "1"]\n'
-        '[FEN "B:W8:B24"]\n\n*\n'
-    )
+    pdn_text = '[Event "T"]\n[GameType "25"]\n[SetUp "1"]\n[FEN "B:W8:B24"]\n\n*\n'
     p = tmp_path / "black_to_move.pdn"
     p.write_text(pdn_text, encoding="utf-8")
 
@@ -147,9 +151,7 @@ def test_pdn_setup_fen_black_to_move_roundtrip(tmp_path: Path):
 
     c = _BypassAI()
     c.load_game_from_pdn(str(p))
-    assert c.current_turn == Color.BLACK, (
-        f"Black-to-move FEN must set current_turn to BLACK, got {c.current_turn}"
-    )
+    assert c.current_turn == Color.BLACK, f"Black-to-move FEN must set current_turn to BLACK, got {c.current_turn}"
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +179,7 @@ def test_truncated_gzip_bitbase_raises_cleanly(tmp_path: Path):
     data = full_path.read_bytes()
     truncated = tmp_path / "half.json.gz"
     truncated.write_bytes(data[: len(data) // 2])  # half the bytes
-    with pytest.raises(Exception):  # OSError / EOFError from gzip
+    with pytest.raises((OSError, EOFError)):  # BadGzipFile / EOFError from gzip
         EndgameBitbase.load(truncated)
 
 
@@ -227,4 +229,4 @@ def test_fen_with_invalid_square_rejected():
     from draughts.game.fen import parse_fen
 
     with pytest.raises((ValueError, IndexError)):
-        parse_fen("W:W99:B1")   # square 99 out of range
+        parse_fen("W:W99:B1")  # square 99 out of range

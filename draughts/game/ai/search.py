@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import random
 import time
+from collections.abc import Set as AbstractSet
 from typing import TYPE_CHECKING
 
 import draughts.game.ai.state as _state
@@ -57,7 +58,7 @@ _BLUNDER_CONFIG: dict[int, dict] = {
 # change (e.g. the future "Elo 2.0" milestone) is not silently
 # missed here. Measured self-play strengths per level documented in
 # elo.py's module docstring (2026-04-19 calibration run).
-_DIFFICULTY_DEPTH = {lv: int(cfg["depth"]) for lv, cfg in ELO_LEVELS.items()}
+_DIFFICULTY_DEPTH = {lv: cfg["depth"] for lv, cfg in ELO_LEVELS.items()}
 
 # Maximum quiescence depth
 _MAX_QDEPTH = 6
@@ -185,7 +186,7 @@ def _alphabeta(
     color: str | Color,
     root_color: str | Color,
     ctx: SearchContext,
-    path_hashes: set[int] | None = None,
+    path_hashes: AbstractSet[int] | None = None,
 ) -> float:
     """Alpha-beta pruning minimax with TT, quiescence, LMR, and repetition detection."""
     # Cooperative cancellation: check deadline at depths >= 2 (cheap enough,
@@ -361,9 +362,7 @@ def _search_best_move(
         root_path_hashes = None
     else:
         root_path_hashes = (
-            game_position_hashes
-            if isinstance(game_position_hashes, frozenset)
-            else frozenset(game_position_hashes)
+            game_position_hashes if isinstance(game_position_hashes, frozenset) else frozenset(game_position_hashes)
         )
 
     opp = _opponent(color)
@@ -395,7 +394,14 @@ def _search_best_move(
                 for kind, path in moves:
                     child = _apply_move(board, kind, path)
                     score = _alphabeta(
-                        child, depth - 1, alpha, beta, False, opp, color, ctx,
+                        child,
+                        depth - 1,
+                        alpha,
+                        beta,
+                        False,
+                        opp,
+                        color,
+                        ctx,
                         path_hashes=root_path_hashes,
                     )
                     depth_scores.append((score, kind, path))
@@ -576,8 +582,11 @@ class AIEngine:
         base = self.search_depth if self.search_depth > 0 else _DIFFICULTY_DEPTH.get(self.difficulty, 5)
         depth = adaptive_depth(base, board)
         best = _search_best_move(
-            board, self.color, depth,
-            deadline=deadline, ctx=self._ctx,
+            board,
+            self.color,
+            depth,
+            deadline=deadline,
+            ctx=self._ctx,
             game_position_hashes=game_position_hashes,
         )
 
@@ -633,8 +642,11 @@ class AIEngine:
         effective_deadline = min(budget_deadline, deadline) if deadline is not None else budget_deadline
         self._ctx.clear()
         return _search_best_move(
-            board, self.color, 16,
-            deadline=effective_deadline, ctx=self._ctx,
+            board,
+            self.color,
+            16,
+            deadline=effective_deadline,
+            ctx=self._ctx,
             game_position_hashes=game_position_hashes,
         )
 

@@ -181,18 +181,14 @@ class TestMineFromBlunderGame:
         annotations = [
             _make_annotation(0, "??", delta_cp=500.0, best_notation="c3:e5"),
         ]
-        puzzles = mine_puzzles_from_game(
-            positions, annotations, start_color=Color.BLACK
-        )
+        puzzles = mine_puzzles_from_game(positions, annotations, start_color=Color.BLACK)
         assert len(puzzles) == 1
         assert puzzles[0]["turn"] == "black"
         # And ply 1 for the same game is white.
         annotations2 = [
             _make_annotation(1, "??", delta_cp=500.0, best_notation="c3:e5"),
         ]
-        puzzles2 = mine_puzzles_from_game(
-            positions, annotations2, start_color=Color.BLACK
-        )
+        puzzles2 = mine_puzzles_from_game(positions, annotations2, start_color=Color.BLACK)
         assert len(puzzles2) == 1
         assert puzzles2[0]["turn"] == "white"
 

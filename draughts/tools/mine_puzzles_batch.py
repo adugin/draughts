@@ -50,7 +50,9 @@ def play_selfplay_game(
     positions: list[str] = [board.to_position_string()]
     turn = Color.WHITE
     white_engine = AIEngine(difficulty=1, color=Color.WHITE, search_depth=depth_weak, use_book=False, use_bitbase=False)
-    black_engine = AIEngine(difficulty=6, color=Color.BLACK, search_depth=depth_strong, use_book=False, use_bitbase=False)
+    black_engine = AIEngine(
+        difficulty=6, color=Color.BLACK, search_depth=depth_strong, use_book=False, use_bitbase=False
+    )
 
     for ply in range(max_ply):
         if ply < opening_plies:

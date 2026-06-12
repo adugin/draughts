@@ -13,11 +13,9 @@ the GUI controller without requiring a QApplication.
 from __future__ import annotations
 
 import pytest
-
-from draughts.config import BLACK, BLACK_KING, Color, WHITE, WHITE_KING
+from draughts.config import BLACK, BLACK_KING, WHITE, WHITE_KING, Color
 from draughts.game.board import Board
 from draughts.game.headless import HeadlessGame
-
 
 # ---------------------------------------------------------------------------
 # HeadlessGame
@@ -40,10 +38,10 @@ def test_headless_king_slide_does_not_reset_quiet_plies():
     # 2K vs 2K endgame — avoid Petrov by using 4 kings — positioned so
     # White has a legal quiet move (d6 slides to c7 / e7 / etc).
     b = Board(empty=True)
-    b.grid[0, 1] = BLACK_KING   # b8
-    b.grid[0, 7] = BLACK_KING   # h8 (dark square: x=7,y=0)
-    b.grid[2, 3] = WHITE_KING   # d6
-    b.grid[7, 0] = WHITE_KING   # a1
+    b.grid[0, 1] = BLACK_KING  # b8
+    b.grid[0, 7] = BLACK_KING  # h8 (dark square: x=7,y=0)
+    b.grid[2, 3] = WHITE_KING  # d6
+    b.grid[7, 0] = WHITE_KING  # a1
 
     hg = HeadlessGame(position=b.to_position_string(), auto_ai=False)
     hg._turn = Color.WHITE
@@ -57,8 +55,8 @@ def test_headless_king_slide_does_not_reset_quiet_plies():
 
 def test_headless_capture_resets_quiet_plies():
     b = Board(empty=True)
-    b.grid[5, 2] = WHITE   # c3
-    b.grid[4, 3] = BLACK   # d4 — enemy directly in capture range
+    b.grid[5, 2] = WHITE  # c3
+    b.grid[4, 3] = BLACK  # d4 — enemy directly in capture range
     hg = HeadlessGame(position=b.to_position_string(), auto_ai=False)
     hg._turn = Color.WHITE
     hg._quiet_plies = 40
@@ -77,6 +75,7 @@ def test_headless_capture_resets_quiet_plies():
 def _qt_app():
     pytest.importorskip("PyQt6.QtCore")
     from PyQt6.QtWidgets import QApplication
+
     app = QApplication.instance() or QApplication([])
     yield app
 
@@ -85,6 +84,7 @@ def _qt_app():
 def controller(monkeypatch):
     """Headless controller — never spawns the AI thread."""
     from draughts.app.controller import GameController
+
     monkeypatch.setattr(GameController, "_start_computer_turn", lambda self: None)
     return GameController()
 
@@ -120,8 +120,8 @@ def test_controller_king_slide_does_not_reset_quiet_plies(controller):
 
 def test_controller_capture_resets_quiet_plies(controller):
     b = Board(empty=True)
-    b.grid[5, 2] = WHITE   # c3
-    b.grid[4, 3] = BLACK   # d4
+    b.grid[5, 2] = WHITE  # c3
+    b.grid[4, 3] = BLACK  # d4
     controller.board.load_from_position_string(b.to_position_string())
     controller._current_turn = Color.WHITE
     controller._player_color = Color.WHITE

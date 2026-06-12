@@ -86,12 +86,12 @@ def test_progress_dialog_error_path(qt_app):
 
 def test_progress_dialog_cancel(qt_app):
     """Cancel flag propagates; generator raises cancellation."""
-    from draughts.ui.generators import GeneratorProgressDialog, _GeneratorCancelled
+    from draughts.ui.generators import GeneratorProgressDialog, _GeneratorCancelledError
 
     def fn(on_progress, should_cancel):
         for i in range(1_000_000):
             if should_cancel():
-                raise _GeneratorCancelled()
+                raise _GeneratorCancelledError()
             on_progress(i, 0, "")
         return {"finished": True}
 
@@ -126,9 +126,7 @@ def test_mine_puzzles_dialog_forwards_cancel_into_analyzer(qt_app, monkeypatch):
     captured_kwargs: list[dict] = []
 
     def fake_analyze(positions, *, depth, should_cancel=None, **_):
-        captured_kwargs.append(
-            {"depth": depth, "has_cancel": should_cancel is not None}
-        )
+        captured_kwargs.append({"depth": depth, "has_cancel": should_cancel is not None})
         from draughts.ui.game_analyzer import GameAnalysisResult
 
         return GameAnalysisResult()
@@ -146,12 +144,8 @@ def test_mine_puzzles_dialog_forwards_cancel_into_analyzer(qt_app, monkeypatch):
             positions.append(hg.board.to_position_string())
         return positions
 
-    monkeypatch.setattr(
-        "draughts.ui.game_analyzer.analyze_game_positions", fake_analyze
-    )
-    monkeypatch.setattr(
-        "draughts.tools.mine_puzzles_batch.play_selfplay_game", fake_selfplay
-    )
+    monkeypatch.setattr("draughts.ui.game_analyzer.analyze_game_positions", fake_analyze)
+    monkeypatch.setattr("draughts.tools.mine_puzzles_batch.play_selfplay_game", fake_selfplay)
 
     dlg = MinePuzzlesDialog()
     dlg._games.setValue(2)
@@ -161,7 +155,7 @@ def test_mine_puzzles_dialog_forwards_cancel_into_analyzer(qt_app, monkeypatch):
     # dialog would have kicked off. MinePuzzlesDialog._on_ok creates a
     # GeneratorProgressDialog with fn; we want just the fn. Pull it
     # back by shimming: run the closure synchronously.
-    from draughts.ui.generators import _GeneratorCancelled
+    from draughts.ui.generators import _GeneratorCancelledError
 
     # Reconstruct the worker closure the way _on_ok would — reading
     # the private captured values (n_games, seed_value, analysis_depth)
@@ -187,31 +181,27 @@ def test_mine_puzzles_dialog_forwards_cancel_into_analyzer(qt_app, monkeypatch):
 
         for i in range(n_games):
             if should_cancel():
-                raise _GeneratorCancelled()
+                raise _GeneratorCancelledError()
             positions = play_selfplay_game(opening_plies=(i % 5) + 1)
             if len(positions) < 4:
                 continue
-            analyze_game_positions(
-                positions, depth=depth, should_cancel=should_cancel
-            )
+            analyze_game_positions(positions, depth=depth, should_cancel=should_cancel)
 
     try:
         _run_worker_fn()
-    except _GeneratorCancelled:
+    except _GeneratorCancelledError:
         pass
 
     # Must have at least called analyze once and the call MUST carry a
     # live cancel hook (has_cancel == True).
     assert captured_kwargs, "analyze_game_positions was never invoked"
-    assert all(c["has_cancel"] for c in captured_kwargs), (
-        f"cancel hook not forwarded: {captured_kwargs}"
-    )
+    assert all(c["has_cancel"] for c in captured_kwargs), f"cancel hook not forwarded: {captured_kwargs}"
 
 
 def test_progress_dialog_close_event_while_idle_accepts(qt_app):
     """With no worker running, [X] closes the dialog immediately."""
-    from PyQt6.QtGui import QCloseEvent
     from draughts.ui.generators import GeneratorProgressDialog
+    from PyQt6.QtGui import QCloseEvent
 
     dlg = GeneratorProgressDialog(lambda p, c: {}, "Idle")
     evt = QCloseEvent()
@@ -223,14 +213,14 @@ def test_progress_dialog_close_event_while_idle_accepts(qt_app):
 def test_progress_dialog_close_event_while_running_defers(qt_app):
     """Pressing [X] while the worker is running must cancel and defer close,
     not leak the QThread by ignoring the dismissal."""
+    from draughts.ui.generators import GeneratorProgressDialog, _GeneratorCancelledError
     from PyQt6.QtCore import QDeadlineTimer
     from PyQt6.QtGui import QCloseEvent
-    from draughts.ui.generators import GeneratorProgressDialog, _GeneratorCancelled
 
     def fn(on_progress, should_cancel):
         for i in range(1_000_000):
             if should_cancel():
-                raise _GeneratorCancelled()
+                raise _GeneratorCancelledError()
             on_progress(i, 0, "")
         return {}
 
@@ -307,9 +297,9 @@ def test_imported_book_loader_picks_up_user_file(tmp_path, monkeypatch):
     """BLK-02 invariant: load_default_book reads the book imported via the
     Инструменты dialog — they share user_data.user_book_path().
     """
+    import draughts.user_data
     from draughts.game.ai import load_default_book
     from draughts.game.ai.book import OpeningBook
-    import draughts.user_data
 
     fake_book = tmp_path / "book_user.json"
     monkeypatch.setattr(draughts.user_data, "user_book_path", lambda: fake_book)

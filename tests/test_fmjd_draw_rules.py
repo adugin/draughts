@@ -18,14 +18,14 @@ Coverage added here:
 
 from __future__ import annotations
 
-from draughts.config import BLACK, BLACK_KING, Color, WHITE, WHITE_KING
+from draughts.config import BLACK_KING, WHITE_KING
 from draughts.game.board import Board
 
 
 def _lone_kings_board() -> Board:
     b = Board(empty=True)
-    b.grid[2, 1] = WHITE_KING   # b6
-    b.grid[5, 2] = BLACK_KING   # c3
+    b.grid[2, 1] = WHITE_KING  # b6
+    b.grid[5, 2] = BLACK_KING  # c3
     return b
 
 
@@ -70,9 +70,9 @@ def test_threefold_fires_with_pawns_at_count_3():
 def test_kings_only_rule_fires_at_30_half_moves():
     b = _lone_kings_board()
     # Without the Petrov shortcut (board must NOT be 1K-vs-1K), add a 3rd king.
-    b.grid[0, 3] = BLACK_KING   # d8 — now 2BK vs 1WK
+    b.grid[0, 3] = BLACK_KING  # d8 — now 2BK vs 1WK
     # But 2K vs 1K is a Petrov draw; add a 4th king to escape Petrov.
-    b.grid[7, 0] = WHITE_KING   # a1
+    b.grid[7, 0] = WHITE_KING  # a1
     # Now 2K vs 2K — not in the Petrov list.
     result = b.check_game_over(kings_only_plies=30)
     assert result is not None
@@ -141,9 +141,9 @@ def test_two_kings_vs_one_king_game_continues():
     continues until that counter fires.
     """
     b = Board(empty=True)
-    b.grid[0, 1] = BLACK_KING   # b8
-    b.grid[0, 3] = BLACK_KING   # d8
-    b.grid[7, 0] = WHITE_KING   # a1
+    b.grid[0, 1] = BLACK_KING  # b8
+    b.grid[0, 3] = BLACK_KING  # d8
+    b.grid[7, 0] = WHITE_KING  # a1
     assert b.check_game_over() is None
     # After 30 plies of kings-only play, the 15-move rule draws it.
     assert b.check_game_over(kings_only_plies=30) == (None, "draw_kings_only")

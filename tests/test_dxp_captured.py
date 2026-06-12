@@ -14,7 +14,7 @@ had the same bug on the decode side.
 
 from __future__ import annotations
 
-from draughts.config import BLACK, BLACK_KING, Color, WHITE, WHITE_KING
+from draughts.config import BLACK, WHITE, WHITE_KING, Color
 from draughts.engine.dxp import Move
 from draughts.engine.dxp_server import (
     _dxp_to_move_path,
@@ -58,10 +58,13 @@ def test_move_to_dxp_emits_enemy_squares_not_landing_squares():
     b = Board(empty=True)
     _place(b, "a1", int(WHITE_KING))
     _place(b, "c3", int(BLACK))
-    move = AIMove(kind="capture", path=[
-        Board.notation_to_pos("a1"),
-        Board.notation_to_pos("e5"),
-    ])
+    move = AIMove(
+        kind="capture",
+        path=[
+            Board.notation_to_pos("a1"),
+            Board.notation_to_pos("e5"),
+        ],
+    )
     dxp_move = _move_to_dxp(move, time_used=0.0, before=b)
     expected_enemy_sq = xy_to_square(*Board.notation_to_pos("c3"))
     assert dxp_move.captured == [expected_enemy_sq]
@@ -89,10 +92,13 @@ def test_move_to_dxp_multi_jump_lists_each_enemy_square():
 
 def test_move_to_dxp_simple_move_has_empty_captured():
     b = Board()
-    move = AIMove(kind="move", path=[
-        Board.notation_to_pos("c3"),
-        Board.notation_to_pos("b4"),
-    ])
+    move = AIMove(
+        kind="move",
+        path=[
+            Board.notation_to_pos("c3"),
+            Board.notation_to_pos("b4"),
+        ],
+    )
     dxp_move = _move_to_dxp(move, time_used=0.0, before=b)
     assert dxp_move.captured == []
 
@@ -127,10 +133,13 @@ def test_dxp_round_trip_flying_king_capture():
     b = Board(empty=True)
     _place(b, "a1", int(WHITE_KING))
     _place(b, "c3", int(BLACK))
-    move = AIMove(kind="capture", path=[
-        Board.notation_to_pos("a1"),
-        Board.notation_to_pos("e5"),
-    ])
+    move = AIMove(
+        kind="capture",
+        path=[
+            Board.notation_to_pos("a1"),
+            Board.notation_to_pos("e5"),
+        ],
+    )
     dxp_move = _move_to_dxp(move, time_used=0.0, before=b)
     # Feed back through the decoder on an identical pre-move board.
     recovered = _dxp_to_move_path(dxp_move, b, Color.WHITE)

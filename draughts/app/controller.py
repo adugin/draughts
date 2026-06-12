@@ -404,7 +404,11 @@ class GameController(QObject):
         notation = f"{Board.pos_to_notation(sx, sy)}-{Board.pos_to_notation(tx, ty)}"
         self.board.execute_move(sx, sy, tx, ty)
         self._finish_player_move(
-            notation, from_sq=(sx, sy), to_sq=(tx, ty), was_capture=False, was_pawn_move=was_pawn_move,
+            notation,
+            from_sq=(sx, sy),
+            to_sq=(tx, ty),
+            was_capture=False,
+            was_pawn_move=was_pawn_move,
         )
 
     def _try_capture_move(self, sx: int, sy: int, tx: int, ty: int):
@@ -528,7 +532,9 @@ class GameController(QObject):
         # non-repeating alternative is available (QA-FIX for P2).
         game_hashes = self._compute_repeated_game_hashes()
         self._ai_worker = AIWorker(
-            self.board, engine, generation,
+            self.board,
+            engine,
+            generation,
             game_position_hashes=game_hashes if game_hashes else None,
         )
         self._ai_worker.moveToThread(self._ai_thread)

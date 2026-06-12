@@ -82,8 +82,8 @@ def test_clickable_source_link_is_rich_text():
 
 def test_close_event_idle_accepts():
     """[X] closes immediately when no download is in flight."""
-    from PyQt6.QtGui import QCloseEvent
     from draughts.ui.bitbase_downloader_dialog import BitbaseDownloaderDialog
+    from PyQt6.QtGui import QCloseEvent
 
     dlg = BitbaseDownloaderDialog()
     evt = QCloseEvent()
@@ -99,19 +99,19 @@ def test_close_event_while_running_defers_and_cancels(qt_app, monkeypatch):
     can exercise the closeEvent path without real network traffic.
     """
     import time
-    from PyQt6.QtCore import QDeadlineTimer
-    from PyQt6.QtGui import QCloseEvent
 
     import draughts.ui.bitbase_downloader_dialog as dd_mod
     from draughts.tools.bitbase_downloader import (
-        BitbaseDownloadCancelled,
+        BitbaseDownloadCancelledError,
         DownloadResult,
     )
+    from PyQt6.QtCore import QDeadlineTimer
+    from PyQt6.QtGui import QCloseEvent
 
     def fake_download(url, dest_dir, on_progress, cancel_flag):
         for i in range(200):
             if cancel_flag[0]:
-                raise BitbaseDownloadCancelled("cancelled")
+                raise BitbaseDownloadCancelledError("cancelled")
             on_progress(i * 1024, 200 * 1024)
             time.sleep(0.01)
         return DownloadResult(path=dest_dir / "bogus.bbz", size_bytes=0, sha256="0" * 64)

@@ -194,12 +194,11 @@ class HeadlessGame:
         # twice in game history — a 3rd appearance is an automatic draw
         # by rule, so the search must treat "enter that position" as a
         # draw score, not a winning-eval leaf.
-        game_hashes: frozenset[int] = frozenset(
-            h for h, c in self._position_hash_counts.items() if c >= 2
-        )
+        game_hashes: frozenset[int] = frozenset(h for h, c in self._position_hash_counts.items() if c >= 2)
         try:
             move = engine.find_move(
-                self._board.copy(), deadline=deadline,
+                self._board.copy(),
+                deadline=deadline,
                 game_position_hashes=game_hashes if game_hashes else None,
             )
         except TypeError:
@@ -252,7 +251,12 @@ class HeadlessGame:
                     notation = ":".join(Board.pos_to_notation(x, y) for x, y in path)
                     eval_after = evaluate_position(self._board.grid, self._turn)
                     return self._record_move(
-                        "capture", path, notation, eval_before, eval_after, was_pawn_move=was_pawn_move,
+                        "capture",
+                        path,
+                        notation,
+                        eval_before,
+                        eval_after,
+                        was_pawn_move=was_pawn_move,
                     )
             return None  # invalid capture
 
@@ -266,7 +270,12 @@ class HeadlessGame:
         notation = f"{Board.pos_to_notation(x1, y1)}-{Board.pos_to_notation(x2, y2)}"
         eval_after = evaluate_position(self._board.grid, self._turn)
         return self._record_move(
-            "move", path, notation, eval_before, eval_after, was_pawn_move=was_pawn_move,
+            "move",
+            path,
+            notation,
+            eval_before,
+            eval_after,
+            was_pawn_move=was_pawn_move,
         )
 
     def make_capture(self, path: Sequence[str | tuple[int, int]]) -> MoveRecord | None:
@@ -295,7 +304,12 @@ class HeadlessGame:
             notation = ":".join(Board.pos_to_notation(x, y) for x, y in parsed)
             eval_after = evaluate_position(self._board.grid, self._turn)
             return self._record_move(
-                "capture", parsed, notation, eval_before, eval_after, was_pawn_move=was_pawn_move,
+                "capture",
+                parsed,
+                notation,
+                eval_before,
+                eval_after,
+                was_pawn_move=was_pawn_move,
             )
         return None
 
@@ -514,7 +528,12 @@ class HeadlessGame:
 
         eval_after = evaluate_position(self._board.grid, self._turn)
         return self._record_move(
-            move.kind, move.path, notation, eval_before, eval_after, was_pawn_move=was_pawn_move,
+            move.kind,
+            move.path,
+            notation,
+            eval_before,
+            eval_after,
+            was_pawn_move=was_pawn_move,
         )
 
     def _record_move(

@@ -153,10 +153,7 @@ def _enumerate_lopsided_same_side(
     sq = DARK_SQUARES
     for combo in itertools.combinations(range(len(sq)), n):
         coords = [sq[i] for i in combo]
-        type_options = [
-            [p for p in piece_types if _can_be_pawn(x, y, p)]
-            for x, y in coords
-        ]
+        type_options = [[p for p in piece_types if _can_be_pawn(x, y, p)] for x, y in coords]
         if any(not opts for opts in type_options):
             continue
         for types in itertools.product(*type_options):
@@ -361,7 +358,7 @@ def _enumerate_all_positions(max_pieces: int = 3) -> list[tuple[list[tuple[int, 
     # generation is 100M+ raw configs and is intended for overnight runs.
     # NOTE(#37): code-complete; data generation requires hours of CPU and
     # binary-format storage (JSON would exceed ~500 MB).
-    for (bsplit, wsplit) in [(4, 1), (3, 2), (2, 3), (1, 4)]:
+    for bsplit, wsplit in [(4, 1), (3, 2), (2, 3), (1, 4)]:
         for b_indices in itertools.combinations(range(len(sq)), bsplit):
             for w_indices in itertools.combinations(range(len(sq)), wsplit):
                 if set(b_indices) & set(w_indices):
@@ -381,14 +378,8 @@ def _emit_ptype_combinations(
     """Cartesian product over piece types (pawn/king) for both sides; append to out."""
     import itertools as _it
 
-    bt_options: list[list[int]] = [
-        [p for p in _BLACK_PIECE_TYPES if _can_be_pawn(x, y, p)]
-        for x, y in black_coords
-    ]
-    wt_options: list[list[int]] = [
-        [p for p in _WHITE_PIECE_TYPES if _can_be_pawn(x, y, p)]
-        for x, y in white_coords
-    ]
+    bt_options: list[list[int]] = [[p for p in _BLACK_PIECE_TYPES if _can_be_pawn(x, y, p)] for x, y in black_coords]
+    wt_options: list[list[int]] = [[p for p in _WHITE_PIECE_TYPES if _can_be_pawn(x, y, p)] for x, y in white_coords]
     if any(not opts for opts in bt_options + wt_options):
         return
     for bts in _it.product(*bt_options):

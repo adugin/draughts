@@ -139,13 +139,10 @@ class TestFullGameAnalysisShape:
             # PDN numeric would be pure digits — reject those.
             head = ann.notation.split("-")[0].split(":")[0].strip()
             assert not head.isdigit(), (
-                f"played notation {ann.notation!r} is PDN numeric — "
-                f"expected algebraic like 'c3-b4'"
+                f"played notation {ann.notation!r} is PDN numeric — expected algebraic like 'c3-b4'"
             )
             # Positive check: first char is a column letter a-h.
-            assert head[0] in "abcdefgh", (
-                f"played notation {ann.notation!r} not algebraic"
-            )
+            assert head[0] in "abcdefgh", f"played notation {ann.notation!r} not algebraic"
 
 
 # ---------------------------------------------------------------------------
