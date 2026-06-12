@@ -18,6 +18,7 @@ Thread safety:
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -112,6 +113,7 @@ def compute_pv(
     game: HeadlessGame,
     depth: int = 6,
     pv_length: int = 5,
+    deadline: float | None = None,
 ) -> list[AIMove]:
     """Compute a principal variation — the AI's best-line continuation.
 
@@ -127,6 +129,11 @@ def compute_pv(
             The game is NOT mutated — all work is on board copies.
         depth: Requested depth for every PV ply.
         pv_length: Maximum number of moves in the returned PV.
+        deadline: Optional ``time.perf_counter()`` deadline forwarded to
+            every internal search. When it expires mid-PV the line is
+            truncated at the last completed ply — without it a deep
+            endgame PV can stall a caller for many seconds
+            (audit #7 BUG-2).
 
     Returns:
         List of AIMove objects, length ≤ pv_length. Empty list if the
@@ -146,12 +153,14 @@ def compute_pv(
     color: Color = game.turn
 
     for _ in range(pv_length):
+        if deadline is not None and time.perf_counter() >= deadline:
+            break
         moves = _generate_all_moves(board, color)
         if not moves:
             break
         eff_depth = adaptive_depth(depth, board)
         ctx = SearchContext()
-        best = _search_best_move(board, color, eff_depth, ctx=ctx)
+        best = _search_best_move(board, color, eff_depth, deadline=deadline, ctx=ctx)
         if best is None:
             break
         pv.append(best)

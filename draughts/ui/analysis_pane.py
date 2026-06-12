@@ -48,9 +48,26 @@ class AnalysisWorker(QObject):
 
     def __init__(self, board: Board, color: Color, time_ms: int = 3000):
         super().__init__()
+        from draughts.game.ai.state import SearchContext
+
         self._board = board
         self._color = color
         self._time_ms = time_ms
+        self._cancelled = False
+        # Created in the caller's thread so cancel() can reach the
+        # search's cooperative deadline while run() executes.
+        self._ctx = SearchContext()
+
+    def cancel(self) -> None:
+        """Request cooperative cancellation (callable from any thread).
+
+        Moves the search deadline into the past — the deadline check in
+        _alphabeta raises SearchCancelledError within milliseconds (same
+        pattern as engine.session._cmd_stop). QThread.quit() alone cannot
+        interrupt a slot that is already executing (audit #7 BUG-2).
+        """
+        self._cancelled = True
+        self._ctx.deadline = time.perf_counter() - 1.0
 
     def run(self) -> None:
         try:
@@ -58,19 +75,25 @@ class AnalysisWorker(QObject):
             # Previously this ran find_move_timed AND _search_best_move, doing
             # the work twice and discarding the first result (BUG-006).
             from draughts.game.ai import _generate_all_moves, _search_best_move, adaptive_depth, evaluate_position
-            from draughts.game.ai.state import SearchContext
             from draughts.game.analysis import Analysis, compute_pv
             from draughts.game.headless import HeadlessGame
+
+            if self._cancelled:
+                self.finished.emit(None)
+                return
 
             moves = _generate_all_moves(self._board, self._color)
             effective_depth = adaptive_depth(6, self._board)
             static = evaluate_position(self._board.grid, self._color)
 
-            ctx = SearchContext()
             t0 = time.perf_counter()
-            best = _search_best_move(self._board, self._color, effective_depth, ctx=ctx)
+            # Budget the search. time_ms was previously accepted but never
+            # used, so an endgame search (adaptive depth 7) ran unbounded
+            # and "Стоп" froze the GUI on the blocking wait (audit #7 BUG-2).
+            deadline = t0 + self._time_ms / 1000.0
+            best = _search_best_move(self._board, self._color, effective_depth, deadline=deadline, ctx=self._ctx)
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
-            search_score = ctx.last_score if best is not None else static
+            search_score = self._ctx.last_score if best is not None else static
 
             result = Analysis(
                 best_move=best,
@@ -84,12 +107,18 @@ class AnalysisWorker(QObject):
 
             # Compute principal variation (M9.c) — fresh HeadlessGame with
             # a copy of the current board avoids mutating self._board.
+            # PV gets its own time_ms budget; on cancel it is skipped.
             pv: list = []
-            if best is not None:
+            if best is not None and not self._cancelled:
                 try:
                     hg = HeadlessGame(position=self._board.to_position_string(), auto_ai=False)
                     hg._turn = self._color
-                    pv = compute_pv(hg, depth=effective_depth, pv_length=5)
+                    pv = compute_pv(
+                        hg,
+                        depth=effective_depth,
+                        pv_length=5,
+                        deadline=time.perf_counter() + self._time_ms / 1000.0,
+                    )
                 except Exception:
                     logger.exception("compute_pv failed in AnalysisWorker")
             result._pv = pv  # type: ignore[attr-defined]
@@ -466,15 +495,33 @@ class AnalysisPane(QDockWidget):
         self._thread.start()
 
     def _stop_thread(self) -> None:
-        if self._thread is not None:
-            self._thread.quit()
-            self._thread.wait(500)
+        if self._thread is None:
+            return
+        if self._worker is not None:
+            # Cooperative cancel first — quit() only ends the event loop,
+            # it cannot interrupt the run() slot mid-search (audit #7 BUG-2).
+            self._worker.cancel()
+        self._thread.quit()
+        if self._thread.wait(500):
             self._cleanup_thread()
+        else:
+            # The worker is draining after the deadline cancel; its
+            # finished-signal arrives shortly and _on_analysis_finished
+            # runs _cleanup_thread then. Blocking longer would freeze
+            # the GUI.
+            logger.debug("Analysis thread still draining — cleanup deferred to finished signal")
 
     def _cleanup_thread(self) -> None:
         if self._thread is not None:
             self._thread.quit()
-            self._thread.wait()
+            # Bounded wait: with the cooperative deadline cancel the
+            # worker exits within milliseconds. Never block the GUI
+            # indefinitely; a hung thread is left to the late
+            # finished-signal path instead of being deleted while
+            # running (Qt fatal).
+            if not self._thread.wait(2000):
+                logger.warning("Analysis thread did not stop within 2s — deferring cleanup")
+                return
         if self._worker is not None:
             try:
                 self._worker.deleteLater()

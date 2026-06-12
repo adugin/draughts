@@ -57,15 +57,16 @@ _DIFF_THRESHOLDS = [
 def _delta_to_difficulty(delta_cp: float) -> int:
     """Map eval-swing magnitude to puzzle difficulty (2-4).
 
-    Boundaries are inclusive on the lower bound:
-      delta ≥ 1000 → 4
-      delta ≥ 600  → 3
-      delta ≥ 400  → 2  (minimum for any blunder)
+    Boundaries are inclusive on the lower bound (post-Texel eval scale,
+    _PAWN_VALUE ~1.9 — see _DIFF_THRESHOLDS above):
+      delta ≥ 10 (~5 pawns) → 4
+      delta ≥ 6  (~3 pawns) → 3
+      delta ≥ 4  (~2 pawns) → 2  (minimum for any blunder)
     """
     for threshold, difficulty in _DIFF_THRESHOLDS:
         if delta_cp >= threshold:
             return difficulty
-    return 2  # minimum for any blunder (400 ≤ delta < 600)
+    return 2  # minimum for any blunder (4 <= delta < 6)
 
 
 def _turn_string(ply: int, start_color: Color | None = None) -> str:

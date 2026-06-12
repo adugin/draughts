@@ -481,6 +481,14 @@ def evaluate_position(grid: np.ndarray, color: str | Color) -> float:
     if white_total == 0:
         return 1000.0 if color == Color.BLACK else -1000.0
 
+    # 1K vs 1K with no pawns: true dead position — return contempt.
+    # MUST mirror the identical branch in _evaluate_fast (audit #7
+    # SMELL-1): search scores leaves with _evaluate_fast while analysis
+    # records static_score/eval_before through this function; the two
+    # canonical evals diverging shows up silently in game reports.
+    if black_pawns == 0 and white_pawns == 0 and black_kings == 1 and white_kings == 1:
+        return -_CONTEMPT if color == Color.BLACK else _CONTEMPT
+
     material = (black_pawns * _PAWN_VALUE + black_kings * _KING_VALUE) - (
         white_pawns * _PAWN_VALUE + white_kings * _KING_VALUE
     )

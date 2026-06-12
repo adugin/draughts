@@ -217,8 +217,15 @@ def load_settings() -> GameSettings:
             if key in data:
                 val = data[key]
                 expected = field_types.get(key)
-                if expected is not None and not isinstance(val, expected):
-                    continue  # skip type-mismatched values
+                if expected is not None:
+                    if not isinstance(val, expected):
+                        continue  # skip type-mismatched values
+                    # bool is a subclass of int, so a hand-edited file
+                    # with e.g. "hash_size_mb": true would slip through
+                    # the int check above (audit #7 SMELL-2).
+                    expects_bool = expected is bool or (isinstance(expected, tuple) and bool in expected)
+                    if isinstance(val, bool) and not expects_bool:
+                        continue
                 setattr(settings, key, val)
     except Exception:
         pass  # corrupted file — use defaults

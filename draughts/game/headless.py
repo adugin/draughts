@@ -84,7 +84,7 @@ class HeadlessGame:
         """Initialize a headless game.
 
         Args:
-            difficulty: Default AI difficulty (1-3).
+            difficulty: Default AI difficulty (1-6, see ai.elo.ELO_LEVELS).
             depth: Default AI search depth (0=auto).
             black_engine: Custom AI engine for black. None = default from difficulty.
             white_engine: Custom AI engine for white. None = default from difficulty.

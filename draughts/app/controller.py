@@ -1001,17 +1001,35 @@ class GameController(QObject):
         else:
             result = "*"
 
+        headers = {
+            "Event": "?",
+            "Site": "?",
+            "Date": _today_date_str(),
+            "Round": "?",
+            "White": "?",
+            "Black": "?",
+            "Result": result,
+            "GameType": RUSSIAN_DRAUGHTS_GAMETYPE,
+        }
+
+        # A game that did not start as White-to-move from the standard
+        # setup (e.g. loaded from a FEN-carrying PDN) must write SetUp/FEN
+        # back out: pdngame_to_string derives black-first move numbering
+        # ("1... ") solely from the FEN header, and a later re-load
+        # defaults to White at ply 0 without it — corrupting the
+        # round-trip (audit #7 BUG-1).
+        if self._positions:
+            start_pos = self._positions[0]
+            if self._game_start_color != Color.WHITE or start_pos != Board().to_position_string():
+                from draughts.game.fen import board_to_fen
+
+                start_board = Board()
+                start_board.load_from_position_string(start_pos)
+                headers["SetUp"] = "1"
+                headers["FEN"] = board_to_fen(start_board, self._game_start_color)
+
         game = PDNGame(
-            headers={
-                "Event": "?",
-                "Site": "?",
-                "Date": _today_date_str(),
-                "Round": "?",
-                "White": "?",
-                "Black": "?",
-                "Result": result,
-                "GameType": RUSSIAN_DRAUGHTS_GAMETYPE,
-            },
+            headers=headers,
             moves=moves,
             # If this game was loaded from a PDN carrying variations/
             # annotations, write them back out (M5.b).
