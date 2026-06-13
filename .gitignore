@@ -89,6 +89,7 @@ $RECYCLE.BIN/
 # ============================================================
 *.json
 !draughts/resources/*.json
+!.claude/settings.json
 
 # Дебаг-логи и скриншоты
 debug.log
@@ -100,13 +101,15 @@ run_debug.py
 # Внутренние артефакты AI-разработки
 # ============================================================
 .planning/
-CLAUDE.md
 ANALYSIS.md
 
 # ============================================================
-# Claude Code — локальные настройки (персональные правила)
+# Claude Code — по рекомендациям Anthropic трекаются CLAUDE.md и
+# .claude/ (settings.json, agents/, playbooks/, hook-скрипты).
+# Не трекаются только персональные файлы:
 # ============================================================
-.claude/
+.claude/settings.local.json
+CLAUDE.local.md
 
 # Временные файлы отладки
 crash.log

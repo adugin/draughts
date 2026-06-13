@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/ -q)",
+      "Bash(ruff check:*)",
+      "Bash(python main.py)",
+      "Bash(pip install:*)"
+    ],
+    "deny": [
+      "Bash(cat *.env:*)",
+      "Bash(cat *.pem:*)",
+      "Bash(cat *id_rsa:*)",
+      "Bash(cat *id_ed25519:*)",
+      "Bash(cat *credentials*:*)",
+      "Bash(cat *secret*:*)",
+      "Bash(cat *password*:*)",
+      "Bash(cat *token*:*)",
+      "Bash(cat *api_key*:*)",
+      "Bash(cat *apikey*:*)",
+      "Bash(echo $*KEY*:*)",
+      "Bash(echo $*SECRET*:*)",
+      "Bash(echo $*TOKEN*:*)",
+      "Bash(echo $*PASSWORD*:*)",
+      "Bash(printenv:*)",
+      "Bash(env:*)",
+      "Bash(set:*)",
+      "Bash(rm -rf /:*)",
+      "Bash(rm -rf ~:*)",
+      "Bash(rm -rf *:*)",
+      "Bash(rm -rf .:*)",
+      "Bash(rm -rf ..:*)",
+      "Bash(rm -r /:*)",
+      "Bash(rm -r ~:*)",
+      "Bash(rmdir /s:*)",
+      "Bash(del /s /q:*)",
+      "Bash(format :*)",
+      "Bash(fdisk:*)",
+      "Bash(mkfs:*)",
+      "Bash(dd if=:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push origin +master:*)",
+      "Bash(git push origin +main:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -fd:*)",
+      "Bash(git clean -f:*)",
+      "Bash(git checkout -- .:*)",
+      "Bash(git restore .:*)",
+      "Bash(curl *-X POST*:*)",
+      "Bash(curl *--data*@*:*)",
+      "Bash(curl *-d @*:*)",
+      "Bash(curl *--upload*:*)",
+      "Bash(wget *--post*:*)",
+      "Bash(scp :*)",
+      "Bash(rsync *:*:*)",
+      "Bash(sftp :*)",
+      "Bash(ftp :*)",
+      "Bash(nc :*)",
+      "Bash(ncat :*)",
+      "Bash(git add *.env:*)",
+      "Bash(git add *credentials*:*)",
+      "Bash(git add *secret*:*)",
+      "Bash(git add *.pem:*)",
+      "Bash(git add *id_rsa*:*)",
+      "Bash(git add *id_ed25519*:*)",
+      "Bash(git add *.key:*)",
+      "Bash(git add *.pfx:*)",
+      "Bash(git add *.p12:*)",
+      "Bash(shutdown:*)",
+      "Bash(reboot:*)",
+      "Bash(halt:*)",
+      "Bash(poweroff:*)",
+      "Bash(kill -9 -1:*)",
+      "Bash(killall:*)",
+      "Bash(taskkill /f /im:*)",
+      "Read(*/.env)",
+      "Read(*/.env.*)",
+      "Read(*/credentials.json)",
+      "Read(*/.netrc)",
+      "Read(*/.npmrc)",
+      "Read(*/id_rsa)",
+      "Read(*/id_ed25519)",
+      "Read(*/*.pem)",
+      "Read(*/*.key)",
+      "Read(*/*.pfx)",
+      "Read(*/*.p12)",
+      "Write(*/.env)",
+      "Write(*/.env.*)",
+      "Write(*/credentials.json)",
+      "Edit(*/.env)",
+      "Edit(*/.env.*)",
+      "Edit(*/credentials.json)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/quality_check.py",
+            "timeout": 200,
+            "statusMessage": "Running pre-commit quality gates (ruff/mypy/bandit/pytest)..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/ruff_hook.py",
+            "timeout": 30,
+            "statusMessage": "Running ruff format + check..."
+          }
+        ]
+      }
+    ]
+  }
+}
