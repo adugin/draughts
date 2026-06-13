@@ -67,7 +67,8 @@ You know the trends:
 - **Training/puzzle features** drive daily retention. One-time engine
   strength doesn't bring users back; daily puzzle streaks do.
 - **Opening books** built by self-play at scale (10k+ games) are
-  standard. Our 1572-position book is a prototype.
+  standard. Our book reached ~47,000 positions (was a 1572-position
+  M1 prototype) via self-play + PDN import.
 
 ## Superpowers
 

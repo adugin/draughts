@@ -59,9 +59,11 @@ track record агента, новый edge case / pitfall в playbook, «Require
 reading» при появлении нового playbook. Цель — агенты накапливают опыт
 от сессии к сессии: больше опыта → лучше находки → больше опыта.
 
-**Артефакты PO** — в `.planning/product/`: `ROADMAP.md` (упорядоченные
-фичи), `DECISIONS.md` (архитектурные решения Dnn), `RESEARCH.md`
-(анализ конкурентов).
+**Артефакты PO** — тактический слой в `.planning/product/`: `ROADMAP.md`
+(упорядоченные фичи), `DECISIONS.md` (архитектурные решения Dnn),
+`RESEARCH.md` (анализ конкурентов). **Стратегический слой** (в git, т.к.
+`.planning/` — нет): `docs/ROADMAP_2026-2031.md` — 5-летний roadmap,
+ревизия ежеквартально/ежегодно (governance — в его §11; решение D39).
 
 ---
 

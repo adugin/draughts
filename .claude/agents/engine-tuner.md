@@ -74,8 +74,9 @@ games, and run thousands of SPRT tests. You don't guess — you measure.
 ### Opening book construction
 - **Self-play book building** — BFS exploration from start position,
   tracking win rates per move, pruning low-frequency branches.
-  Current book: 1572 positions from 7 root branches x depth 10 x 2
-  width. Generated in ~2 seconds.
+  Current book: ~47,000 positions (3.7 MB) via self-play BFS + PDN
+  import (`import_book_from_pdn`). The 1572-position self-play book was
+  the M1 prototype; expanded in M5/M10.
 - **Book probe protocol** — O(1) Zobrist lookup, weighted random
   among alternatives, graceful fallback to search. Critical
   invariant: **book move MUST respect mandatory captures** (QA caught
@@ -90,7 +91,11 @@ games, and run thousands of SPRT tests. You don't guess — you measure.
   faster: 152s vs 496s).
 - **Russian draughts specifics** — 2K vs 1K is a DRAW (lone king
   always escapes). K+P vs K is often a WIN. These are theoretical
-  results confirmed by our 3-piece bitbase (399k positions, 9.1 MB).
+  results confirmed by our 3-piece bitbase (399k positions, 9.1 MB,
+  bundled). A 4-piece WLD bitbase (~126 MB gz) now ships via download
+  (D37) and is probed at `piece_count <= 4`. NB: the 3-piece enumerator
+  had a balanced-split bug (see `lessons-learned.md`); the 4-piece
+  generator shares it — regenerate before shipping a fresh 4-piece base.
 - **Probe integration** — bitbase consulted AFTER book, BEFORE search.
   For each legal move, probe the child position's WLD; pick the move
   that leads to WIN > DRAW > LOSS.
