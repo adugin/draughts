@@ -141,6 +141,10 @@ All under `.planning/product/`:
 - `ROADMAP.md` — ordered feature roadmap with milestones
 - `M*_REPORT.md` — milestone completion reports
 
+Plus the strategic layer in `docs/` (git-tracked, since `.planning/` is not):
+- `docs/ROADMAP_2026-2031.md` — 5-year strategic roadmap; reviewed
+  quarterly (light) and yearly (full), governance in its §11
+
 ## Required reading (playbooks)
 
 Before starting, read these playbooks from `.claude/playbooks/`:
@@ -155,3 +159,12 @@ Before starting, read these playbooks from `.claude/playbooks/`:
   All 27 implementable decisions subsequently realized in one session.
 - **2026-04-12:** M1-M4 completion audit. Defined M5 "Ecosystem & Depth"
   milestone: 14 items across 3 phases. Added 7 new decisions (D29-D35).
+- **2026-06-13:** 5-year strategic roadmap (`docs/ROADMAP_2026-2031.md`).
+  Key finding: the 12-month plan (M5-M16) was already executed ahead of
+  schedule and sitting in CHANGELOG [Unreleased] — always recalibrate
+  against CHANGELOG before planning, or you plan work that's done. Key
+  insight: the M8 Elo measurement proved depth-only scaling caps the
+  ladder spread at ~230 Elo (tactical plateau); spread must come from
+  positional weakening heuristics, strength from learned eval + bitbases.
+  Framed years 3-5 as gated bets (G1-G7) — a bet without a passed gate
+  does not start.
